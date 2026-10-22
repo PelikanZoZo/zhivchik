@@ -1,18 +1,22 @@
-// Арена: прогоняет мир без интерфейса и сравнивает виды мозгов.
-// Запуск: node tools/arena.js [тиков] [переворот_каждые]
-import { World } from "../public/sim/world.js";
+// Арена: прогоняет мир без интерфейса, чтобы посмотреть баланс.
+// Запуск: node tools/arena.js [реальных_часов]
+import { World, TPS } from "../public/sim/world.js";
 
-const TICKS = +(process.argv[2] || 200000);
-const FLIP = +(process.argv[3] || 0);
+const HOURS = +(process.argv[2] || 3);
+const TICKS = HOURS * 3600 * TPS;
 const w = new World();
 const t0 = Date.now();
+let extinct = 0, maxPop = 0;
+const origNote = w.note.bind(w);
+w.note = (text) => { if (text.startsWith("Все агенты")) extinct++; origNote(text); };
 for (let t = 1; t <= TICKS; t++) {
   w.step();
-  if (FLIP && t % FLIP === 0) w.action("flip");
-  if (t % (TICKS / 10) === 0) {
+  maxPop = Math.max(maxPop, w.agents.length);
+  if (t % (30 * 60 * TPS) === 0) {
     const d = w.details().species;
-    console.log(String(t).padStart(8), Object.entries(d).map(([s, v]) => `${s}: жизнь≈${v.avgLife ?? "-"} смертей=${v.deaths} рекорд=${v.best} пок.=${v.topGen}`).join(" | "));
-    for (const s of Object.values(w.stats)) s.recent = [];
+    const pop = w.agents.map((a) => `${a.name[0]}(э${Math.round(a.energy)} з${Math.round(a.health)} с${Math.round(a.strength)})`).join(" ");
+    console.log(`${(t / 3600 / TPS).toFixed(1)}ч | живых ${w.agents.length} | плесени ${w.molds.length} | влажн ${Math.round(w.humidity * 100)}% | ` +
+      Object.entries(d).map(([s, v]) => `${s}: рожд ${v.births} смерт ${v.deaths} съед ${v.eaten}`).join(" | ") + ` | ${pop}`);
   }
 }
-console.log(`${TICKS} тиков за ${Date.now() - t0} мс`);
+console.log(`вымираний: ${extinct}, макс. население: ${maxPop}, ${HOURS} ч за ${Date.now() - t0} мс`);

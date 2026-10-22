@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Живчик</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Цифровые организмы, которые учатся на опыте и эволюционируют, когда меняется среда.">
+<meta name="description" content="Зелёный и Красный: цифровые агенты, которые едят плесень, спасаются от хищников и размножаются.">
+<meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="style.css">
@@ -17,50 +18,64 @@
       <h1>Живчик <span aria-hidden="true">●</span></h1>
       <p class="mode"><span id="mode">Просыпается…</span> · <a href="/logout" id="logout">выйти</a></p>
     </div>
-    <p class="lede">Два вида цифровых существ в одной чашке Петри. Никто из них не знает, что съедобно. Ассоциативные запоминают вкус каждого вещества. Нейро — маленькие нейросети: учатся на награде при жизни и передают мозг потомкам с мутациями.</p>
+    <p class="lede">Зелёный учится ассоциациями, Красный — нейросетью. Оба едят синюю плесень, которая растёт после волн влажности, спасаются от хищников и, когда сыты оба, рождают потомков.</p>
   </header>
 
-  <section class="species" id="species" aria-label="Виды"></section>
+  <section class="top" aria-label="Сводка">
+    <div id="species" class="species"></div>
+    <article class="card world-card" aria-labelledby="h-env">
+      <h2 id="h-env">Среда</h2>
+      <div class="env-row">
+        <span>Влажность</span>
+        <div class="meter"><i id="hum-bar"></i></div>
+        <b id="hum-v">—</b>
+      </div>
+      <dl class="timers">
+        <div><dt>Следующая волна влажности</dt><dd id="t-hum">—</dd></div>
+        <div><dt>Размножение возможно</dt><dd id="t-birth">—</dd></div>
+        <div><dt>Хищников за 10 минут</dt><dd id="t-pred">—</dd></div>
+      </dl>
+    </article>
+  </section>
 
   <div class="grid">
     <div class="dish-box">
-      <canvas id="dish" width="800" height="600" aria-label="Мир существ. Клик — бросить еду, клик по существу — заглянуть в его мозг."></canvas>
-      <div class="dish-hint">клик — бросить еду · клик по существу — его мозг · синее — холод</div>
+      <canvas id="dish" width="800" height="600" aria-label="Мир агентов. Клик по агенту — его шкалы и мозг, клик по пустому месту — посадить плесень."></canvas>
+      <div class="dish-hint">клик по агенту — его шкалы и мозг · клик по пустому месту — посадить плесень</div>
     </div>
 
     <div class="side">
-      <section class="panel" aria-labelledby="h-brain">
-        <div class="panel-head">
-          <h2 id="h-brain">Мозг</h2>
+      <section class="card" aria-labelledby="h-agent">
+        <div class="card-head">
+          <h2 id="h-agent">Агент</h2>
           <span class="who" id="who"></span>
         </div>
-        <div class="vitals" id="vitals"></div>
+        <div class="scales" id="scales"></div>
+        <p class="meta" id="agent-meta"></p>
+        <h3>Мозг: чему научился</h3>
         <div class="prefs" id="prefs"></div>
         <div class="legend" id="legend"></div>
         <p class="note" id="brain-note"></p>
       </section>
 
-      <section class="panel" aria-labelledby="h-world">
-        <h2 id="h-world">Правила мира</h2>
-        <p class="law" id="law"></p>
+      <section class="card" aria-labelledby="h-ctl">
+        <h2 id="h-ctl">Вмешаться</h2>
         <div class="controls">
-          <button id="b-flip" class="primary" type="button">Перевернуть мир</button>
-          <button id="b-winter" type="button" aria-pressed="false">Зима</button>
-          <button id="b-famine" type="button" aria-pressed="false">Голод</button>
+          <button id="b-hum" type="button" class="primary">Поднять влажность</button>
+          <button id="b-pred" type="button">Выпустить хищника</button>
           <button id="b-reset" type="button">Новый мир</button>
         </div>
         <div class="confirm" id="confirm" hidden>
-          <span>Стереть мир и всю эволюцию?</span>
+          <span>Стереть мир и всю историю?</span>
           <button id="b-reset-yes" type="button" class="danger">Стереть</button>
           <button id="b-reset-no" type="button">Отмена</button>
         </div>
-        <label class="chk"><input id="inherit" type="checkbox" checked> Потомки наследуют мозг родителя</label>
-        <div class="row" id="speed-row"><label for="speed">Скорость</label><input id="speed" type="range" min="1" max="20" value="2"><span id="speed-v">×2</span></div>
+        <div class="row" id="speed-row"><label for="speed">Скорость</label><input id="speed" type="range" min="1" max="60" value="1"><span id="speed-v">×1</span></div>
         <div class="row" id="key-row" hidden><label for="key">Ключ</label><input id="key" type="password" autocomplete="off" placeholder="ключ управления"></div>
         <p class="error" id="error" role="status"></p>
       </section>
 
-      <section class="panel" aria-labelledby="h-log">
+      <section class="card" aria-labelledby="h-log">
         <h2 id="h-log">Журнал наблюдений</h2>
         <ul class="log" id="log"></ul>
       </section>

@@ -1,47 +1,49 @@
-// Органы чувств. Два «усика» слева и справа от головы, как у насекомого.
-// Каждый усик чувствует запах каждого вещества и холод. Разница между левым и правым
-// усиком говорит, куда повернуть, сумма — насколько это близко.
+// Органы чувств агента. Два «усика» слева и справа от головы.
+// Каждый усик чувствует три сигнала: плесень (еда), хищника и сородича.
+// Разница между левым и правым усиком говорит, куда повернуть, сумма — насколько это близко.
+// Плюс внутренние ощущения: энергия, эмоции, здоровье.
 //
-// Это единственное, что мозг знает о мире. Никаких координат и названий.
+// Это всё, что мозг знает о мире. Никаких координат и названий.
 
-export const KINDS = [
-  { id: "green", name: "зелёное", color: "#52c46e" },
-  { id: "violet", name: "фиолетовое", color: "#a173e0" },
-  { id: "amber", name: "янтарное", color: "#e6a93a" },
+export const SIGNALS = [
+  { id: "mold", name: "плесень", color: "#4f8fe0" },
+  { id: "predator", name: "хищник", color: "#b9a2ff" },
+  { id: "partner", name: "сородич", color: "#e3ece5" },
 ];
 
-const ANTENNA_ANGLE = 0.6; // радианы от направления взгляда
+const ANTENNA_ANGLE = 0.6;
 const ANTENNA_LEN = 12;
-const SMELL_RANGE = 260;
+const RANGE = { mold: 280, predator: 240, partner: 300 };
 
-// Порядок входов. Мозг получает массив из SENSOR.SIZE чисел.
 let i = 0;
 const idx = {};
-for (const k of KINDS) { idx["diff_" + k.id] = i++; idx["sum_" + k.id] = i++; }
+for (const s of SIGNALS) { idx["diff_" + s.id] = i++; idx["sum_" + s.id] = i++; }
 export const SENSOR = {
-  diff: (kind) => idx["diff_" + kind],
-  sum: (kind) => idx["sum_" + kind],
-  COLD_DIFF: i++,
-  COLD_HERE: i++,
+  diff: (id) => idx["diff_" + id],
+  sum: (id) => idx["sum_" + id],
   ENERGY: i++,
+  EMOTIONS: i++,
+  HEALTH: i++,
   BIAS: i++,
 };
 SENSOR.SIZE = i;
 
-export const SENSOR_LABELS = [
-  ...KINDS.flatMap((k) => [`${k.name}: где`, `${k.name}: сколько`]),
-  "холод: где", "холод: здесь", "энергия", "смещение",
-];
-
-function smellAt(world, x, y) {
-  const out = {};
-  for (const k of KINDS) out[k.id] = 0;
-  for (const it of world.items) {
-    const d = Math.hypot(it.x - x, it.y - y);
-    if (d > SMELL_RANGE) continue;
-    out[it.k] += 1 / (1 + (d / 40) ** 2);
+function field(world, self, x, y) {
+  const f = { mold: 0, predator: 0, partner: 0 };
+  for (const m of world.molds) {
+    const d = Math.hypot(m.x - x, m.y - y);
+    if (d < RANGE.mold) f.mold += (m.biomass / 40) / (1 + (d / 40) ** 2);
   }
-  return out;
+  for (const p of world.predators) {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < RANGE.predator) f.predator += 1 / (1 + (d / 50) ** 2);
+  }
+  for (const a of world.agents) {
+    if (a === self) continue;
+    const d = Math.hypot(a.x - x, a.y - y);
+    if (d < RANGE.partner) f.partner += 1 / (1 + (d / 50) ** 2);
+  }
+  return f;
 }
 
 export function sense(world, c) {
@@ -49,16 +51,15 @@ export function sense(world, c) {
   const ly = c.y + Math.sin(c.a - ANTENNA_ANGLE) * ANTENNA_LEN;
   const rx = c.x + Math.cos(c.a + ANTENNA_ANGLE) * ANTENNA_LEN;
   const ry = c.y + Math.sin(c.a + ANTENNA_ANGLE) * ANTENNA_LEN;
-  const L = smellAt(world, lx, ly), R = smellAt(world, rx, ry);
+  const L = field(world, c, lx, ly), R = field(world, c, rx, ry);
   const s = new Array(SENSOR.SIZE).fill(0);
-  for (const k of KINDS) {
-    s[SENSOR.diff(k.id)] = Math.tanh((R[k.id] - L[k.id]) * 6);
-    s[SENSOR.sum(k.id)] = Math.tanh((R[k.id] + L[k.id]) * 0.8);
+  for (const sig of SIGNALS) {
+    s[SENSOR.diff(sig.id)] = Math.tanh((R[sig.id] - L[sig.id]) * 6);
+    s[SENSOR.sum(sig.id)] = Math.tanh((R[sig.id] + L[sig.id]) * 0.8);
   }
-  const cl = world.coldAt(lx, ly), cr = world.coldAt(rx, ry);
-  s[SENSOR.COLD_DIFF] = Math.tanh((cr - cl) * 10);
-  s[SENSOR.COLD_HERE] = world.coldAt(c.x, c.y);
-  s[SENSOR.ENERGY] = c.energy / 150;
+  s[SENSOR.ENERGY] = c.energy / 100;
+  s[SENSOR.EMOTIONS] = c.emotions / 100;
+  s[SENSOR.HEALTH] = c.health / 100;
   s[SENSOR.BIAS] = 1;
   return s;
 }

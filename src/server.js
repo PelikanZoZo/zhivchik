@@ -10,7 +10,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { World } from "../public/sim/world.js";
+import { World, VERSION } from "../public/sim/world.js";
 import { createStore } from "./store/index.js";
 import { createAuth, loginPage } from "./auth.js";
 
@@ -60,7 +60,7 @@ async function becomeLeader() {
   timers.splice(0).forEach(clearInterval);
   leader = true;
   const saved = await store.load();
-  if (saved) {
+  if (saved && saved.world?.version === VERSION) {
     world = new World(saved.world);
     // Пока никто не считал мир (хостинг усыпил, перезапуск), он должен был жить. Досчитываем частями,
     // не задерживая запуск: страница сразу открывается и видно, как мир «догоняет» время.

@@ -1,5 +1,5 @@
-// Нейромозг: маленькая нейросеть, которая не знает никаких понятий.
-// Ей не говорят «это вещество, его надо запомнить». Она получает только сигналы с усиков
+// Нейромозг (Красный): маленькая нейросеть, которая не знает никаких понятий.
+// Ей не говорят «это еда, а это хищник». Она получает только сигналы с усиков
 // и одно число награды (энергия прибавилась или убавилась), и сама находит, что важно.
 //
 // Учится двумя способами сразу:
@@ -34,12 +34,22 @@ export class NeuralBrain {
     this.W1 = data?.W1 ? Float64Array.from(data.W1) : Float64Array.from({ length: HIDDEN * n }, () => randn() * 0.3);
     this.wa = data?.wa ? Float64Array.from(data.wa) : Float64Array.from({ length: HIDDEN }, () => randn() * 0.1);
     // прямые связи «вход → поворот»: на них легко вырастает простой рефлекс
-    this.wd = data?.wd ? Float64Array.from(data.wd) : Float64Array.from({ length: n }, () => randn() * 0.3);
+    this.wd = data?.wd ? Float64Array.from(data.wd) : NeuralBrain.instincts(n);
     this.wv = data?.wv ? Float64Array.from(data.wv) : new Float64Array(HIDDEN);
     this.prev = null;   // прошлый шаг: вход, скрытый слой, ценность, действие
     this.resetTraces();
     this.reward = 0;
     this.lastDelta = 0;
+  }
+
+  // Врождённые рефлексы, как у настоящих животных: тянуться к запаху еды, уходить от хищника,
+  // немного тянуться к сородичам. Дальше жизнь и эволюция их уточняют или переучивают.
+  static instincts(n) {
+    const wd = Float64Array.from({ length: n }, () => randn() * 0.2);
+    wd[SENSOR.diff("mold")] += 1.0;
+    wd[SENSOR.diff("predator")] -= 1.0;
+    wd[SENSOR.diff("partner")] += 0.3;
+    return wd;
   }
 
   forward(x) {
@@ -109,9 +119,12 @@ export class NeuralBrain {
     this.resetTraces();
   }
 
-  child() {
-    const mut = (a) => Float64Array.from(a, (w) => w + randn() * MUTATION);
-    return new NeuralBrain({ W1: mut(this.W1), wa: mut(this.wa), wd: mut(this.wd), wv: Float64Array.from(this.wv) });
+  // Потомок: если второй родитель тоже нейросеть — каждая связь берётся от одного из двух
+  // родителей наугад (скрещивание), потом мутации. Иначе — копия этого родителя с мутациями.
+  child(other) {
+    const mate = other instanceof NeuralBrain ? other : this;
+    const mix = (a, b) => Float64Array.from(a, (w, i) => (Math.random() < 0.5 ? w : b[i]) + randn() * MUTATION);
+    return new NeuralBrain({ W1: mix(this.W1, mate.W1), wa: mix(this.wa, mate.wa), wd: mix(this.wd, mate.wd), wv: Float64Array.from(this.wv) });
   }
 
   summary() {
