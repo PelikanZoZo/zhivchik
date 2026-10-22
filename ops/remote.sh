@@ -1,5 +1,4 @@
-# Проверка после выкладки 0.4
-sleep 20
+# Стабильность после выкладки 0.4: есть ли новые перезапуски
+echo "=== время"; date
 echo "=== процессы"; ps -eo pid,lstart,args | grep -a "^ *[0-9].*node --loader" | grep -av grep
-echo "=== новые ошибки"; awk -v d="$(date -d '-3 min' '+%Y/%m/%d %H:%M')" '$0 >= d' ~/log/devalby.ru.error.log | tail -20
-grep -m1 "VERSION =" ~/devalby.ru/www/public/sim/world.js
+echo "=== последние запуски и ошибки"; tail -8 ~/log/devalby.ru.error.log
