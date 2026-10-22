@@ -29,7 +29,11 @@ async function detect() {
   setView(local.view());
 }
 
-function setView(v) { prevView = view; view = v; viewAt = performance.now(); }
+function setView(v) {
+  // Ответы могут приходить от разных копий сервера; чуть устаревшую картинку пропускаем
+  if (view && v.tick < view.tick && view.tick - v.tick < 400) return;
+  prevView = view; view = v; viewAt = performance.now();
+}
 
 async function pollState() {
   try { const r = await fetch("api/state", { cache: "no-store" }); if (r.ok) setView(await r.json()); } catch {}

@@ -46,5 +46,13 @@ export class FileStore {
     }
   }
 
+  // Локально приложение всегда одно, поэтому оно всегда хозяин мира
+  async tryLead() { return true; }
+  async stillLeader() { return true; }
+  async writeLive() {}
+  async readLive() { return null; }
+  async pushCommand() {}
+  async takeCommands() { return []; }
+
   async close() {}
 }

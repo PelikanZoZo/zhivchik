@@ -32,6 +32,18 @@ export class MysqlStore {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       INDEX (species), INDEX (ended_tick)
     ) CHARACTER SET utf8mb4`);
+    // Для нескольких процессов: «живая» картинка мира от хозяина и очередь команд к нему
+    await this.pool.query(`CREATE TABLE IF NOT EXISTS live (
+      id TINYINT PRIMARY KEY,
+      tick BIGINT NOT NULL,
+      updated_at BIGINT NOT NULL,
+      data LONGTEXT NOT NULL
+    ) CHARACTER SET utf8mb4`);
+    await this.pool.query(`CREATE TABLE IF NOT EXISTS commands (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      data TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4`);
     return `MySQL ${this.cfg.user}@${this.cfg.host}/${this.cfg.database}`;
   }
 
@@ -62,7 +74,60 @@ export class MysqlStore {
     return rows;
   }
 
+  // ---------- хозяин мира ----------
+  // Хостинг может запустить несколько копий приложения. Хозяином становится та,
+  // что взяла блокировку MySQL. Блокировка держится, пока живо соединение этой копии с базой.
+  async tryLead() {
+    if (this.leaderConn) return true;
+    const conn = await this.pool.getConnection();
+    const [[row]] = await conn.query("SELECT GET_LOCK(?, 0) AS ok", [this.lockName()]);
+    if (row.ok === 1) {
+      this.leaderConn = conn;
+      return true;
+    }
+    conn.release();
+    return false;
+  }
+
+  async stillLeader() {
+    if (!this.leaderConn) return false;
+    try {
+      const [[row]] = await this.leaderConn.query("SELECT IS_USED_LOCK(?) = CONNECTION_ID() AS ok", [this.lockName()]);
+      return row.ok === 1;
+    } catch {
+      return false;
+    }
+  }
+
+  lockName() {
+    return "zhivchik_leader_" + this.cfg.database;
+  }
+
+  async writeLive(tick, data) {
+    await this.pool.query(
+      "INSERT INTO live (id, tick, updated_at, data) VALUES (1, ?, ?, ?) ON DUPLICATE KEY UPDATE tick = VALUES(tick), updated_at = VALUES(updated_at), data = VALUES(data)",
+      [tick, Date.now(), JSON.stringify(data)],
+    );
+  }
+
+  async readLive() {
+    const [rows] = await this.pool.query("SELECT data FROM live WHERE id = 1");
+    return rows.length ? JSON.parse(rows[0].data) : null;
+  }
+
+  async pushCommand(cmd) {
+    await this.pool.query("INSERT INTO commands (data) VALUES (?)", [JSON.stringify(cmd)]);
+  }
+
+  async takeCommands() {
+    const [rows] = await this.pool.query("SELECT id, data FROM commands ORDER BY id LIMIT 50");
+    if (!rows.length) return [];
+    await this.pool.query("DELETE FROM commands WHERE id <= ?", [rows[rows.length - 1].id]);
+    return rows.map((r) => JSON.parse(r.data));
+  }
+
   async close() {
+    this.leaderConn?.release();
     await this.pool?.end();
   }
 }

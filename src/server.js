@@ -37,28 +37,93 @@ const ADMIN_KEY = env.ADMIN_KEY || "";
 const auth = createAuth(env);
 
 // ---------- мир ----------
+// Хостинг может запустить несколько копий приложения. Мир должен быть один, поэтому
+// копии договариваются через базу: одна — «хозяин» (считает жизнь, сохраняет, публикует
+// картинку мира), остальные — «зрители» (показывают опубликованное и передают команды хозяину).
+// Если хозяин пропал, его место занимает другая копия.
 const store = createStore(env, ROOT);
-let world;
+let world = null;        // есть только у хозяина
+let live = null;         // у зрителя: последняя картинка от хозяина { view, details }
+let leader = false;
 let lastStep = Date.now();
-let catchup = 0; // сколько тиков ещё досчитать после сна
+let catchup = 0;         // сколько тиков ещё досчитать после сна
+const timers = [];
 
 async function boot() {
   const where = await store.init();
+  console.log(`Живчик: хранилище ${where}`);
+  if (await store.tryLead()) await becomeLeader();
+  else becomeViewer();
+}
+
+async function becomeLeader() {
+  timers.splice(0).forEach(clearInterval);
+  leader = true;
   const saved = await store.load();
   if (saved) {
     world = new World(saved.world);
-    // Пока сервер спал (хостинг усыпил, перезапуск), мир должен был жить. Досчитываем частями,
+    // Пока никто не считал мир (хостинг усыпил, перезапуск), он должен был жить. Досчитываем частями,
     // не задерживая запуск: страница сразу открывается и видно, как мир «догоняет» время.
     catchup = Math.min(MAX_CATCHUP, Math.floor(((Date.now() - saved.savedAt) / 1000) * TPS));
-    if (catchup > 0) world.note(`Сервер проснулся. Догоняю ${catchup} тиков пропущенной жизни.`);
+    if (catchup > 0) world.note(`Мир проснулся. Догоняю ${catchup} тиков пропущенной жизни.`);
   } else {
     world = new World();
   }
-  console.log(`Живчик: мир на тике ${world.tick}, хранилище: ${where}`);
+  lastStep = Date.now();
+  console.log(`Живчик: я хозяин мира, тик ${world.tick}`);
   await persist();
+  timers.push(
+    setInterval(run, 1000 / TPS),
+    setInterval(persist, SAVE_EVERY),
+    setInterval(publish, 200),
+    setInterval(applyCommands, 500),
+    setInterval(async () => {
+      if (!(await store.stillLeader())) { console.log("Потерял роль хозяина, перезапускаюсь"); process.exit(0); }
+    }, 30000),
+  );
+}
+
+function becomeViewer() {
+  console.log("Живчик: я зритель, мир считает другая копия");
+  let busy = false;
+  timers.push(
+    setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try { live = (await store.readLive()) || live; } catch {}
+      busy = false;
+    }, 200),
+    setInterval(async () => {
+      try { if (await store.tryLead()) await becomeLeader(); } catch {}
+    }, 5000),
+  );
+}
+
+function stateView() {
+  return { mode: "server", tps: TPS, catchup, ...world.view() };
+}
+function detailsView() {
+  return { ...world.details(), locked: !!ADMIN_KEY };
+}
+
+let publishing = false;
+async function publish() {
+  if (publishing) return;
+  publishing = true;
+  try { await store.writeLive(world.tick, { view: stateView(), details: detailsView() }); } catch {}
+  publishing = false;
+}
+
+async function applyCommands() {
+  try {
+    for (const c of await store.takeCommands()) {
+      try { world.action(c.type, c); if (c.type === "reset") await persist(); } catch (e) { console.error("Команда не выполнена:", e.message); }
+    }
+  } catch {}
 }
 
 async function persist() {
+  if (!leader || !world) return;
   const lives = world.lives.splice(0);
   try {
     await store.recordLives(lives);
@@ -143,16 +208,21 @@ const server = createServer(async (req, res) => {
     }
     if (p === "/login") return redirect(res, "/");
 
-    if (!world) return send(res, 503, { error: "Мир ещё просыпается, обнови через секунду." });
+    if (p.startsWith("/api/") && !world && !live) return send(res, 503, { error: "Мир ещё просыпается, обнови через секунду." });
 
-    if (p === "/api/state") return send(res, 200, { mode: "server", tps: TPS, catchup, ...world.view() });
-    if (p === "/api/details") return send(res, 200, { ...world.details(), locked: !!ADMIN_KEY });
+    if (p === "/api/state") return send(res, 200, world ? stateView() : live.view);
+    if (p === "/api/details") return send(res, 200, world ? detailsView() : live.details);
     if (p === "/api/lives") return send(res, 200, await store.recentLives(Math.min(200, +(url.searchParams.get("limit") || 50))));
     if (p === "/api/action" && req.method === "POST") {
       const body = await readBody(req);
       if (ADMIN_KEY && body.key !== ADMIN_KEY) return send(res, 403, { error: "Нужен ключ управления. Его задаёт ADMIN_KEY в настройках сервера." });
-      world.action(body.type, body);
-      if (body.type === "reset") await persist();
+      if (world) {
+        world.action(body.type, body);
+        if (body.type === "reset") await persist();
+      } else {
+        const { key, ...cmd } = body;
+        await store.pushCommand(cmd); // хозяин выполнит в течение полсекунды
+      }
       return send(res, 200, { ok: true });
     }
     if (p.startsWith("/api/")) return send(res, 404, { error: "Нет такого адреса" });
@@ -170,8 +240,6 @@ const server = createServer(async (req, res) => {
 });
 
 await boot();
-setInterval(run, 1000 / TPS);
-setInterval(persist, SAVE_EVERY);
 if (underUnit) {
   server.listen();
   console.log("Живчик работает через NGINX Unit");
@@ -195,7 +263,7 @@ setInterval(async () => {
 async function shutdown() {
   console.log("Сохраняю мир перед остановкой…");
   await persist();
-  await store.close();
+  await store.close().catch(() => {});
   process.exit(0);
 }
 process.on("SIGTERM", shutdown);
