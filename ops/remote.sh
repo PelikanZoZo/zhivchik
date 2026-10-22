@@ -1,4 +1,4 @@
-# После выкладки: хозяин загрузил прежний мир? ошибки?
-sleep 45
-grep -a "\[живчик" ~/log/devalby.ru.error.log | grep -a "загрузил мир\|НОВЫЙ МИР\|я хозяин" | tail -2
-echo "=== ошибки за 3 минуты"; awk -v d="$(date -d '-3 min' '+%Y/%m/%d %H:%M')" 'BEGIN{p=0} /^20[0-9][0-9]\//{p=($0>=d)} p && /Error/' ~/log/devalby.ru.error.log | tail -5
+# Что случилось с миром около 21:45–21:50 UTC
+grep -a "\[живчик" ~/log/devalby.ru.error.log | awk '{ if ($2 >= "21:38:00" && $2 <= "21:59:59") print }' | grep -av "я зритель\|запуск, хранилище" | tail -30
+echo "=== любые строки не от сервера в это время"
+awk 'BEGIN{p=0} /^2026\/10\/23 00:3[89]|^2026\/10\/23 00:[45]/{p=1} p' ~/log/devalby.ru.error.log | grep -av "\[живчик\|application started" | tail -15
