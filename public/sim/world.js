@@ -35,8 +35,12 @@ export const RULES = {
   moldGrow: 600,             // колония плесени растёт
   moldLife: [3600, 6000],    // и живёт (вторую половину — отмирает)
   newcomerAfter: 12000,      // пришелец, если столько тиков нет самки или самца
-  hungryAfter: 8000,         // столько тиков без еды — и здоровье начинает таять
-  weakFromHunger: 3000,      // с этого момента без еды агент слабеет и замедляется (сильнее всего к hungryAfter)
+  // Голод — шкала 0…100. Растёт сам, быстрее от бега, драк и лечения; еда его снижает.
+  hungerFocus: 25,           // голод выше — внимание начинает тянуть к еде; ниже — агент сам решает, что делать
+  hungerStrong: 60,          // выше — еда главное: агент идёт к ней, забыв про скуку и ухаживания
+  hungerWeak: 40,            // выше — слабеет и замедляется (сильнее всего к hungerStarve)
+  hungerStarve: 90,          // выше — тает здоровье
+  healBelowHunger: 50,       // здоровье восстанавливается, только пока голод ниже (еды достаточно)
   predatorStarve: 3000,      // столько тиков погони без укуса — и хищник начинает слабеть
   survivalHealth: 35,        // здоровье ниже — включается инстинкт выживания
   restBelow: 20,             // сила ниже — отдыхает
@@ -118,6 +122,8 @@ export class World {
     this.geneHistory = data?.geneHistory ?? [];
     this.lives = [];
     this.agents = (data?.agents ?? []).map((a) => ({ ...a, brain: createBrain(a.brain.type, a.brain), trail: [] }));
+    // голод раньше считался в тиках без еды — переводим в шкалу 0…100
+    for (const a of this.agents) if (a.hv !== 2) { a.hunger = clamp(((a.hunger ?? 0) / 8000) * 100); a.hv = 2; }
     for (const sp of Object.keys(SPECIES)) {
       this.stats[sp] ??= { births: 0, deaths: 0, eaten: 0, recent: [], best: 0 };
       this.hof[sp] ??= [];
@@ -305,7 +311,7 @@ export class World {
       strength: parentA ? 55 : 80, health: 100, emotions: 70, boredom: 0, rage: 0,
       // Страх и Смелость — опыт этой особи (не наследуются); вместе не больше 100
       fear: 20 + 20 * sp.caution, courage: 15,
-      hunger: 0, sleep: 0, alert: 0, lastPush: -RULES.rivalryCooldown,
+      hunger: parentA ? 30 : 15, hv: 2, sleep: 0, alert: 0, lastPush: -RULES.rivalryCooldown,
       mode: "active", age: 0, ate: 0, trail: [],
     };
     this.agents.push(a);
@@ -339,13 +345,14 @@ export class World {
     const isMale = a.species === "green";
     const touch = {};
     a.age++;
-    a.hunger++;
+    a.hunger += 0.006; // голод растёт сам (от бега, драк и лечения — быстрее, см. ниже)
     // Голод: чем дольше без еды, тем слабее и медленнее (0…1)
-    const starving = clamp((a.hunger - RULES.weakFromHunger) / (RULES.hungryAfter - RULES.weakFromHunger), 0, 1);
+    const starving = clamp((a.hunger - RULES.hungerWeak) / (RULES.hungerStarve - RULES.hungerWeak), 0, 1);
+    const foodFocus = clamp((a.hunger - RULES.hungerFocus) / (RULES.hungerStrong - RULES.hungerFocus), 0, 1);
     // Инстинкт выживания: ранен — спасает жизнь любой ценой; голоден — ищет еду, а не скучает
     const caution = SPECIES[a.species].caution;
     const wounded = a.health < RULES.survivalHealth + 15 * caution;
-    const hungry = a.hunger > RULES.hungryAfter * 0.6;
+    const hungry = a.hunger > RULES.hungerStrong;
     const bored = a.boredom > RULES.boredAbove && !hungry && !wounded;
     const perception = (130 + 120 * g.obs) * (bored ? 0.7 : 1) * (1 + 0.5 * caution);
 
@@ -385,7 +392,7 @@ export class World {
       // Реакция: чем выше, тем быстрее агент осознаёт опасность
       a.alert = threat && nearestPred < perception ? a.alert + 1 : 0;
       // увлечённый самкой самец позже замечает опасность; пугливый — раньше
-      const courting = isMale && g.breed > 0.2 && a.strength > 50 && nearMate < 250 && nearMate > 25 && !hungry;
+      const courting = isMale && g.breed > 0.2 && a.strength > 50 && nearMate < 250 && nearMate > 25 && a.hunger < RULES.hungerWeak;
       const aware = a.alert > (1 - g.react) * 30 * (1 - 0.6 * caution) * (1 - 0.5 * a.fear / 100) * (courting ? 1 + g.breed : 1);
       // осторожные и пугливые реже решаются драться, смелые — чаще
       const aggr = this.aggroLevel(a) * (1 - 0.5 * caution) * (1 - 0.5 * a.fear / 100) + 0.4 * a.courage;
@@ -407,7 +414,9 @@ export class World {
 
       if (a.mode === "fight" && nearestPred < 80) steer(a, threat.x, threat.y, 0.2);
       if (a.mode === "survive") steer(a, 2 * a.x - threat.x, 2 * a.y - threat.y, 0.25); // прочь от хищника
-      if (a.mode === "forage") steer(a, foodTarget.x, foodTarget.y, 0.15);
+      if (a.mode === "forage") steer(a, foodTarget.x, foodTarget.y, 0.25);
+      // Голод ниже порога — агент свободен и решает сам (ведёт мозг). Растёт — внимание всё сильнее тянет к еде
+      else if (foodFocus > 0 && foodTarget && (a.mode === "active" || a.mode === "bored")) steer(a, foodTarget.x, foodTarget.y, 0.04 + 0.14 * foodFocus);
       if (a.mode === "court") { const f = this.nearestFemale(a); if (f) steer(a, f.x, f.y, 0.1 + 0.15 * g.breed); }
       if (a.mode === "help") steer(a, kinUnderAttack.x, kinUnderAttack.y, 0.25);
 
@@ -429,13 +438,14 @@ export class World {
       const upkeep = 0.0006 * GENES.reduce((s, x) => s + g[x.id], 0);
       if (a.mode === "rest" || a.mode === "hide") a.strength += 0.004 * (1 - starving); // голодному отдых почти не помогает
       else a.strength -= 0.005 + upkeep + (sprinting ? 0.02 * (1 + 0.5 * g.speed) : 0) + (adrenaline ? 0.04 : 0);
-      if (a.mode === "fight" || a.mode === "help") a.strength -= 0.01;
+      if (a.mode === "fight" || a.mode === "help") { a.strength -= 0.01; a.hunger += 0.006; }
+      if (sprinting || adrenaline) a.hunger += 0.008; // бег разгоняет голод
 
       // Еда
       for (const m of this.molds) {
         if (m.biomass > 1 && dist(a, m) < 6 + m.biomass / 6 && a.strength < 100) {
           const bite = Math.min(0.6, m.biomass);
-          m.biomass -= bite; a.strength += bite; a.hunger = 0;
+          m.biomass -= bite; a.strength += bite; a.hunger -= bite * 1.5;
           touch.mold = (touch.mold || 0) + bite * 15;
           a.boredom -= 0.5;
           if (!a.ate++) this.note(`${a.name} впервые нашёл плесень и поел.`);
@@ -467,9 +477,12 @@ export class World {
     }
 
     // ---- здоровье ----
-    if (a.health < 100 && a.strength > 40 && a.emotions >= 15) { a.health += 0.02; a.strength -= 0.02; }
-    if (a.emotions < 15) a.health -= 0.01;               // тоска
-    if (a.hunger > RULES.hungryAfter) a.health -= 0.015; // голод
+    // Лечение — только при достаточной еде (голод ниже порога) и воле к жизни. Оно быстро вызывает голод:
+    // каждый восстановленный пункт здоровья — около 2 пунктов голода
+    if (a.health < 100 && a.hunger < RULES.healBelowHunger && a.emotions >= 15) { a.health += 0.03; a.hunger += 0.06; a.healing = true; }
+    else a.healing = false;
+    if (a.emotions < 15) a.health -= 0.01;                  // тоска
+    if (a.hunger > RULES.hungerStarve) a.health -= 0.015;   // голод
 
     // ---- эмоции ----
     if (nearestPred < 150 * (1 + 0.3 * caution)) a.emotions -= 0.12 * (1 - this.aggroLevel(a) / 170);
@@ -517,7 +530,7 @@ export class World {
     }
 
     a.strength = clamp(a.strength); a.health = clamp(a.health); a.emotions = clamp(a.emotions);
-    a.boredom = clamp(a.boredom); a.rage = clamp(a.rage);
+    a.boredom = clamp(a.boredom); a.rage = clamp(a.rage); a.hunger = clamp(a.hunger);
     this.balanceFearCourage(a, fear0, courage0);
 
     // ---- учёба ----
@@ -559,7 +572,7 @@ export class World {
   tryBreed() {
     if (this.tick - this.lastBirth < RULES.birthCooldown || this.agents.length >= RULES.maxAgents) return;
     const need = (a) => RULES.breedStrength - (a.species === "green" ? 20 * a.genes.breed : 0); // инстинкт самца снижает порог
-    const ready = this.agents.filter((a) => a.strength >= need(a) && a.emotions >= 40 && a.age > RULES.minBreedAge && a.sleep <= 0 && a.boredom < 80 && (a.fear ?? 0) < 85);
+    const ready = this.agents.filter((a) => a.strength >= need(a) && a.emotions >= 40 && a.age > RULES.minBreedAge && a.sleep <= 0 && a.boredom < 80 && (a.fear ?? 0) < 85 && a.hunger < RULES.healBelowHunger);
     for (const a of ready.filter((x) => x.species === "green"))
       for (const b of ready.filter((x) => x.species === "red")) {
         if (dist(a, b) > 30) continue;
@@ -633,7 +646,7 @@ export class World {
       this.stepAgent(a);
       if (a.health <= 0) {
         const byPredator = this.predators.some((p) => !p.leaving && dist(p, a) < 20);
-        this.die(a, byPredator ? "predator" : a.hunger > RULES.hungryAfter ? "hunger" : "sorrow");
+        this.die(a, byPredator ? "predator" : a.hunger > RULES.hungerStarve ? "hunger" : "sorrow");
       }
     }
     this.stepRivalry();
@@ -704,8 +717,7 @@ export class World {
         x: r1(a.x), y: r1(a.y), a: +a.a.toFixed(3), age: a.age, mode: a.mode,
         genes: Object.fromEntries(GENES.map((g) => [g.id, +a.genes[g.id].toFixed(2)])),
         strength: Math.round(a.strength), health: Math.round(a.health), emotions: Math.round(a.emotions),
-        boredom: Math.round(a.boredom), aggression: Math.round(this.aggroLevel(a)), hunger: a.hunger,
-        satiety: Math.round(clamp(100 - (a.hunger / RULES.hungryAfter) * 100)),
+        boredom: Math.round(a.boredom), aggression: Math.round(this.aggroLevel(a)), hunger: Math.round(a.hunger), healing: !!a.healing,
         fear: Math.round(a.fear ?? 0), courage: Math.round(a.courage ?? 0),
         trail: a.trail,
       })),

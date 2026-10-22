@@ -264,7 +264,7 @@ function renderAgent() {
     scaleRow("Сила", c.strength, scaleColor(c.strength)) +
     scaleRow("Здоровье", c.health, scaleColor(c.health)) +
     scaleRow("Эмоции", c.emotions, scaleColor(c.emotions)) +
-    scaleRow("Сытость", c.satiety ?? 100, scaleColor(c.satiety ?? 100)) +
+    scaleRow("Голод", c.hunger ?? 0, scaleColor(100 - (c.hunger ?? 0))) +
     scaleRow("Скука", c.boredom, scaleColor(100 - c.boredom)) +
     scaleRow("Агрессия", c.aggression, "var(--gene-aggro)") +
     scaleRow("Страх", c.fear ?? 0, "var(--fear)") +
@@ -275,8 +275,13 @@ function renderAgent() {
   }).join("");
   const MODES = { sleep: "спит", rest: "отдыхает — мало сил", bored: "скучает, реагирует вяло", fight: "дерётся с хищником", help: "спешит на помощь сородичу", flee: (c.fear ?? 0) > 70 ? "в панике убегает" : "убегает от хищника", survive: "инстинкт выживания: ранен, спасается из последних сил", forage: "голоден — инстинкт гонит к еде", hide: "затаилась — хищник рядом", court: "инстинкт размножения: ищет самку" };
   let state = MODES[c.mode] || (c.strength >= RULES.breedStrength ? "полон сил, готов к размножению" : "");
-  if (c.hunger > RULES.hungryAfter) state = (state ? state + ", " : "") + "голодает — теряет здоровье";
-  else if (c.hunger > RULES.weakFromHunger) state = (state ? state + ", " : "") + "слабеет от голода";
+  const add = (t) => (state = state ? `${state}, ${t}` : t);
+  if (c.hunger > RULES.hungerStarve) add("голодает — теряет здоровье");
+  else if (c.hunger > RULES.hungerStrong) add("голоден — думает только о еде");
+  else if (c.hunger > RULES.hungerWeak) add("слабеет от голода");
+  else if (c.hunger > RULES.hungerFocus) add("проголодался — тянет к еде");
+  else if (!MODES[c.mode]) add("сыт — сам решает, чем заняться");
+  if (c.healing) add("лечится (это вызывает голод)");
   const character = (c.courage ?? 0) >= 60 ? "смелый характер" : (c.fear ?? 0) >= 60 ? "пугливый характер" : "";
   if (character) state = state ? `${state}, ${character}` : character;
   state = state ? state + " · " : "";
