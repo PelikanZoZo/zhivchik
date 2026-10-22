@@ -1,28 +1,49 @@
-Запуск: 2026-10-22 17:23 UTC
-=== время
-Thu 22 Oct 2026 08:23:47 PM MSK
-=== процессы приложения (время старта)
-  47187 Thu Oct 22 20:22:04 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  49314 Thu Oct 22 20:22:49 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  49672 Thu Oct 22 20:23:34 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-=== журнал (хвост)
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/encode_parameter.js',
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/execute.js',
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/index.js',
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/base/connection.js',
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/connection.js',
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/pool_connection.js',
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/base/pool.js',
-    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/pool.js',
+Запуск: 2026-10-22 17:24 UTC
+=== ошибки за последний час (заголовки)
+16:Error: Access denied for user ''@'10.223.152.11' (using password: NO)
+20:  code: 'ER_ACCESS_DENIED_ERROR',
+36:Живчик не запустился: Error: Invalid package config /home/h551183/devalby.ru/www/src/package.json.
+40:    at defaultGetFormatWithoutErrors (node:internal/modules/esm/get_format:190:36)
+55:Живчик не запустился: Error: Cannot find module '../auth_plugins/sha256_password'
+93:Живчик не запустился: Error: Cannot find module './ping.js'
+126:Живчик не запустился: Error: Cannot find module '../parsers/text_parser.js'
+161:Живчик не запустился: Error: Cannot find module './prepared_statement_info.js'
+224:Живчик не запустился: file:///home/h551183/devalby.ru/www/public/sim/brains/associative.js:6
+227:SyntaxError: The requested module '../sensors.js' does not provide an export named 'KINDS'
+235:Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/brains/index.js' imported from /home/h551183/devalby.ru/www/public/sim/world.js
+252:Живчик не запустился: Error: Cannot find module './sbcs-data-generated'
+287:Живчик не запустился: Error: Cannot find module './utf32'
+322:Живчик не запустился: Error: Cannot find module './pool.js'
+343:Живчик не запустился: Error: Cannot find module './pool_config.js'
+365:Живчик не запустился: Error: Cannot find module './execute'
+398:Живчик не запустился: Error: Cannot find module '../packets/index.js'
+429:Живчик не запустился: Error: Cannot find module './query'
+462:Живчик не запустился: Error: Cannot find module './typed_parameter.js'
+503:Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/src/server.js' imported from /home/h551183/devalby.ru/www/app.js
+519:Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/world.js' imported from /home/h551183/devalby.ru/www/src/server.js
+534:Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/src/store/file.js' imported from /home/h551183/devalby.ru/www/src/store/index.js
+549:Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/src/store/index.js' imported from /home/h551183/devalby.ru/www/src/server.js
+564:Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/brains/associative.js' imported from /home/h551183/devalby.ru/www/public/sim/brains/index.js
+579:Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/brains/index.js' imported from /home/h551183/devalby.ru/www/public/sim/world.js
+=== контекст последней ошибки
     '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/pool_cluster.js',
     '/home/h551183/devalby.ru/www/node_modules/mysql2/promise.js'
   ]
 }
-2026/10/22 20:22:36 [info] 48617#48617 "devalby_ru" application started
-2026/10/22 20:22:48 [info] 48974#48974 "devalby_ru" application started
-2026/10/22 20:23:33 [info] 49332#49332 "devalby_ru" application started
-=== версия мира в коде
-export const VERSION = 3;
+2026/10/22 20:22:35 [info] 48264#48264 "devalby_ru" application started
+Живчик не запустился: Error: Cannot find module './typed_parameter.js'
+Require stack:
+- /home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/encode_parameter.js
+- /home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/execute.js
+- /home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/index.js
+- /home/h551183/devalby.ru/www/node_modules/mysql2/lib/base/connection.js
+- /home/h551183/devalby.ru/www/node_modules/mysql2/lib/connection.js
+- /home/h551183/devalby.ru/www/node_modules/mysql2/lib/pool_connection.js
+- /home/h551183/devalby.ru/www/node_modules/mysql2/lib/base/pool.js
+=== процессы
+  53214 Thu Oct 22 20:24:12 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  53231 Thu Oct 22 20:24:12 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  53592 Thu Oct 22 20:24:15 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 303 -> http://devalby.ru/login
