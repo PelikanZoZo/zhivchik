@@ -24,7 +24,6 @@ jobs:
             for v in FTP_SERVER FTP_USERNAME FTP_PASSWORD; do
               if [ -n "${!v}" ]; then echo "$v: задан"; else echo "$v: ПУСТО"; fi
             done
-            echo "логин: [$FTP_USERNAME]"
             echo "сервер: [$FTP_SERVER]"
             echo "длина пароля: ${#FTP_PASSWORD}"
             case "$FTP_PASSWORD" in " "*|*" ") echo "в пароле пробел по краям!";; esac
