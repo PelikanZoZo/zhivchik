@@ -3,7 +3,7 @@ name: Выкладка на хостинг
 on:
   push:
     branches: [main]
-    paths-ignore: ["docs/**", "*.md", "tools/**"]
+    paths-ignore: ["docs/**", "*.md", "tools/**", "ops/**", ".github/workflows/ssh-*.yml", ".github/workflows/ftp-check.yml"]
   workflow_dispatch:
 concurrency:
   group: deploy
