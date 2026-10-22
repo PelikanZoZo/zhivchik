@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Живчик</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Зелёный и Красный: цифровые агенты, которые едят плесень, спасаются от хищников и размножаются.">
+<meta name="description" content="Зелёные самцы и Красные самки: агенты едят плесень, спасаются от хищников, размножаются и эволюционируют.">
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -18,7 +18,7 @@
       <h1>Живчик <span aria-hidden="true">●</span></h1>
       <p class="mode"><span id="mode">Просыпается…</span> · <a href="/logout" id="logout">выйти</a></p>
     </div>
-    <p class="lede">Зелёный учится ассоциациями, Красный — нейросетью. Оба едят синюю плесень, которая растёт после волн влажности, спасаются от хищников и, когда сыты оба, рождают потомков.</p>
+    <p class="lede">Зелёные — самцы, учатся ассоциациями. Красные — самки, учатся нейросетью. Едят синюю плесень, что растёт после волн влажности, спасаются от хищников и рождают потомков. С поколениями у них проявляется защита: скорость, маскировка или агрессия.</p>
   </header>
 
   <section class="top" aria-label="Сводка">
@@ -52,10 +52,17 @@
         </div>
         <div class="scales" id="scales"></div>
         <p class="meta" id="agent-meta"></p>
+        <h3>Защита от хищников (гены)</h3>
+        <div class="scales" id="genes"></div>
         <h3>Мозг: чему научился</h3>
         <div class="prefs" id="prefs"></div>
         <div class="legend" id="legend"></div>
         <p class="note" id="brain-note"></p>
+      </section>
+
+      <section class="card" aria-labelledby="h-evo">
+        <h2 id="h-evo">Эволюция защиты</h2>
+        <div id="evo" class="evo"></div>
       </section>
 
       <section class="card" aria-labelledby="h-ctl">

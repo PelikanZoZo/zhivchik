@@ -1,7 +1,7 @@
 // Интерфейс. Если рядом есть сервер — показывает его живой мир.
 // Если сервера нет (статичный хостинг, превью) — считает мир сам, тем же кодом.
 
-import { World, SPECIES, RULES, TPS, W, H } from "./sim/world.js";
+import { World, SPECIES, RULES, TPS, W, H, GENES } from "./sim/world.js";
 import { SIGNALS, SENSOR } from "./sim/sensors.js";
 
 const $ = (id) => document.getElementById(id);
@@ -126,10 +126,33 @@ function draw() {
   for (const c of agents) {
     const col = SPECIES[c.species].color;
     const r = 9 + c.strength / 25, pulse = 1 + Math.sin(t * 4 + c.id) * 0.05;
+    const g = c.genes || { speed: 0, camo: 0, aggro: 0 };
     if (c.fleeing) { ctx.fillStyle = "rgba(255,80,80,.18)"; ctx.beginPath(); ctx.arc(c.x, c.y, r * 2.2, 0, Math.PI * 2); ctx.fill(); }
-    ctx.globalAlpha = 0.4 + 0.6 * (c.health / 100);
+    if (c.fighting) { ctx.fillStyle = "rgba(255,160,40,.22)"; ctx.beginPath(); ctx.arc(c.x, c.y, r * 2.2, 0, Math.PI * 2); ctx.fill(); }
+    // скорость — светлые «струи» позади
+    if (g.speed > 0.2) {
+      ctx.strokeStyle = `rgba(230,240,235,${0.15 + g.speed * 0.4})`; ctx.lineWidth = 1.5;
+      for (const off of [-0.4, 0, 0.4]) {
+        ctx.beginPath(); ctx.moveTo(c.x - Math.cos(c.a + off) * r, c.y - Math.sin(c.a + off) * r);
+        ctx.lineTo(c.x - Math.cos(c.a + off) * (r + 6 + g.speed * 10), c.y - Math.sin(c.a + off) * (r + 6 + g.speed * 10)); ctx.stroke();
+      }
+    }
+    // агрессия — шипы
+    if (g.aggro > 0.2) {
+      ctx.strokeStyle = "#ffb050"; ctx.lineWidth = 2;
+      const n = 6 + Math.round(g.aggro * 6);
+      for (let k = 0; k < n; k++) {
+        const ang = (k / n) * Math.PI * 2;
+        ctx.beginPath(); ctx.moveTo(c.x + Math.cos(ang) * r, c.y + Math.sin(ang) * r);
+        ctx.lineTo(c.x + Math.cos(ang) * (r + 3 + g.aggro * 6), c.y + Math.sin(ang) * (r + 3 + g.aggro * 6)); ctx.stroke();
+      }
+    }
+    // маскировка — агент становится прозрачнее
+    ctx.globalAlpha = (0.4 + 0.6 * (c.health / 100)) * (1 - 0.6 * g.camo);
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x, c.y, r * pulse, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
+    ctx.fillStyle = "#0b140f"; ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(SPECIES[c.species].sex, c.x, c.y + 1); ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
     // кольцо энергии
     ctx.strokeStyle = scaleColor(c.energy); ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(c.x, c.y, r + 4, -Math.PI / 2, -Math.PI / 2 + (c.energy / 100) * Math.PI * 2); ctx.stroke();
@@ -160,14 +183,14 @@ function renderTop() {
     const members = view.agents.filter((a) => a.species === sp);
     const brain = s.brain === "associative" ? "ассоциации" : "нейросеть";
     return `<article class="card">
-      <div class="sp-head"><i style="background:${s.color}"></i>${s.plural}<small>${brain}</small></div>
+      <div class="sp-head"><i style="background:${s.color}"></i>${s.plural} ${s.sex}<small>${s.sexName} · ${brain}</small></div>
       <div class="sp-nums">
         <div><b>${members.length}</b><small>живых</small></div>
         <div><b>${st.births ?? 0}</b><small>родилось</small></div>
         <div><b>${st.deaths ?? 0}</b><small>погибло, из них хищн. ${st.eaten ?? 0}</small></div>
         <div><b>${minutes(st.avgLife)}</b><small>средняя жизнь, мин</small></div>
       </div>
-      <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)}<span class="mini"><i style="width:${c.energy}%;background:${scaleColor(c.energy)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
+      <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)} ${SPECIES[c.species].sex}<span class="mini"><i style="width:${c.energy}%;background:${scaleColor(c.energy)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
     </article>`;
   }).join("");
 
@@ -193,18 +216,22 @@ function renderAgent() {
   let c = view.agents.find((x) => x.id === selected);
   if (!c && view.agents.length) { c = view.agents.reduce((a, b) => (b.age > a.age ? b : a)); selected = c.id; }
   if (!c) {
-    $("who").textContent = ""; $("scales").innerHTML = `<p class="empty">Агентов нет. Скоро появится новая пара.</p>`;
+    $("who").textContent = ""; $("scales").innerHTML = `<p class="empty">Агентов нет. Скоро появится новая пара.</p>`; $("genes").innerHTML = "";
     $("prefs").innerHTML = ""; $("legend").innerHTML = ""; $("brain-note").textContent = ""; $("agent-meta").textContent = "";
     return;
   }
   const sp = SPECIES[c.species];
-  $("who").innerHTML = `<span style="color:${sp.color}">${esc(c.name)}</span>`;
+  $("who").innerHTML = `<span style="color:${sp.color}">${esc(c.name)} ${sp.sex}</span>`;
   $("scales").innerHTML =
     scaleRow("Энергия", c.energy, scaleColor(c.energy)) +
     scaleRow("Эмоции", c.emotions, scaleColor(c.emotions)) +
     scaleRow("Сила", c.strength, "var(--warn)") +
     scaleRow("Здоровье", c.health, scaleColor(c.health));
-  const state = c.fleeing ? "убегает от хищника · " : c.energy >= RULES.greenEnergy ? "сыт, готов к размножению · " : "";
+  $("genes").innerHTML = GENES.map((g) => {
+    const v = c.genes?.[g.id] ?? 0;
+    return `<div class="scale" title="${g.hint}"><span>${g.name}</span><div class="track"><i style="width:${Math.round(v * 100)}%;background:var(--gene-${g.id})"></i></div><code>${v.toFixed(2)}</code></div>`;
+  }).join("");
+  const state = c.fighting ? "встречает хищника в бою · " : c.fleeing ? "убегает от хищника · " : c.energy >= RULES.greenEnergy ? "сыт, готов к размножению · " : "";
   $("agent-meta").textContent = `${state}возраст ${clock(c.age)} · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
 
   const b = details?.brains?.[c.id];
@@ -220,6 +247,21 @@ function renderAgent() {
     $("legend").innerHTML = "<span>← поворачивает прочь</span><span>поворачивает к →</span>";
     $("brain-note").textContent = `Связи нейросети: как сильно запах с одной стороны разворачивает её туда или прочь. Родилась с рефлексами «к еде, от хищника», дальше учится на награде. Удивление сейчас: ${(b.surprise ?? 0).toFixed(2)}.`;
   }
+}
+
+function renderEvolution() {
+  const hist = details?.geneHistory || [];
+  const el = $("evo");
+  if (hist.length < 2) { el.innerHTML = `<p class="empty">График появится после первых рождений. Каждая точка — среднее по живым после очередного рождения.</p>`; return; }
+  const Wc = 320, Hc = 120, pad = 22;
+  const x = (i) => pad + (i / (hist.length - 1)) * (Wc - pad - 6);
+  const y = (v) => Hc - 16 - v * (Hc - 26);
+  const lines = GENES.map((g) => `<polyline fill="none" stroke="var(--gene-${g.id})" stroke-width="2" points="${hist.map((h, i) => `${x(i).toFixed(1)},${y(h[g.id]).toFixed(1)}`).join(" ")}"/>`).join("");
+  const grid = [0, 0.5, 1].map((v) => `<line x1="${pad}" x2="${Wc - 6}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${pad - 4}" y="${y(v) + 3}" text-anchor="end">${v}</text>`).join("");
+  const last = hist[hist.length - 1], first = hist[0];
+  el.innerHTML = `<svg viewBox="0 0 ${Wc} ${Hc}" role="img" aria-label="Средние гены защиты по рождениям">${grid}${lines}
+    <text x="${pad}" y="${Hc - 2}">поколение ${first.gen}</text><text x="${Wc - 6}" y="${Hc - 2}" text-anchor="end">поколение ${last.gen}</text></svg>
+    <div class="evo-legend">${GENES.map((g) => `<span><i style="background:var(--gene-${g.id})"></i>${g.name} ${last[g.id].toFixed(2)}</span>`).join("")}</div>`;
 }
 
 function renderMode() {
@@ -266,6 +308,7 @@ function loop(now) {
   last = now;
   draw();
   if (frame % 6 === 0) { renderTop(); renderAgent(); renderMode(); renderLog(); }
+  if (frame % 60 === 0) renderEvolution();
   frame++;
   requestAnimationFrame(loop);
 }
