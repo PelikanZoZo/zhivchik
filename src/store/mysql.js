@@ -89,10 +89,14 @@ export class MysqlStore {
     return false;
   }
 
+  // Проверка: повторно берём ту же блокировку на своём соединении. Если она наша — MySQL
+  // просто подтвердит (1), если чужая — откажет (0). Сравнивать номера соединений нельзя:
+  // на хостинге между приложением и базой стоит посредник, и номера не совпадают.
   async stillLeader() {
     if (!this.leaderConn) return false;
     try {
-      const [[row]] = await this.leaderConn.query("SELECT IS_USED_LOCK(?) = CONNECTION_ID() AS ok", [this.lockName()]);
+      const [[row]] = await this.leaderConn.query("SELECT GET_LOCK(?, 0) AS ok", [this.lockName()]);
+      if (row.ok === 1) await this.leaderConn.query("SELECT RELEASE_LOCK(?)", [this.lockName()]); // снять лишний уровень
       return row.ok === 1;
     } catch {
       return false;
