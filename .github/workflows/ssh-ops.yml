@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: deploy
+  group: ssh-ops
   cancel-in-progress: false
 jobs:
   run:

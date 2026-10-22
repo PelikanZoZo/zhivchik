@@ -13,3 +13,4 @@ echo "=== процессы сейчас"
 ps -eo pid,lstart,args | grep -a "^ *[0-9].*node --loader" | grep -av grep
 echo "=== журнал (хвост)"
 tail -25 ~/log/devalby.ru.error.log
+# Thu Oct 22 16:56:42 UTC 2026
