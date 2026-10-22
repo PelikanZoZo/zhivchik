@@ -41,6 +41,8 @@ h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(26px, 4vw
 h1 span { color: var(--life); }
 .mode { margin: 0; font: 12px var(--f-mono); color: var(--muted); }
 .mode b { color: var(--life); font-weight: 500; }
+.mode a { color: var(--muted); }
+.mode a:hover { color: var(--ink); }
 .lede { margin: 0; color: var(--muted); max-width: 62ch; }
 
 .species { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }

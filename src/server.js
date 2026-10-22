@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { World } from "../public/sim/world.js";
 import { createStore } from "./store/index.js";
+import { createAuth, loginPage } from "./auth.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = path.join(ROOT, "public");
@@ -32,6 +33,7 @@ const SAVE_EVERY = +(env.SAVE_EVERY_SEC || 30) * 1000;
 const MAX_CATCHUP = +(env.MAX_CATCHUP_TICKS || 864000); // 12 часов при TPS=20
 const CATCHUP_CHUNK = 2000;                               // тиков досчёта за один шаг таймера
 const ADMIN_KEY = env.ADMIN_KEY || "";
+const auth = createAuth(env);
 
 // ---------- мир ----------
 const store = createStore(env, ROOT);
@@ -91,16 +93,44 @@ function send(res, code, body, type = "application/json; charset=utf-8") {
   res.end(typeof body === "string" ? body : JSON.stringify(body));
 }
 
-async function readBody(req) {
+async function readRaw(req) {
   let s = "";
   for await (const chunk of req) { s += chunk; if (s.length > 10000) throw new Error("слишком большой запрос"); }
+  return s;
+}
+async function readBody(req) {
+  const s = await readRaw(req);
   return s ? JSON.parse(s) : {};
 }
+function redirect(res, to, cookie) {
+  const h = { Location: to, "Cache-Control": "no-store" };
+  if (cookie) h["Set-Cookie"] = cookie;
+  res.writeHead(303, h);
+  res.end();
+}
+const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+const isHttps = (req) => req.headers["x-forwarded-proto"] === "https";
 
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://x");
     const p = url.pathname;
+
+    // ---- вход ----
+    if (p === "/login" && req.method === "POST") {
+      const form = new URLSearchParams(await readRaw(req));
+      const r = auth.login(clientIp(req), form.get("username") || "", form.get("password") || "");
+      if (!r.ok) return send(res, 401, loginPage(r.error), "text/html; charset=utf-8");
+      return redirect(res, "/", auth.cookie(isHttps(req)));
+    }
+    if (p === "/logout") return redirect(res, "/login", auth.clearCookie());
+    if (!auth.isLoggedIn(req)) {
+      if (p.startsWith("/api/")) return send(res, 401, { error: "Нужно войти" });
+      if (p === "/login") return send(res, 200, loginPage(), "text/html; charset=utf-8");
+      return redirect(res, "/login");
+    }
+    if (p === "/login") return redirect(res, "/");
+
     if (!world) return send(res, 503, { error: "Мир ещё просыпается, обнови через секунду." });
 
     if (p === "/api/state") return send(res, 200, { mode: "server", tps: TPS, catchup, ...world.view() });
