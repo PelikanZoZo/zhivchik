@@ -5,24 +5,24 @@ Removing old file `node_modules/mysql2/typings/mysql/lib/Tracing.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/Tracing.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/TypedParameter.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/TypedParameter.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/OkPacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/OkPacket.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ProcedurePacket.d.ts'
@@ -51,15 +51,15 @@ Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/prom
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/ExecutableBase.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
--rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 16:56 app.js
-drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 16:57 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 16:56 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 16:56 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 16:57 public
-drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 16:57 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 16:57 tmp
+-rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 17:20 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 17:20 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 17:20 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 17:20 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 17:20 public
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 17:20 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 17:20 tmp
 итог: 0
---- проверка сайта 17:00 UTC
+--- проверка сайта 17:23 UTC
 >> http://devalby.ru/api/state
 {"error":"Нужно войти"}
 [HTTP 401]
