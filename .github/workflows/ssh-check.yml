@@ -25,12 +25,14 @@ jobs:
             echo "Проверка: $(date -u '+%Y-%m-%d %H:%M UTC')"
             for v in SSH_HOST SSH_USER SSHPASS; do [ -n "${!v}" ] && echo "$v: задан" || echo "$v: ПУСТО"; done
             timeout 120 sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 -o PreferredAuthentications=password,keyboard-interactive "$SSH_USER@$SSH_HOST" '
-              echo "=== кто и где"; whoami; pwd; ls -la ~ 2>&1 | head -30
-              echo "=== папка сайта"; ls -la ~/devalby.ru 2>&1 | head -30
-              echo "=== все app.js"; find ~ -maxdepth 4 -name app.js -not -path "*/node_modules/*" 2>/dev/null | while read f; do echo "--- $f"; head -c 300 "$f"; echo; done
-              echo "=== журнал ошибок (хвост)"; for f in ~/log/*error*; do echo "--- $f"; tail -40 "$f"; done 2>&1
-              echo "=== процессы node"; ps -eo pid,etime,args 2>/dev/null | grep -i "[n]ode\|[u]nit" | head -20
-              echo "=== node"; which node; node --version
+              export PATH=/usr/nvm/versions/node/v21.5.0/bin:$PATH
+              echo "=== время сервера"; date; date -u
+              echo "=== как запускается приложение"; cat /opt/scripts/node-wrapper.sh 2>&1 | head -60
+              echo "=== файлы www"; ls -la --time-style=+%F_%T ~/devalby.ru/www ~/devalby.ru/www/tmp ~/devalby.ru/tmp 2>&1
+              echo "=== процессы"; ps -eo pid,lstart,args 2>/dev/null | grep -a "app.js" | grep -av grep
+              echo "=== переменные окружения процесса (только имена)"; for p in $(pgrep -f "unit-http/loader app.js" | head -1); do tr "\0" "\n" < /proc/$p/environ 2>/dev/null | cut -d= -f1 | sort | tr "\n" " "; echo; done
+              echo "=== журнал ошибок (последние 80 строк)"; tail -80 ~/log/devalby.ru.error.log
+              echo "=== проверка запуска кода"; cd ~/devalby.ru/www && timeout 10 node -e "import(\"./src/store/index.js\").then(m=>console.log(\"модули грузятся\")).catch(e=>console.log(\"ОШИБКА\",e.message))"
             ' 2>&1 | sed -e "s/$SSHPASS/***/g" | grep -viE "pass(word)?=|DBPASS" 
           } > docs/ssh-check.txt 2>&1 || true
           cat docs/ssh-check.txt
