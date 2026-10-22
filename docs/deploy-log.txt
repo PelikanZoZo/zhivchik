@@ -17,15 +17,15 @@ Transferring file `public/sim/brains/associative.js'
 Transferring file `public/sim/brains/index.js'
 Transferring file `public/sim/brains/neural.js'
 mkdir: Access failed: 550 www/tmp: File exists
--rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 18:03 app.js
+-rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 18:07 app.js
 drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 17:23 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 18:03 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 18:03 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 18:04 public
-drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 18:04 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 18:04 tmp
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 18:07 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 18:07 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 18:08 public
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 18:08 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 18:08 tmp
 итог: 0
---- проверка сайта 18:04 UTC
+--- проверка сайта 18:08 UTC
 >> http://devalby.ru/api/state
 {"error":"Нужно войти"}
 [HTTP 401]
