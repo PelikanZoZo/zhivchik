@@ -8,6 +8,8 @@ on:
 concurrency:
   group: deploy
   cancel-in-progress: false
+permissions:
+  contents: write
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -25,22 +27,31 @@ jobs:
           cp -r app.js server.js package.json package-lock.json src public node_modules dist/
           date -u > dist/tmp/restart.txt
 
-      - name: Залить в www/
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./dist/
-          server-dir: www/
-
-      - name: Перезапустить приложение
+      - name: Залить в www/ и перезапустить
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
+          sudo apt-get install -y -qq lftp > /dev/null
+          mkdir -p docs
+          set -o pipefail
           # Хостинг перезапускает приложение, когда меняется tmp/restart.txt
-          for target in www/tmp/restart.txt tmp/restart.txt; do
-            curl -sS --max-time 30 --ftp-create-dirs -T dist/tmp/restart.txt "ftp://$FTP_SERVER/$target" --user "$FTP_USERNAME:$FTP_PASSWORD" || true
-          done
+          lftp -u "$FTP_USERNAME,$FTP_PASSWORD" "$FTP_SERVER" -e "
+            set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; set ftp:passive-mode yes;
+            mirror -R --verbose=1 --parallel=4 --only-newer dist/ www/;
+            mkdir -p tmp; put dist/tmp/restart.txt -o tmp/restart.txt;
+            ls www/;
+            bye" 2>&1 | sed "s/$FTP_PASSWORD/***/g" | tail -60 > docs/deploy-log.txt && status=0 || status=$?
+          echo "итог: $status" >> docs/deploy-log.txt
+          cat docs/deploy-log.txt
+          exit $status
+
+      - name: Сохранить журнал выкладки
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/deploy-log.txt
+          git commit -m "Журнал выкладки" || exit 0
+          git pull --rebase -q && git push
