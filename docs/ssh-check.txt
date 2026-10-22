@@ -1,6 +1,76 @@
-Проверка: 2026-10-22 16:46 UTC
+Проверка: 2026-10-22 16:48 UTC
 SSH_HOST: задан
 SSH_USER: задан
 SSHPASS: задан
 Warning: Permanently added 'ssh.hosting.masterhost.ru' (ED25519) to the list of known hosts.
-Permission denied, please try again.
+=== кто и где
+h551183
+/home/h551183
+total 16
+drwxr-xr-x 1 h551183 h551183   88 Oct 22 16:06 .
+drwxr-xr-x 1 root    root      22 Oct 21 12:53 ..
+-rw-r--r-- 1 h551183 h551183 5288 Mar  6  2024 .bashrc
+drwxr-xr-x 1 h551183 h551183   16 Oct 22 16:06 .cache
+drwxr-xr-x 1 h551183 h551183   12 Oct 22 16:06 devalby.ru
+drwxr-xr-x 1 h551183 h551183  102 Oct 22 16:06 log
+drwxr-xr-x 1 h551183 h551183   84 Oct 22 16:06 .npm
+-rw-r--r-- 1 h551183 h551183    5 Mar  6  2024 .nvmrc
+-rw-r--r-- 1 h551183 h551183  814 Mar  6  2024 .profile
+=== папка сайта
+total 0
+drwxr-xr-x 1 h551183 h551183  12 Oct 22 16:06 .
+drwxr-xr-x 1 h551183 h551183  88 Oct 22 16:06 ..
+drwxr-xr-x 1 h551183 h551183  22 Oct 22 18:00 tmp
+drwxr-xr-x 1 h551183 h551183 136 Oct 22 19:46 www
+=== все app.js
+--- /home/h551183/devalby.ru/www/public/app.js
+// Интерфейс. Если рядом есть сервер — показывает его живой мир.
+// Если сервера нет (статичный хостинг, превью) — считает мир сам, тем же кодом.
+
+import { World, SPECIES, W, H } from "./s
+--- /home/h551183/devalby.ru/www/app.js
+#!/usr/bin/env node
+// Точка входа для хостинга (панель ждёт app.js).
+// Написан в классическом формате CommonJS: так его поймёт любая запускалка Node.js.
+=== журнал ошибок (хвост)
+--- /home/h551183/log/devalby.ru.error.log
+2026/10/22 16:06:17 [info] 16235#16235 "devalby_ru" application started
+2026/10/22 16:06:24 [info] 16631#16631 "devalby_ru" application started
+2026/10/22 16:11:07 [info] 17263#17263 "devalby_ru" application started
+2026/10/22 16:48:27 [info] 17921#17921 "devalby_ru" application started
+2026/10/22 17:04:45 [info] 18278#18278 "devalby_ru" application started
+2026/10/22 17:14:22 [info] 18911#18911 "devalby_ru" application started
+2026/10/22 17:21:37 [info] 19270#19270 "devalby_ru" application started
+2026/10/22 17:21:38 [info] 19623#19623 "devalby_ru" application started
+2026/10/22 17:21:40 [info] 19977#19977 "devalby_ru" application started
+2026/10/22 17:21:41 [info] 20330#20330 "devalby_ru" application started
+2026/10/22 18:03:12 [info] 21000#21000 "devalby_ru" application started
+node:internal/process/esm_loader:34
+      internalBinding('errors').triggerUncaughtException(
+                                ^
+
+Error: Access denied for user ''@'10.223.152.11' (using password: NO)
+    at MysqlStore.init (file:///home/h551183/devalby.ru/www/src/store/mysql.js:18:21)
+    at async boot (file:///home/h551183/devalby.ru/www/server.js:42:17)
+    at async file:///home/h551183/devalby.ru/www/server.js:129:1 {
+  code: 'ER_ACCESS_DENIED_ERROR',
+  errno: 1045,
+  sqlState: '',
+  sqlMessage: "Access denied for user ''@'10.223.152.11' (using password: NO)",
+  sql: undefined
+}
+
+Node.js v21.5.0
+2026/10/22 18:04:12 [info] 21357#21357 "devalby_ru" application started
+Не удалось сохранить: Connection lost: The server closed the connection.
+=== процессы node
+  19977       00:00 /bin/bash /opt/scripts/node-wrapper.sh /home/h551183/devalby.ru/www/ 21.5.0 app.js
+  20317       00:00 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  20330       00:00 /bin/bash /opt/scripts/node-wrapper.sh /home/h551183/devalby.ru/www/ 21.5.0 app.js
+  20670       00:00 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  21357       00:00 /bin/bash /opt/scripts/node-wrapper.sh /home/h551183/devalby.ru/www/ 21.5.0 app.js
+  21697       00:00 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  22920       00:00 bash -c      echo "=== кто и где"; whoami; pwd; ls -la ~ 2>&1 | head -30     echo "=== папка сайта"; ls -la ~/devalby.ru 2>&1 | head -30     echo "=== все app.js"; find ~ -maxdepth 4 -name app.js -not -path "*/node_modules/*" 2>/dev/null | while read f; do echo "--- $f"; head -c 300 "$f"; echo; done     echo "=== журнал ошибок (хвост)"; for f in ~/log/*error*; do echo "--- $f"; tail -40 "$f"; done 2>&1     echo "=== процессы node"; ps -eo pid,etime,args 2>/dev/null | grep -i "[n]ode\|[u]nit" | head -20     echo "=== node"; which node; node --version   
+=== node
+bash: line 7: node: command not found
+grep: (standard input): binary file matches
