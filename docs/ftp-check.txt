@@ -1,10 +1,10 @@
-Проверка: 2026-10-22 16:38 UTC
+Проверка: 2026-10-22 16:41 UTC
 FTP_SERVER: задан
 FTP_USERNAME: задан
 FTP_PASSWORD: задан
 сервер: [ftp.hosting.masterhost.ru]
 длина пароля: 13
-адрес GitHub: 40.74.231.26
+адрес GitHub: 20.169.68.247
 --- /
 drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 15:00 tmp
 drwxr-xr-x   1 h551183_devalby_ru 551183        136 Oct 22 16:29 www
@@ -35,19 +35,20 @@ lrwxrwxrwx   1 h551183_devalby_ru 551183         71 Oct 22 13:06 unit-http -> ..
 -rw-r--r--   1 h551183_devalby_ru 551183         29 Oct 22 16:28 restart.txt
 === сайт
 >> http://devalby.ru/
-HTTP/1.1 200 OK
-Date: Thu, 22 Oct 2026 16:39:03 GMT
-Content-Type: text/plain
+HTTP/1.1 503 Service Temporarily Unavailable
+Date: Thu, 22 Oct 2026 16:41:49 GMT
+Content-Type: text/html
 Transfer-Encoding: chunked
 Connection: keep-alive
 Keep-Alive: timeout=10
-Server: Unit/1.31.1
+Server: openresty
+Content-Security-Policy: frame-ancestors 'none'
 
-Hello, World!
+Мастерхост - профессиональный хостинг&nbsp;devalby.ru Войти в личный кабинетИзвините, но этот&nbsp;сайт или&nbsp;его&nbsp;страница сейчас&nbsp;отключеныПричины недоступности сайта Вы можете уточнить у&nbsp;его&nbsp;администрации.Хостинг-провайдер Masterhost, отвечающий за&nbsp;поддержку этого веб-проекта предоставляет полное управление услугами и&nbsp;доменами его&nbsp;владельцам.Если этот сайт принадлежит&nbsp;ВамПожалуйста, проверьте&nbsp;баланс лицевого счета или свяжитесь со&nbsp;службой технической&nbsp;поддержки:+7 (495) 772-97-20 (для&nbsp;Москвы)8-800-200-97-20 (для&nbsp;регионов)E-mail:&nbsp;support@masterhost.ruТехподдержка в TelegramХостингХостинг&nbsp;сайтов на&nbsp;PHPХостинг&nbsp;приложений Python и&nbsp;Node.jsКонструктор сайтовДомены<div class="navItem__
 
 >> http://devalby.ru/login
 HTTP/1.1 200 OK
-Date: Thu, 22 Oct 2026 16:39:04 GMT
+Date: Thu, 22 Oct 2026 16:41:49 GMT
 Content-Type: text/plain
 Transfer-Encoding: chunked
 Connection: keep-alive
@@ -57,13 +58,13 @@ Server: Unit/1.31.1
 Hello, World!
 
 >> http://www.devalby.ru/
-HTTP/1.1 404 Not Found
-Date: Thu, 22 Oct 2026 16:39:05 GMT
-Content-Type: text/html
-Content-Length: 54
+HTTP/1.1 200 OK
+Date: Thu, 22 Oct 2026 16:41:51 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
 Connection: keep-alive
 Keep-Alive: timeout=10
 Server: Unit/1.31.1
 
-Error 404Error 404.
+Hello, World!
 
