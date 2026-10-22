@@ -1,30 +1,19 @@
-Запуск: 2026-10-22 17:35 UTC
+Запуск: 2026-10-22 17:36 UTC
+=== время
+Thu 22 Oct 2026 08:36:57 PM MSK
 === процессы
-  67175 Thu Oct 22 20:35:42 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  67780 Thu Oct 22 20:35:46 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
   67889 Thu Oct 22 20:35:47 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-=== новые ошибки
-^^^^^^
-SyntaxError: Cannot use import statement outside a module
-Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/world.js' imported from /home/h551183/devalby.ru/www/src/server.js
-}
-Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/brains/index.js' imported from /home/h551183/devalby.ru/www/public/sim/world.js
-}
-2026/10/22 20:32:10 [info] 62886#62886 "devalby_ru" application started
-2026/10/22 20:32:38 [info] 63243#63243 "devalby_ru" application started
-2026/10/22 20:32:38 [info] 63402#63402 "devalby_ru" application started
-2026/10/22 20:33:12 [info] 63960#63960 "devalby_ru" application started
-2026/10/22 20:33:43 [info] 64317#64317 "devalby_ru" application started
-2026/10/22 20:34:15 [info] 64678#64678 "devalby_ru" application started
-2026/10/22 20:34:30 [info] 65035#65035 "devalby_ru" application started
-2026/10/22 20:34:36 [info] 65392#65392 "devalby_ru" application started
+  68253 Thu Oct 22 20:36:23 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  68610 Thu Oct 22 20:36:30 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+=== последние запуски и ошибки
 2026/10/22 20:34:48 [info] 65749#65749 "devalby_ru" application started
 2026/10/22 20:35:03 [info] 66108#66108 "devalby_ru" application started
 2026/10/22 20:35:11 [info] 66465#66465 "devalby_ru" application started
 2026/10/22 20:35:41 [info] 66835#66835 "devalby_ru" application started
 2026/10/22 20:35:45 [info] 67192#67192 "devalby_ru" application started
 2026/10/22 20:35:46 [info] 67528#67528 "devalby_ru" application started
-export const VERSION = 4;
+2026/10/22 20:36:22 [info] 67913#67913 "devalby_ru" application started
+2026/10/22 20:36:29 [info] 68270#68270 "devalby_ru" application started
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 303 -> http://devalby.ru/login
