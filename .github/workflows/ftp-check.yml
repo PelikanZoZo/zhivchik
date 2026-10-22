@@ -34,6 +34,13 @@ jobs:
               curl -sS --max-time 30 "ftp://$FTP_SERVER/$dir" --user "$FTP_USERNAME:$FTP_PASSWORD" 2>&1 \
                 | sed "s/$FTP_PASSWORD/***/g" || echo "не удалось"
             done
+            echo "=== сайт"
+            for u in http://devalby.ru/ http://devalby.ru/login http://www.devalby.ru/; do
+              echo ">> $u"
+              curl -sS --max-time 60 -D - -o body.txt "$u" 2>&1 | head -12
+              head -c 3000 body.txt | sed -e 's/<[^>]*>//g' | grep -v '^\s*$' | head -60
+              echo
+            done
           } > "$out"
           cat "$out"
       - name: Сохранить результат в репозиторий
