@@ -1,12 +1,13 @@
-Проверка: 2026-10-22 14:39 UTC
+Проверка: 2026-10-22 14:47 UTC
 FTP_SERVER: задан
 FTP_USERNAME: задан
 FTP_PASSWORD: задан
-логин: [h551183_detifi]
+логин: [h551183_devalby_ru]
 сервер: [ftp.hosting.masterhost.ru]
-длина пароля: 10
-адрес GitHub: 104.40.47.144
+длина пароля: 13
+адрес GitHub: 4.249.22.142
 --- /
-curl: (67) Access denied: 530
+www
+tmp
 --- /devalby.ru/
-curl: (67) Access denied: 530
+curl: (9) Server denied you to change to the given directory
