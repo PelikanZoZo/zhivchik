@@ -1,6 +1,4 @@
-# Проверка после выкладки 0.5: новый мир создан, хозяин один, ошибок нет
-sleep 90
-echo "=== записи сервера после выкладки"
-grep -a "\[живчик" ~/log/devalby.ru.error.log | awk '{ if ($2 >= "20:28:00") print }' | tail -20
-echo "=== ошибки после выкладки"
-awk 'BEGIN{p=0} /^2026\/10\/22 23:2[89]|^2026\/10\/22 23:3/{p=1} p && /Error|error/' ~/log/devalby.ru.error.log | tail -10
+# Проверка после выкладки: мир продолжился (не сбросился), ошибок нет
+sleep 60
+grep -a "\[живчик" ~/log/devalby.ru.error.log | tail -8
+echo "=== ошибки за 3 минуты"; awk -v d="$(date -d '-3 min' '+%Y/%m/%d %H:%M')" 'BEGIN{p=0} /^20[0-9][0-9]\//{p=($0>=d)} p && /Error/' ~/log/devalby.ru.error.log | tail -5
