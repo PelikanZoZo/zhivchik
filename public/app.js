@@ -155,7 +155,7 @@ function renderWorld() {
   $("b-famine").setAttribute("aria-pressed", v.famine);
   $("inherit").checked = v.inherit;
   $("mode").innerHTML = mode === "server"
-    ? `<b>●</b> мир живёт на сервере · тик ${v.tick.toLocaleString("ru")}`
+    ? `<b>●</b> мир живёт на сервере · тик ${v.tick.toLocaleString("ru")}` + (v.catchup ? ` · догоняет пропущенное: ещё ${v.catchup.toLocaleString("ru")}` : "")
     : `мир считается в этом браузере · тик ${v.tick.toLocaleString("ru")}`;
 }
 

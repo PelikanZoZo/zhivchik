@@ -28,26 +28,25 @@ const env = process.env;
 const PORT = +(env.PORT || 3000);
 const TPS = +(env.TPS || 20);                       // тиков жизни в секунду
 const SAVE_EVERY = +(env.SAVE_EVERY_SEC || 30) * 1000;
-const MAX_CATCHUP = +(env.MAX_CATCHUP_TICKS || 300000);
+const MAX_CATCHUP = +(env.MAX_CATCHUP_TICKS || 864000); // 12 часов при TPS=20
+const CATCHUP_CHUNK = 2000;                               // тиков досчёта за один шаг таймера
 const ADMIN_KEY = env.ADMIN_KEY || "";
 
 // ---------- мир ----------
 const store = createStore(env, ROOT);
 let world;
 let lastStep = Date.now();
+let catchup = 0; // сколько тиков ещё досчитать после сна
 
 async function boot() {
   const where = await store.init();
   const saved = await store.load();
   if (saved) {
     world = new World(saved.world);
-    // Пока сервер спал (хостинг усыпил, перезапуск), мир должен был жить. Досчитываем.
-    const missed = Math.min(MAX_CATCHUP, Math.floor(((Date.now() - saved.savedAt) / 1000) * TPS));
-    if (missed > 0) {
-      const t0 = Date.now();
-      for (let i = 0; i < missed; i++) world.step();
-      world.note(`Сервер спал. Досчитал ${missed} тиков жизни за ${Date.now() - t0} мс.`);
-    }
+    // Пока сервер спал (хостинг усыпил, перезапуск), мир должен был жить. Досчитываем частями,
+    // не задерживая запуск: страница сразу открывается и видно, как мир «догоняет» время.
+    catchup = Math.min(MAX_CATCHUP, Math.floor(((Date.now() - saved.savedAt) / 1000) * TPS));
+    if (catchup > 0) world.note(`Сервер проснулся. Догоняю ${catchup} тиков пропущенной жизни.`);
   } else {
     world = new World();
   }
@@ -69,6 +68,12 @@ async function persist() {
 function run() {
   // Считаем по реальному времени: если таймер запоздал, догоняем, но не больше секунды за раз
   const now = Date.now();
+  if (catchup > 0) {
+    const n = Math.min(catchup, CATCHUP_CHUNK);
+    for (let i = 0; i < n; i++) world.step();
+    catchup -= n;
+    if (!catchup) world.note("Пропущенная жизнь досчитана.");
+  }
   let due = Math.min(TPS, Math.floor(((now - lastStep) / 1000) * TPS));
   if (due > 0) {
     lastStep += (due / TPS) * 1000;
@@ -97,7 +102,7 @@ const server = http.createServer(async (req, res) => {
     const p = url.pathname;
     if (!world) return send(res, 503, { error: "Мир ещё просыпается, обнови через секунду." });
 
-    if (p === "/api/state") return send(res, 200, { mode: "server", tps: TPS, ...world.view() });
+    if (p === "/api/state") return send(res, 200, { mode: "server", tps: TPS, catchup, ...world.view() });
     if (p === "/api/details") return send(res, 200, { ...world.details(), locked: !!ADMIN_KEY });
     if (p === "/api/lives") return send(res, 200, await store.recentLives(Math.min(200, +(url.searchParams.get("limit") || 50))));
     if (p === "/api/action" && req.method === "POST") {

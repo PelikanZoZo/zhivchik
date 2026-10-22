@@ -1,0 +1,40 @@
+# Проверка: видит ли GitHub хостинг по FTP. Результат записывается в docs/ftp-check.txt.
+name: Проверка FTP
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/ftp-check.yml"]
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Подключиться и посмотреть папки
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          mkdir -p docs
+          out=docs/ftp-check.txt
+          {
+            echo "Проверка: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            for v in FTP_SERVER FTP_USERNAME FTP_PASSWORD; do
+              if [ -n "${!v}" ]; then echo "$v: задан"; else echo "$v: ПУСТО"; fi
+            done
+            for dir in "" "devalby.ru/"; do
+              echo "--- /$dir"
+              curl -sS --max-time 30 --list-only "ftp://$FTP_SERVER/$dir" --user "$FTP_USERNAME:$FTP_PASSWORD" 2>&1 \
+                | sed "s/$FTP_PASSWORD/***/g" || echo "не удалось"
+            done
+          } > "$out"
+          cat "$out"
+      - name: Сохранить результат в репозиторий
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/ftp-check.txt
+          git commit -m "Результат проверки FTP" || exit 0
+          git push
