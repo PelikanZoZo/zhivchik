@@ -1,8 +1,5 @@
-# Разбор ошибок в журнале после выкладки 0.3
-echo "=== ошибки за последний час (заголовки)"
-grep -a -n -E "Error|error:|Cannot|ER_|Живчик|хозяин|зритель|Потерял|Выложена" ~/log/devalby.ru.error.log | tail -40
-echo "=== контекст последней ошибки"
-n=$(grep -a -n -E "^[A-Za-z]*Error|Error:" ~/log/devalby.ru.error.log | tail -1 | cut -d: -f1)
-[ -n "$n" ] && sed -n "$((n-5)),$((n+8))p" ~/log/devalby.ru.error.log
-echo "=== процессы"
-ps -eo pid,lstart,args | grep -a "^ *[0-9].*node --loader" | grep -av grep
+# Проверка после выкладки 0.4
+sleep 20
+echo "=== процессы"; ps -eo pid,lstart,args | grep -a "^ *[0-9].*node --loader" | grep -av grep
+echo "=== новые ошибки"; awk -v d="$(date -d '-3 min' '+%Y/%m/%d %H:%M')" '$0 >= d' ~/log/devalby.ru.error.log | tail -20
+grep -m1 "VERSION =" ~/devalby.ru/www/public/sim/world.js
