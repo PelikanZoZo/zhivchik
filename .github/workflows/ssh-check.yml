@@ -1,0 +1,43 @@
+# Диагностика по SSH: смотрит, где лежит приложение и что пишет журнал ошибок.
+# Результат (без паролей) записывается в docs/ssh-check.txt.
+name: Проверка SSH
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/ssh-check.yml", "docs/ssh-check.request"]
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Подключиться по SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+          DBPASS_MASK: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          sudo apt-get install -y -qq sshpass > /dev/null
+          mkdir -p docs
+          {
+            echo "Проверка: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            for v in SSH_HOST SSH_USER SSHPASS; do [ -n "${!v}" ] && echo "$v: задан" || echo "$v: ПУСТО"; done
+            timeout 120 sshpass -e ssh -o StrictHostKeyChecking=no -o ConnectTimeout=20 -o PreferredAuthentications=password,keyboard-interactive "$SSH_USER@$SSH_HOST" '
+              echo "=== кто и где"; whoami; pwd; ls -la ~ 2>&1 | head -30
+              echo "=== папка сайта"; ls -la ~/devalby.ru 2>&1 | head -30
+              echo "=== все app.js"; find ~ -maxdepth 4 -name app.js -not -path "*/node_modules/*" 2>/dev/null | while read f; do echo "--- $f"; head -c 300 "$f"; echo; done
+              echo "=== журнал ошибок (хвост)"; for f in ~/log/*error*; do echo "--- $f"; tail -40 "$f"; done 2>&1
+              echo "=== процессы node"; ps -eo pid,etime,args 2>/dev/null | grep -i "[n]ode\|[u]nit" | head -20
+              echo "=== node"; which node; node --version
+            ' 2>&1 | sed -e "s/$SSHPASS/***/g" | grep -viE "pass(word)?=|DBPASS" 
+          } > docs/ssh-check.txt 2>&1 || true
+          cat docs/ssh-check.txt
+      - name: Сохранить результат
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/ssh-check.txt
+          git commit -m "Результат проверки SSH" || exit 0
+          git pull --rebase -q && git push
