@@ -36,11 +36,11 @@ jobs:
           sudo apt-get install -y -qq lftp > /dev/null
           mkdir -p docs
           set -o pipefail
-          # Хостинг перезапускает приложение, когда меняется tmp/restart.txt
+          # Новый www/tmp/restart.txt — сигнал приложению перезапуститься с новым кодом
           lftp -u "$FTP_USERNAME,$FTP_PASSWORD" "$FTP_SERVER" -e "
             set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; set ftp:passive-mode yes;
             mirror -R --verbose=1 --parallel=4 --only-newer dist/ www/;
-            mkdir -p tmp; put dist/tmp/restart.txt -o tmp/restart.txt;
+            chmod 755 www/app.js;
             ls www/;
             bye" 2>&1 | sed "s/$FTP_PASSWORD/***/g" | tail -60 > docs/deploy-log.txt && status=0 || status=$?
           echo "итог: $status" >> docs/deploy-log.txt

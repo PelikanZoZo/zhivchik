@@ -9,6 +9,7 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { World } from "../public/sim/world.js";
 import { createStore } from "./store/index.js";
 import { createAuth, loginPage } from "./auth.js";
@@ -93,10 +94,13 @@ function send(res, code, body, type = "application/json; charset=utf-8") {
   res.end(typeof body === "string" ? body : JSON.stringify(body));
 }
 
-async function readRaw(req) {
-  let s = "";
-  for await (const chunk of req) { s += chunk; if (s.length > 10000) throw new Error("слишком большой запрос"); }
-  return s;
+function readRaw(req) {
+  return new Promise((resolve, reject) => {
+    let s = "";
+    req.on("data", (chunk) => { s += chunk; if (s.length > 10000) reject(new Error("слишком большой запрос")); });
+    req.on("end", () => resolve(s));
+    req.on("error", reject);
+  });
 }
 async function readBody(req) {
   const s = await readRaw(req);
@@ -108,10 +112,18 @@ function redirect(res, to, cookie) {
   res.writeHead(303, h);
   res.end();
 }
-const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+const clientIp = (req) => String(req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "").split(",")[0].trim();
 const isHttps = (req) => req.headers["x-forwarded-proto"] === "https";
 
-const server = http.createServer(async (req, res) => {
+// Хостинг (masterhost) запускает Node.js через NGINX Unit. Unit принимает только приложения,
+// созданные через его модуль unit-http. Если модуль есть — работаем через него, иначе обычный http.
+let createServer = http.createServer, underUnit = false;
+try {
+  createServer = createRequire(import.meta.url)("unit-http").createServer;
+  underUnit = true;
+} catch {}
+
+const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url, "http://x");
     const p = url.pathname;
@@ -160,7 +172,25 @@ const server = http.createServer(async (req, res) => {
 await boot();
 setInterval(run, 1000 / TPS);
 setInterval(persist, SAVE_EVERY);
-server.listen(PORT, () => console.log(`Живчик слушает порт ${PORT}`));
+if (underUnit) {
+  server.listen();
+  console.log("Живчик работает через NGINX Unit");
+} else {
+  server.listen(PORT, () => console.log(`Живчик слушает порт ${PORT}`));
+}
+
+// Самоперезапуск после выкладки: выкладка меняет tmp/restart.txt. Заметив это,
+// сохраняем мир и выходим — хостинг сам поднимет процесс уже с новым кодом.
+const RESTART_FILE = path.join(ROOT, "tmp", "restart.txt");
+const mtime = () => { try { return fs.statSync(RESTART_FILE).mtimeMs; } catch { return 0; } };
+const startedWith = mtime();
+setInterval(async () => {
+  if (mtime() !== startedWith) {
+    console.log("Выложена новая версия, перезапускаюсь…");
+    await persist();
+    process.exit(0);
+  }
+}, 10000);
 
 async function shutdown() {
   console.log("Сохраняю мир перед остановкой…");
