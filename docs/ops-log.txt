@@ -1,42 +1,28 @@
-Запуск: 2026-10-22 16:56 UTC
-=== убираю старый server.js (код теперь в src/server.js)
-удалён
-=== останавливаю старые процессы
-стоп 20317 (Thu Oct 22 17:21:41 2026)
-стоп 20670 (Thu Oct 22 17:21:42 2026)
-стоп 21697 (Thu Oct 22 18:04:14 2026)
-=== бужу приложение
-devalby.ru: HTTP 303
-=== процессы сейчас
-  23338 Thu Oct 22 19:57:02 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  24038 Thu Oct 22 19:57:06 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  24048 Thu Oct 22 19:57:06 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+Запуск: 2026-10-22 17:23 UTC
+=== время
+Thu 22 Oct 2026 08:23:47 PM MSK
+=== процессы приложения (время старта)
+  47187 Thu Oct 22 20:22:04 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  49314 Thu Oct 22 20:22:49 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  49672 Thu Oct 22 20:23:34 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
 === журнал (хвост)
-2026/10/22 17:21:41 [info] 20330#20330 "devalby_ru" application started
-2026/10/22 18:03:12 [info] 21000#21000 "devalby_ru" application started
-node:internal/process/esm_loader:34
-      internalBinding('errors').triggerUncaughtException(
-                                ^
-
-Error: Access denied for user ''@'10.223.152.11' (using password: NO)
-    at MysqlStore.init (file:///home/h551183/devalby.ru/www/src/store/mysql.js:18:21)
-    at async boot (file:///home/h551183/devalby.ru/www/server.js:42:17)
-    at async file:///home/h551183/devalby.ru/www/server.js:129:1 {
-  code: 'ER_ACCESS_DENIED_ERROR',
-  errno: 1045,
-  sqlState: '',
-  sqlMessage: "Access denied for user ''@'10.223.152.11' (using password: NO)",
-  sql: undefined
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/encode_parameter.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/execute.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/packets/index.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/base/connection.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/connection.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/pool_connection.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/base/pool.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/pool.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/lib/pool_cluster.js',
+    '/home/h551183/devalby.ru/www/node_modules/mysql2/promise.js'
+  ]
 }
-
-Node.js v21.5.0
-2026/10/22 18:04:12 [info] 21357#21357 "devalby_ru" application started
-Не удалось сохранить: Connection lost: The server closed the connection.
-Terminated
-Terminated
-2026/10/22 19:57:01 [info] 22997#22997 "devalby_ru" application started
-2026/10/22 19:57:04 [info] 23357#23357 "devalby_ru" application started
-2026/10/22 19:57:04 [info] 23358#23358 "devalby_ru" application started
+2026/10/22 20:22:36 [info] 48617#48617 "devalby_ru" application started
+2026/10/22 20:22:48 [info] 48974#48974 "devalby_ru" application started
+2026/10/22 20:23:33 [info] 49332#49332 "devalby_ru" application started
+=== версия мира в коде
+export const VERSION = 3;
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 303 -> http://devalby.ru/login
