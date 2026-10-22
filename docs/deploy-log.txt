@@ -11,18 +11,18 @@ Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/OkPacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/OkPacket.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ProcedurePacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ProcedurePacket.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ResultSetHeader.d.ts'
@@ -50,16 +50,16 @@ Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/prom
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
 mkdir: Access failed: 550 tmp: File exists
--rw-r--r--   1 h551183_devalby_ru 551183        141 Oct 22 15:01 app.js
-drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 15:01 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        452 Oct 22 15:01 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 15:01 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         56 Oct 22 15:01 public
+-rw-r--r--   1 h551183_devalby_ru 551183        480 Oct 22 15:05 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 15:05 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 15:05 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 15:05 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 15:05 public
 -rw-r--r--   1 h551183_devalby_ru 551183       6384 Oct 22 15:01 server.js
-drwxr-xr-x   1 h551183_devalby_ru 551183         10 Oct 22 14:58 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 15:01 tmp
+drwxr-xr-x   1 h551183_devalby_ru 551183         52 Oct 22 15:05 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 15:05 tmp
 итог: 0
---- проверка сайта 15:04 UTC
+--- проверка сайта 15:07 UTC
 >> http://devalby.ru/api/state
 Hello, World!
 [HTTP 200]
