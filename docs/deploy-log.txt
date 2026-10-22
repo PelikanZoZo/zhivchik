@@ -1,23 +1,24 @@
+Transferring file `node_modules/mysql2/typings/mysql/lib/PoolConnection.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/Server.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/Server.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/Tracing.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/Tracing.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/TypedParameter.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/TypedParameter.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
@@ -32,43 +33,42 @@ Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/RowDat
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/RowDataPacket.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/index.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/index.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/ErrorPacketParams.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/ErrorPacketParams.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/OkPacketParams.d.ts'
+Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/OkPacketParams.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/ExecutableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/ExecutableBase.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Prepare.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Prepare.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Query.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Query.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/ErrorPacketParams.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/ErrorPacketParams.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/QueryableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/QueryableBase.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Sequence.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Sequence.d.ts'
-Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/OkPacketParams.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/OkPacketParams.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/ExecutableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/ExecutableBase.d.ts'
 Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
--rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 16:49 app.js
-drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 16:50 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 16:49 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 16:49 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 16:50 public
--rw-r--r--   1 h551183_devalby_ru 551183       6384 Oct 22 15:01 server.js
-drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 16:50 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 16:50 tmp
+-rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 16:56 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 16:57 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 16:56 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 16:56 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 16:57 public
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 16:57 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 16:57 tmp
 итог: 0
---- проверка сайта 16:52 UTC
+--- проверка сайта 17:00 UTC
 >> http://devalby.ru/api/state
-Hello, World!
-[HTTP 200]
+{"error":"Нужно войти"}
+[HTTP 401]
 
 >> http://devalby.ru/api/details
-Hello, World!
-[HTTP 200]
+{"error":"Нужно войти"}
+[HTTP 401]
 
 >> http://devalby.ru/
-Hello, World!
-[HTTP 200]
+
+[HTTP 303]
 
