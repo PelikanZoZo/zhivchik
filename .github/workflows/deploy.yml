@@ -47,6 +47,19 @@ jobs:
           cat docs/deploy-log.txt
           exit $status
 
+      - name: Проверить, что сайт ожил
+        if: always()
+        run: |
+          sleep 15
+          {
+            echo "--- проверка сайта $(date -u '+%H:%M UTC')"
+            for u in http://devalby.ru/api/state http://devalby.ru/api/details http://devalby.ru/; do
+              echo ">> $u"
+              curl -sS --max-time 60 -w "\n[HTTP %{http_code}]\n" "$u" 2>&1 | head -c 600
+              echo
+            done
+          } >> docs/deploy-log.txt
+
       - name: Сохранить журнал выкладки
         if: always()
         run: |
