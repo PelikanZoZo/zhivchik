@@ -15,13 +15,15 @@ const pollMs = 150;
 let details = null;
 let selected = null;
 
-// ---------- время ----------
-const clock = (ticks) => {
-  const s = Math.max(0, Math.round(ticks / TPS));
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+// ---------- время мира — в тиках ----------
+const nf = new Intl.NumberFormat("ru-RU");
+const ticks = (n) => nf.format(Math.max(0, Math.round(n)));
+const kticks = (n) => (n == null ? "—" : n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(".", ",") + "к" : ticks(n));
+// примерное реальное время при текущей скорости мира
+const approx = (n) => {
+  const s = Math.round(n / (view?.tps || TPS));
+  return s < 90 ? `~${s} с` : s < 5400 ? `~${Math.round(s / 60)} мин` : `~${(s / 3600).toFixed(1).replace(".", ",")} ч`;
 };
-const minutes = (ticks) => (ticks == null ? "—" : (ticks / TPS / 60).toFixed(ticks < 600 * TPS ? 1 : 0));
 
 // ---------- данные ----------
 async function detect() {
@@ -91,6 +93,16 @@ function draw() {
   ctx.fillStyle = "#0b140f"; ctx.fillRect(0, 0, W, H);
   // лёгкая синяя дымка влажности
   if (v.humidity > 1) { ctx.fillStyle = `rgba(70,130,220,${(v.humidity / 100) * 0.12})`; ctx.fillRect(0, 0, W, H); }
+  // дождь: косые капли
+  if (v.raining) {
+    ctx.strokeStyle = "rgba(160,200,255,.35)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 140; i++) {
+      const x = (i * 97 + t * 260) % (W + 60) - 30, y = (i * 53 + t * 620 + (i % 7) * 40) % H;
+      ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 14);
+    }
+    ctx.stroke();
+  }
 
   // плесень: синие колонии, отмирающие — темнее
   for (const [x, y, bio, dying] of v.molds) {
@@ -166,12 +178,16 @@ function draw() {
   // хищники: фиолетовые клинья
   for (const p of lerped(v.predators, prevView?.predators)) {
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
-    ctx.globalAlpha = p.stunned ? 0.5 + 0.5 * Math.abs(Math.sin(t * 12)) : p.leaving ? 0.55 : 1;
+    ctx.globalAlpha = p.stunned ? 0.5 + 0.5 * Math.abs(Math.sin(t * 12)) : p.leaving ? 0.55 : p.tired ? 0.6 : 1;
     ctx.fillStyle = "#9b7cf0"; ctx.strokeStyle = "#d9ccff"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-10, 10); ctx.lineTo(-5, 0); ctx.lineTo(-10, -10); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore(); ctx.globalAlpha = 1;
+    // внешнее кольцо — здоровье, внутреннее — выносливость
     ctx.strokeStyle = "rgba(217,204,255,.6)"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(p.x, p.y, 20, -Math.PI / 2, -Math.PI / 2 + (p.hp / 100) * Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = p.tired ? "rgba(255,120,120,.8)" : "rgba(255,220,120,.7)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 24, -Math.PI / 2, -Math.PI / 2 + ((p.stamina ?? 100) / 100) * Math.PI * 2); ctx.stroke();
+    if (p.tired) { ctx.fillStyle = "#d9ccff"; ctx.font = "11px JetBrains Mono, monospace"; ctx.fillText("z", p.x + 16, p.y - 16); }
   }
 }
 
@@ -188,7 +204,7 @@ function renderTop() {
         <div><b>${members.length}</b><small>живых</small></div>
         <div><b>${st.births ?? 0}</b><small>родилось</small></div>
         <div><b>${st.deaths ?? 0}</b><small>погибло, из них хищн. ${st.eaten ?? 0}</small></div>
-        <div><b>${minutes(st.avgLife)}</b><small>средняя жизнь, мин</small></div>
+        <div><b>${kticks(st.avgLife)}</b><small>средняя жизнь, тиков</small></div>
       </div>
       <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)} ${SPECIES[c.species].sex}<span class="mini"><i style="width:${c.energy}%;background:${scaleColor(c.energy)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
     </article>`;
@@ -196,8 +212,11 @@ function renderTop() {
 
   $("hum-bar").style.width = view.humidity + "%";
   $("hum-v").textContent = Math.round(view.humidity) + "%";
-  $("t-hum").textContent = "через " + clock(view.nextHumidity);
-  $("t-birth").textContent = view.nextBirth > 0 ? "через " + clock(view.nextBirth) : "уже можно";
+  $("t-hum").textContent = `через ${ticks(view.nextHumidity)} тиков`;
+  $("t-hum").title = approx(view.nextHumidity);
+  $("t-birth").textContent = view.nextBirth > 0 ? `через ${ticks(view.nextBirth)} тиков` : "уже можно";
+  $("t-birth").title = view.nextBirth > 0 ? approx(view.nextBirth) : "";
+  $("t-rain").textContent = view.raining ? `идёт, ещё ${ticks(view.raining)} тиков` : view.sinceRain == null ? "ещё не было" : `был ${ticks(view.sinceRain)} тиков назад`;
   $("t-pred").textContent = `${view.predatorsInWindow} из ${RULES.predatorMax}` + (view.predators.length ? ` · сейчас в мире: ${view.predators.length}` : "");
 }
 
@@ -232,7 +251,7 @@ function renderAgent() {
     return `<div class="scale" title="${g.hint}"><span>${g.name}</span><div class="track"><i style="width:${Math.round(v * 100)}%;background:var(--gene-${g.id})"></i></div><code>${v.toFixed(2)}</code></div>`;
   }).join("");
   const state = c.fighting ? "встречает хищника в бою · " : c.fleeing ? "убегает от хищника · " : c.energy >= RULES.greenEnergy ? "сыт, готов к размножению · " : "";
-  $("agent-meta").textContent = `${state}возраст ${clock(c.age)} · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
+  $("agent-meta").textContent = `${state}возраст ${ticks(c.age)} тиков · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
 
   const b = details?.brains?.[c.id];
   if (!b) { $("prefs").innerHTML = ""; return; }
@@ -267,8 +286,8 @@ function renderEvolution() {
 function renderMode() {
   const v = view;
   $("mode").innerHTML = mode === "server"
-    ? `<b>●</b> мир живёт на сервере · возраст мира ${clock(v.tick)}` + (v.catchup ? ` · догоняет пропущенное: ещё ${clock(v.catchup)}` : "")
-    : `мир считается в этом браузере · возраст мира ${clock(v.tick)}`;
+    ? `<b>●</b> мир живёт на сервере · тик ${ticks(v.tick)} · ${v.tps || TPS} тиков/с` + (v.catchup ? ` · догоняет пропущенное: ещё ${ticks(v.catchup)} тиков` : "")
+    : `мир считается в этом браузере · тик ${ticks(v.tick)}`;
 }
 
 let lastLog = "";
@@ -277,7 +296,7 @@ function renderLog() {
   const key = log.map((l) => l.t + l.text).join("|");
   if (key === lastLog) return;
   lastLog = key;
-  $("log").innerHTML = log.map((l) => `<li><span class="t">${clock(l.t).padStart(7, " ")}</span>${esc(l.text)}</li>`).join("");
+  $("log").innerHTML = log.map((l) => `<li><span class="t">${ticks(l.t).padStart(9, " ")}</span>${esc(l.text)}</li>`).join("");
 }
 
 // ---------- события ----------
@@ -289,6 +308,7 @@ cv.addEventListener("click", (e) => {
   if (hit) selected = hit.id; else act("mold", { x, y });
 });
 $("b-hum").onclick = () => act("humidity");
+$("b-rain").onclick = () => act("rain");
 $("b-pred").onclick = () => act("predator");
 $("b-reset").onclick = () => { $("confirm").hidden = false; };
 $("b-reset-no").onclick = () => { $("confirm").hidden = true; };

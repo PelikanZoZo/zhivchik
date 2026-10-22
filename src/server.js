@@ -14,6 +14,9 @@ import { World, VERSION } from "../public/sim/world.js";
 import { createStore } from "./store/index.js";
 import { createAuth, loginPage } from "./auth.js";
 
+// Журнал: пишем в stderr — на хостинге он попадает в журнал ошибок, stdout там не сохраняется
+const log = (...args) => console.error(`[живчик ${new Date().toISOString().slice(11, 19)} pid ${process.pid}]`, ...args);
+
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = path.join(ROOT, "public");
 
@@ -30,7 +33,7 @@ loadDotEnv();
 const env = process.env;
 const PORT = +(env.PORT || 3000);
 const TPS = +(env.TPS || 20);                       // тиков жизни в секунду
-const SAVE_EVERY = +(env.SAVE_EVERY_SEC || 30) * 1000;
+const SAVE_EVERY = +(env.SAVE_EVERY_SEC || 5) * 1000; // часто: хостинг может остановить процесс в любой момент
 const MAX_CATCHUP = +(env.MAX_CATCHUP_TICKS || 864000); // 12 часов при TPS=20
 const CATCHUP_CHUNK = 2000;                               // тиков досчёта за один шаг таймера
 const ADMIN_KEY = env.ADMIN_KEY || "";
@@ -51,7 +54,7 @@ const timers = [];
 
 async function boot() {
   const where = await store.init();
-  console.log(`Живчик: хранилище ${where}`);
+  log(`запуск, хранилище: ${where}`);
   if (await store.tryLead()) await becomeLeader();
   else becomeViewer();
 }
@@ -62,15 +65,17 @@ async function becomeLeader() {
   const saved = await store.load();
   if (saved && saved.world?.version === VERSION) {
     world = new World(saved.world);
+    log(`загрузил мир: тик ${world.tick}, агентов ${world.agents.length}, сохранён ${Math.round((Date.now() - saved.savedAt) / 1000)} с назад`);
     // Пока никто не считал мир (хостинг усыпил, перезапуск), он должен был жить. Досчитываем частями,
     // не задерживая запуск: страница сразу открывается и видно, как мир «догоняет» время.
     catchup = Math.min(MAX_CATCHUP, Math.floor(((Date.now() - saved.savedAt) / 1000) * TPS));
     if (catchup > 0) world.note(`Мир проснулся. Догоняю ${catchup} тиков пропущенной жизни.`);
   } else {
     world = new World();
+    log(saved ? `НОВЫЙ МИР: сохранение другой версии (${saved.world?.version})` : "НОВЫЙ МИР: сохранения нет");
   }
   lastStep = Date.now();
-  console.log(`Живчик: я хозяин мира, тик ${world.tick}`);
+  log(`я хозяин мира, тик ${world.tick}, догоняю ${catchup} тиков`);
   await persist();
   timers.push(
     setInterval(run, 1000 / TPS),
@@ -78,13 +83,13 @@ async function becomeLeader() {
     setInterval(publish, 200),
     setInterval(applyCommands, 500),
     setInterval(async () => {
-      if (!(await store.stillLeader())) { console.log("Потерял роль хозяина, перезапускаюсь"); process.exit(0); }
+      if (!(await store.stillLeader())) { log("потерял роль хозяина, выхожу"); process.exit(0); }
     }, 30000),
   );
 }
 
 function becomeViewer() {
-  console.log("Живчик: я зритель, мир считает другая копия");
+  log("я зритель");
   let busy = false;
   timers.push(
     setInterval(async () => {
@@ -130,7 +135,7 @@ async function persist() {
     await store.save(world.toJSON());
   } catch (e) {
     world.lives.unshift(...lives);
-    console.error("Не удалось сохранить:", e.message);
+    log("не удалось сохранить:", e.message);
   }
 }
 
@@ -254,14 +259,14 @@ const mtime = () => { try { return fs.statSync(RESTART_FILE).mtimeMs; } catch { 
 const startedWith = mtime();
 setInterval(async () => {
   if (mtime() !== startedWith) {
-    console.log("Выложена новая версия, перезапускаюсь…");
+    log("выложена новая версия, сохраняю и выхожу");
     await persist();
     process.exit(0);
   }
 }, 10000);
 
 async function shutdown() {
-  console.log("Сохраняю мир перед остановкой…");
+  log(`остановка (${leader ? "хозяин, тик " + world?.tick : "зритель"}), сохраняю`);
   await persist();
   await store.close().catch(() => {});
   process.exit(0);

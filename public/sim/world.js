@@ -2,27 +2,35 @@
 //
 //   Агенты Зелёный (ассоциативный мозг) и Красный (нейросеть). У каждого четыре шкалы:
 //   энергия, эмоции, сила, здоровье. Едят плесень. Убегают от хищников или отбиваются силой.
-//   Размножаются, когда у обоих энергия в зелёной зоне, — не чаще раза в 15 минут.
-//   Хищники появляются сами, не больше 2 за 10 минут, и охотятся на агентов.
-//   Каждые 5 минут поднимается влажность — на ней вырастают синие колонии плесени,
+//   Размножаются, когда у обоих энергия в зелёной зоне, — не чаще раза в RULES.birthCooldown тиков.
+//   Хищники появляются сами, не больше 2 за RULES.predatorWindow тиков, и охотятся на агентов.
+//   Каждые RULES.humidityEvery тиков поднимается влажность — на ней вырастают синие колонии плесени,
 //   которые потом медленно отмирают.
 //
-// Время — реальное: 20 тиков в секунду. Один и тот же код работает в браузере и на сервере.
+// Время мира — в тиках (см. RULES). Один и тот же код работает в браузере и на сервере.
 
 import { SIGNALS, sense } from "./sensors.js";
 import { createBrain } from "./brains/index.js";
 
 export const W = 800, H = 600;
 export const VERSION = 4;
-export const TPS = 20;
-const MIN = 60 * TPS; // тиков в реальной минуте
+export const TPS = 20; // скорость мира по умолчанию: тиков в секунду (на сервере — настройка TPS)
 
+// Все периоды мира — в тиках. При TPS=20 тысяча тиков ≈ 50 секунд.
 export const RULES = {
-  birthCooldown: 15 * MIN,      // размножение — не чаще раза в 15 минут
-  predatorWindow: 10 * MIN,     // хищников — не больше 2 за 10 минут
+  birthCooldown: 6000,      // пауза между рождениями во всём мире (~5 мин)
+  minBreedAge: 1200,        // размножаться можно с этого возраста
+  predatorWindow: 12000,    // в этом окне — не больше predatorMax хищников (~10 мин)
   predatorMax: 2,
-  humidityEvery: 5 * MIN,       // влажность поднимается каждые 5 минут
-  greenEnergy: 70,              // «зелёный уровень» энергии для размножения
+  predatorChance: 1 / 6000, // шанс появления хищника в каждом тике (в среднем раз в 6000 тиков)
+  predatorHunt: 4800,       // столько хищник охотится, потом уходит (~4 мин)
+  humidityEvery: 6000,      // волна влажности (~5 мин)
+  rainEvery: [15000, 30000], // дождь — случайно, раз в 15–30 тысяч тиков (~12–25 мин)
+  rainLength: 1200,         // и идёт столько тиков (~1 мин), держа влажность почти на 100%
+  moldGrow: 600,            // колония плесени растёт
+  moldLife: [3600, 6000],   // и живёт (вторую половину — отмирает)
+  newcomerAfter: 12000,     // пришелец, если столько тиков нет самки или самца (~10 мин)
+  greenEnergy: 70,          // «зелёный уровень» энергии для размножения
   maxAgents: 14,
 };
 
@@ -59,6 +67,9 @@ export class World {
     this.serial = data?.serial ?? 0;
     this.humidity = data?.humidity ?? 0;
     this.lastHumidity = data?.lastHumidity ?? 0;
+    this.rainLeft = data?.rainLeft ?? 0;
+    this.nextRain = data?.nextRain ?? Math.round(rnd(...RULES.rainEvery));
+    this.lastRain = data?.lastRain ?? null;
     this.lastBirth = data?.lastBirth ?? -RULES.birthCooldown;
     this.missingSince = data?.missingSince ?? {};
     this.predatorSpawns = data?.predatorSpawns ?? [];
@@ -95,28 +106,42 @@ export class World {
     const peak = rnd(35, 60);
     this.molds.push({
       x: clamp(x ?? rnd(30, W - 30), 10, W - 10), y: clamp(y ?? rnd(30, H - 30), 10, H - 10),
-      biomass: grown ? peak : 3, peak, age: grown ? 600 : 0,
-      life: Math.round(rnd(3, 5) * MIN), // потом медленно отмирает
+      biomass: grown ? peak : 3, peak, age: grown ? RULES.moldGrow : 0,
+      life: Math.round(rnd(...RULES.moldLife)), // потом медленно отмирает
     });
   }
 
   stepEnvironment() {
     // Каждые 5 минут — волна влажности, потом она медленно спадает
     if (this.tick - this.lastHumidity >= RULES.humidityEvery) this.raiseHumidity();
-    this.humidity *= 0.9997; // спадает примерно вдвое за 2 минуты
+    // Дождь: случайное событие, сильно поднимает влажность и держит её, пока идёт
+    if (!this.rainLeft && this.tick >= this.nextRain) this.startRain();
+    if (this.rainLeft > 0) {
+      this.rainLeft--;
+      this.humidity = Math.min(1, this.humidity + 0.002);
+      if (!this.rainLeft) this.note("Дождь закончился.");
+    } else this.humidity *= 0.9997; // спадает примерно вдвое за 2 000 тиков
     if (this.humidity > 0.2 && Math.random() < (this.humidity - 0.2) * 0.013) this.spawnMold();
 
     for (let i = this.molds.length - 1; i >= 0; i--) {
       const m = this.molds[i];
       m.age++;
-      if (m.age < 600) m.biomass = Math.min(m.peak, m.biomass + m.peak / 600 * (0.5 + this.humidity));
+      if (m.age < RULES.moldGrow) m.biomass = Math.min(m.peak, m.biomass + m.peak / RULES.moldGrow * (0.5 + this.humidity));
       else if (m.age > m.life * 0.5) m.biomass -= m.peak / (m.life * 0.5); // медленное отмирание
       if (m.biomass <= 0.5) this.molds.splice(i, 1);
     }
 
     // Хищники: случайно, но не больше 2 за 10 минут
     this.predatorSpawns = this.predatorSpawns.filter((t) => this.tick - t < RULES.predatorWindow);
-    if (this.agents.length && this.predatorSpawns.length < RULES.predatorMax && Math.random() < 1 / (5 * MIN)) this.spawnPredator();
+    if (this.agents.length && this.predatorSpawns.length < RULES.predatorMax && Math.random() < RULES.predatorChance) this.spawnPredator();
+  }
+
+  startRain() {
+    this.rainLeft = RULES.rainLength;
+    this.lastRain = this.tick;
+    this.nextRain = this.tick + RULES.rainLength + Math.round(rnd(...RULES.rainEvery));
+    this.humidity = Math.min(1, this.humidity + 0.6);
+    this.note("Пошёл дождь: влажность резко поднялась.");
   }
 
   raiseHumidity() {
@@ -132,7 +157,7 @@ export class World {
     const x = side === 0 ? 5 : side === 1 ? W - 5 : rnd(20, W - 20);
     const y = side === 2 ? 5 : side === 3 ? H - 5 : rnd(20, H - 20);
     this.serial++;
-    this.predators.push({ id: this.serial, x, y, a: Math.atan2(H / 2 - y, W / 2 - x), hp: 100, age: 0, stunned: 0, leaving: false, target: null });
+    this.predators.push({ id: this.serial, x, y, a: Math.atan2(H / 2 - y, W / 2 - x), hp: 100, stamina: 100, tired: false, age: 0, stunned: 0, leaving: false, target: null });
     this.note("Появился хищник.");
   }
 
@@ -140,9 +165,15 @@ export class World {
     for (let i = this.predators.length - 1; i >= 0; i--) {
       const p = this.predators[i];
       p.age++;
-      if (p.age > 4 * MIN && !p.leaving) { p.leaving = true; this.note("Хищник так и не поймал добычу и уходит."); }
+      if (p.age > RULES.predatorHunt && !p.leaving) { p.leaving = true; this.note("Хищник так и не поймал добычу и уходит."); }
+      // Усталость: погоня и рывки тратят выносливость; выдохшийся хищник плетётся и отдыхает,
+      // пока не восстановится больше чем наполовину
+      p.stamina ??= 100;
+      if (p.stamina < 15 && !p.tired) { p.tired = true; this.note("Хищник выдохся и остановился передохнуть."); }
+      if (p.tired && p.stamina > 60) p.tired = false;
       let speed = 1.5;
-      if (p.stunned > 0) { p.stunned--; speed = -1.2; } // отбили — отступает
+      if (p.stunned > 0) { p.stunned--; speed = -1.2; p.stamina += 0.05; } // отбили — отступает
+      else if (p.tired) { speed = 0.5; p.stamina += 0.15; p.a += rnd(-0.1, 0.1); }
       else if (p.leaving) {
         speed = 1.8;
         const ex = p.x < W / 2 ? -20 : W + 20;
@@ -156,10 +187,11 @@ export class World {
         }
         p.target = prey?.id ?? null;
         if (prey) {
-          if (best < 50) speed = 2.0; // рывок на короткой дистанции
+          if (best < 50 && p.stamina > 25) { speed = 2.0; p.stamina -= 0.3; } // рывок на короткой дистанции — дорого
+          else p.stamina -= 0.025; // погоня утомляет (около 3 минут непрерывной погони)
           const t = Math.atan2(prey.y - p.y, prey.x - p.x);
           p.a += clamp(Math.atan2(Math.sin(t - p.a), Math.cos(t - p.a)), -0.12, 0.12);
-        } else p.a += rnd(-0.15, 0.15);
+        } else { p.a += rnd(-0.15, 0.15); p.stamina += 0.1; } // бродит — отдыхает
       }
       p.x += Math.cos(p.a) * speed; p.y += Math.sin(p.a) * speed;
       if (!p.leaving) {
@@ -167,6 +199,7 @@ export class World {
         if (p.y < 5 || p.y > H - 5) p.a = -p.a;
         p.x = clamp(p.x, 5, W - 5); p.y = clamp(p.y, 5, H - 5);
       }
+      p.stamina = clamp(p.stamina);
       if (p.hp <= 0) { this.predators.splice(i, 1); this.note("Агенты отбились: хищник погиб."); continue; }
       if (p.leaving && (p.x < -15 || p.x > W + 15)) this.predators.splice(i, 1);
     }
@@ -277,7 +310,7 @@ export class World {
     // Нападение хищника: здоровье уходит постепенно; сила даёт шанс отбиться
     for (const p of this.predators) {
       if (p.stunned || p.leaving || dist(a, p) > 13) continue;
-      a.health -= 0.15;
+      a.health -= p.tired ? 0.06 : 0.15; // уставший кусает слабее
       a.emotions -= 0.3;
       touch.predator = -25;
       if (a.age % 20 === 0) {
@@ -305,7 +338,7 @@ export class World {
   tryBreed() {
     if (this.tick - this.lastBirth < RULES.birthCooldown || this.agents.length >= RULES.maxAgents) return;
     // Пара — самец (Зелёный) и самка (Красная), обе сыты и рядом
-    const ready = this.agents.filter((a) => a.energy >= RULES.greenEnergy && a.emotions >= 40 && a.age > MIN);
+    const ready = this.agents.filter((a) => a.energy >= RULES.greenEnergy && a.emotions >= 40 && a.age > RULES.minBreedAge);
     for (const a of ready.filter((x) => x.species === "green"))
       for (const b of ready.filter((x) => x.species === "red")) {
         if (dist(a, b) > 30) continue;
@@ -332,11 +365,11 @@ export class World {
       if (this.agents.some((a) => a.species === sp)) { this.missingSince = { ...this.missingSince, [sp]: null }; continue; }
       this.missingSince ??= {};
       this.missingSince[sp] ??= this.tick;
-      if (this.tick - this.missingSince[sp] >= 20 * MIN) {
+      if (this.tick - this.missingSince[sp] >= RULES.newcomerAfter) {
         const edge = Math.random() < 0.5;
         const a = this.spawnAgent(sp, null, null, edge ? 10 : W - 10, rnd(60, H - 60));
         this.missingSince[sp] = null;
-        this.note(`Извне пришёл${sp === "red" ? "а" : ""} ${a.name}: в мире 20 минут не было ${sp === "red" ? "самок" : "самцов"}.`);
+        this.note(`Извне пришёл${sp === "red" ? "а" : ""} ${a.name}: ${RULES.newcomerAfter} тиков в мире не было ${sp === "red" ? "самок" : "самцов"}.`);
       }
     }
   }
@@ -362,8 +395,7 @@ export class World {
     hof.sort((x, y) => y.fitness - x.fitness); if (hof.length > 5) hof.length = 5;
     this.lives.push({ species: a.species, name: a.name, gen: a.gen, age: a.age, eaten: a.ate, endedAt: this.tick, brain: { ...a.brain.toJSON(), genes: a.genes } });
     this.agents.splice(this.agents.indexOf(a), 1);
-    const mins = (a.age / MIN).toFixed(1);
-    this.note(cause === "predator" ? `${a.name} погиб от хищника, прожив ${mins} мин.` : `${a.name} умер от голода, прожив ${mins} мин.`);
+    this.note(cause === "predator" ? `${a.name} погиб от хищника, прожив ${a.age} тиков.` : `${a.name} умер от голода, прожив ${a.age} тиков.`);
     if (cause === "predator") {
       const p = this.predators.find((p) => dist(p, a) < 20 && !p.leaving);
       if (p) { p.leaving = true; } // сытый хищник уходит
@@ -395,15 +427,20 @@ export class World {
   action(type, p = {}) {
     switch (type) {
       case "humidity": this.raiseHumidity(); break;
+      case "rain":
+        if (this.rainLeft) throw new Error("Дождь уже идёт.");
+        this.startRain();
+        break;
       case "predator":
         if (this.predatorSpawns.filter((t) => this.tick - t < RULES.predatorWindow).length >= RULES.predatorMax)
-          throw new Error("Лимит: не больше 2 хищников за 10 минут.");
+          throw new Error(`Лимит: не больше ${RULES.predatorMax} хищников за ${RULES.predatorWindow} тиков.`);
         this.spawnPredator();
         break;
       case "mold": this.spawnMold(+p.x, +p.y); break;
       case "reset":
         this.tick = 0; this.serial = 0; this.log = []; this.stats = {}; this.hof = {}; this.geneHistory = [];
         this.lastBirth = -RULES.birthCooldown; this.predatorSpawns = [];
+        this.rainLeft = 0; this.lastRain = null; this.nextRain = Math.round(rnd(...RULES.rainEvery));
         for (const sp of Object.keys(SPECIES)) { this.stats[sp] = { births: 0, deaths: 0, eaten: 0, recent: [], best: 0 }; this.hof[sp] = []; }
         this.genesis();
         break;
@@ -423,10 +460,11 @@ export class World {
       version: VERSION, tick: this.tick, W, H, tpsBase: TPS,
       humidity: r1(this.humidity * 100),
       nextHumidity: Math.max(0, RULES.humidityEvery - (this.tick - this.lastHumidity)),
+      raining: this.rainLeft, sinceRain: this.lastRain == null ? null : this.tick - this.lastRain,
       nextBirth: Math.max(0, RULES.birthCooldown - (this.tick - this.lastBirth)),
       predatorsInWindow: this.predatorSpawns.filter((t) => this.tick - t < RULES.predatorWindow).length,
       molds: this.molds.map((m) => [Math.round(m.x), Math.round(m.y), r1(m.biomass), m.age > m.life * 0.5 ? 1 : 0]),
-      predators: this.predators.map((p) => ({ id: p.id, x: r1(p.x), y: r1(p.y), a: +p.a.toFixed(2), hp: Math.round(p.hp), stunned: p.stunned > 0, leaving: p.leaving })),
+      predators: this.predators.map((p) => ({ id: p.id, x: r1(p.x), y: r1(p.y), a: +p.a.toFixed(2), hp: Math.round(p.hp), stamina: Math.round(p.stamina ?? 100), tired: !!p.tired, stunned: p.stunned > 0, leaving: p.leaving })),
       agents: this.agents.map((a) => ({
         id: a.id, name: a.name, species: a.species, gen: a.gen, parents: a.parents,
         x: r1(a.x), y: r1(a.y), a: +a.a.toFixed(3), age: a.age, fleeing: a.fleeing, fighting: a.fighting,
@@ -454,6 +492,7 @@ export class World {
   toJSON() {
     return {
       version: VERSION, tick: this.tick, serial: this.serial, humidity: this.humidity, lastHumidity: this.lastHumidity,
+      rainLeft: this.rainLeft, nextRain: this.nextRain, lastRain: this.lastRain,
       lastBirth: this.lastBirth, missingSince: this.missingSince, predatorSpawns: this.predatorSpawns, molds: this.molds, predators: this.predators,
       stats: this.stats, hof: this.hof, log: this.log, geneHistory: this.geneHistory,
       agents: this.agents.map(({ trail, brain, ...a }) => ({ ...a, brain: brain.toJSON() })),
