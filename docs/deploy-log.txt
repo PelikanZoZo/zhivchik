@@ -17,15 +17,15 @@ Transferring file `public/sim/brains/index.js'
 Transferring file `src/store/mysql.js'
 Transferring file `public/sim/brains/neural.js'
 mkdir: Access failed: 550 www/tmp: File exists
--rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 17:36 app.js
+-rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 17:44 app.js
 drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 17:23 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 17:36 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 17:36 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 17:37 public
-drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 17:37 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 17:37 tmp
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 17:44 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 17:44 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 17:44 public
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 17:44 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 17:45 tmp
 итог: 0
---- проверка сайта 17:37 UTC
+--- проверка сайта 17:45 UTC
 >> http://devalby.ru/api/state
 {"error":"Нужно войти"}
 [HTTP 401]
