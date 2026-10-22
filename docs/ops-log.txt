@@ -1,0 +1,46 @@
+Запуск: 2026-10-22 16:56 UTC
+=== убираю старый server.js (код теперь в src/server.js)
+удалён
+=== останавливаю старые процессы
+стоп 20317 (Thu Oct 22 17:21:41 2026)
+стоп 20670 (Thu Oct 22 17:21:42 2026)
+стоп 21697 (Thu Oct 22 18:04:14 2026)
+=== бужу приложение
+devalby.ru: HTTP 303
+=== процессы сейчас
+  23338 Thu Oct 22 19:57:02 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  24038 Thu Oct 22 19:57:06 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  24048 Thu Oct 22 19:57:06 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+=== журнал (хвост)
+2026/10/22 17:21:41 [info] 20330#20330 "devalby_ru" application started
+2026/10/22 18:03:12 [info] 21000#21000 "devalby_ru" application started
+node:internal/process/esm_loader:34
+      internalBinding('errors').triggerUncaughtException(
+                                ^
+
+Error: Access denied for user ''@'10.223.152.11' (using password: NO)
+    at MysqlStore.init (file:///home/h551183/devalby.ru/www/src/store/mysql.js:18:21)
+    at async boot (file:///home/h551183/devalby.ru/www/server.js:42:17)
+    at async file:///home/h551183/devalby.ru/www/server.js:129:1 {
+  code: 'ER_ACCESS_DENIED_ERROR',
+  errno: 1045,
+  sqlState: '',
+  sqlMessage: "Access denied for user ''@'10.223.152.11' (using password: NO)",
+  sql: undefined
+}
+
+Node.js v21.5.0
+2026/10/22 18:04:12 [info] 21357#21357 "devalby_ru" application started
+Не удалось сохранить: Connection lost: The server closed the connection.
+Terminated
+Terminated
+2026/10/22 19:57:01 [info] 22997#22997 "devalby_ru" application started
+2026/10/22 19:57:04 [info] 23357#23357 "devalby_ru" application started
+2026/10/22 19:57:04 [info] 23358#23358 "devalby_ru" application started
+--- снаружи, через интернет:
+>> http://devalby.ru/
+HTTP 303 -> http://devalby.ru/login
+
+>> http://devalby.ru/login
+HTTP 200 -> 
+ Вход <styl
