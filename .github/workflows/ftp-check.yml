@@ -29,7 +29,7 @@ jobs:
             case "$FTP_PASSWORD" in " "*|*" ") echo "в пароле пробел по краям!";; esac
             case "$FTP_PASSWORD" in *$'\n'*|*$'\r'*) echo "в пароле перенос строки!";; esac
             echo "адрес GitHub: $(curl -s --max-time 10 https://api.ipify.org)"
-            for dir in "" "www/" "tmp/"; do
+            for dir in "" "www/" "www/node_modules/" "www/tmp/"; do
               echo "--- /$dir"
               curl -sS --max-time 30 "ftp://$FTP_SERVER/$dir" --user "$FTP_USERNAME:$FTP_PASSWORD" 2>&1 \
                 | sed "s/$FTP_PASSWORD/***/g" || echo "не удалось"
