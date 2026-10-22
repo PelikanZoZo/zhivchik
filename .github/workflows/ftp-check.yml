@@ -3,7 +3,7 @@ name: Проверка FTP
 on:
   workflow_dispatch:
   push:
-    paths: [".github/workflows/ftp-check.yml"]
+    paths: [".github/workflows/ftp-check.yml", "docs/ftp-check.request"]
 permissions:
   contents: write
 jobs:
