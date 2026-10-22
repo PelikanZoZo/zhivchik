@@ -1,43 +1,67 @@
-Запуск: 2026-10-22 17:44 UTC
-=== папка data (мир в файлах, если процесс не видит базу)
-ls: cannot access 'data': No such file or directory
-=== процессы
-  73548 Thu Oct 22 20:41:56 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  74622 Thu Oct 22 20:43:22 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  74979 Thu Oct 22 20:43:47 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-=== запуски за последние 30 минут
-100
-=== не-info строки за 30 минут
-    at ModuleJob.run (node:internal/modules/esm/module_job:218:25)
-    at async ModuleLoader.import (node:internal/modules/esm/loader:329:24)
-Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/world.js' imported from /home/h551183/devalby.ru/www/src/server.js
-    at finalizeResolution (node:internal/modules/esm/resolve:263:11)
-    at moduleResolve (node:internal/modules/esm/resolve:908:10)
-    at defaultResolve (node:internal/modules/esm/resolve:1121:11)
-    at nextResolve (node:internal/modules/esm/hooks:750:28)
-    at resolve (file:///usr/nvm/versions/node/v21.5.0/lib/node_modules/unit-http/loader.mjs:19:12)
-    at nextResolve (node:internal/modules/esm/hooks:750:28)
-    at Hooks.resolve (node:internal/modules/esm/hooks:238:30)
-    at handleMessage (node:internal/modules/esm/worker:199:24)
-    at checkForMessages (node:internal/modules/esm/worker:141:28)
-    at process.<anonymous> (node:internal/modules/esm/worker:160:5) {
-  code: 'ERR_MODULE_NOT_FOUND',
-  url: 'file:///home/h551183/devalby.ru/www/public/sim/world.js'
-}
-Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/brains/index.js' imported from /home/h551183/devalby.ru/www/public/sim/world.js
-    at finalizeResolution (node:internal/modules/esm/resolve:263:11)
-    at moduleResolve (node:internal/modules/esm/resolve:908:10)
-    at defaultResolve (node:internal/modules/esm/resolve:1121:11)
-    at nextResolve (node:internal/modules/esm/hooks:750:28)
-    at resolve (file:///usr/nvm/versions/node/v21.5.0/lib/node_modules/unit-http/loader.mjs:19:12)
-    at nextResolve (node:internal/modules/esm/hooks:750:28)
-    at Hooks.resolve (node:internal/modules/esm/hooks:238:30)
-    at handleMessage (node:internal/modules/esm/worker:199:24)
-    at Immediate.checkForMessages (node:internal/modules/esm/worker:141:28)
-    at process.processImmediate (node:internal/timers:478:21) {
-  code: 'ERR_MODULE_NOT_FOUND',
-  url: 'file:///home/h551183/devalby.ru/www/public/sim/brains/index.js'
-}
+Запуск: 2026-10-22 17:58 UTC
+=== записи сервера за последние 6 минут
+[живчик 17:57:21 pid 85666] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:57:21 pid 85666] я зритель
+[живчик 17:57:22 pid 85726] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:57:22 pid 85726] я зритель
+[живчик 17:57:30 pid 86083] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:57:30 pid 86083] я зритель
+[живчик 17:57:51 pid 85347] потерял роль хозяина, выхожу
+[живчик 17:57:51 pid 85666] загрузил мир: тик 25218, агентов 3, сохранён 5 с назад
+[живчик 17:57:51 pid 85666] я хозяин мира, тик 25218, догоняю 109 тиков
+[живчик 17:58:21 pid 85666] потерял роль хозяина, выхожу
+[живчик 17:58:22 pid 85726] загрузил мир: тик 25926, агентов 3, сохранён 1 с назад
+[живчик 17:58:22 pid 85726] я хозяин мира, тик 25926, догоняю 18 тиков
+[живчик 17:58:23 pid 86451] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:58:23 pid 86451] я зритель
+[живчик 17:58:26 pid 86808] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:58:26 pid 86808] я зритель
+[живчик 17:58:52 pid 85726] потерял роль хозяина, выхожу
+[живчик 17:58:53 pid 86451] загрузил мир: тик 26443, агентов 3, сохранён 6 с назад
+[живчик 17:58:53 pid 86451] я хозяин мира, тик 26443, догоняю 114 тиков
+[живчик 17:59:00 pid 86083] выложена новая версия, сохраняю и выхожу
+[живчик 17:59:02 pid 87168] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:59:02 pid 87168] я зритель
+[живчик 17:59:03 pid 86451] выложена новая версия, сохраняю и выхожу
+[живчик 17:59:05 pid 87525] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:59:05 pid 87525] загрузил мир: тик 26756, агентов 3, сохранён 2 с назад
+[живчик 17:59:05 pid 87525] я хозяин мира, тик 26756, догоняю 32 тиков
+[живчик 17:59:06 pid 86808] выложена новая версия, сохраняю и выхожу
+[живчик 17:59:08 pid 87882] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:59:08 pid 87882] я зритель
+[живчик 17:59:35 pid 87525] потерял роль хозяина, выхожу
+[живчик 17:59:36 pid 88239] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 17:59:36 pid 88239] загрузил мир: тик 27287, агентов 3, сохранён 7 с назад
+[живчик 17:59:36 pid 88239] я хозяин мира, тик 27287, догоняю 132 тиков
+[живчик 18:00:06 pid 88239] потерял роль хозяина, выхожу
+[живчик 18:00:07 pid 87168] загрузил мир: тик 28018, агентов 3, сохранён 0 с назад
+[живчик 18:00:07 pid 87168] я хозяин мира, тик 28018, догоняю 9 тиков
+[живчик 18:00:08 pid 88596] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 18:00:08 pid 88596] я зритель
+[живчик 18:00:37 pid 87168] потерял роль хозяина, выхожу
+[живчик 18:00:38 pid 87882] загрузил мир: тик 28526, агентов 3, сохранён 6 с назад
+[живчик 18:00:38 pid 87882] я хозяин мира, тик 28526, догоняю 117 тиков
+[живчик 18:00:39 pid 88953] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 18:00:39 pid 88953] я зритель
+[живчик 18:01:08 pid 87882] потерял роль хозяина, выхожу
+[живчик 18:01:08 pid 88596] загрузил мир: тик 29143, агентов 3, сохранён 6 с назад
+[живчик 18:01:08 pid 88596] я хозяин мира, тик 29143, догоняю 111 тиков
+[живчик 18:01:09 pid 89310] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 18:01:09 pid 89310] я зритель
+[живчик 18:01:38 pid 88596] потерял роль хозяина, выхожу
+[живчик 18:01:39 pid 88953] загрузил мир: тик 29753, агентов 3, сохранён 5 с назад
+[живчик 18:01:39 pid 88953] я хозяин мира, тик 29753, догоняю 104 тиков
+[живчик 18:01:40 pid 89667] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 18:01:40 pid 89667] я зритель
+[живчик 18:02:09 pid 88953] потерял роль хозяина, выхожу
+[живчик 18:02:09 pid 89310] загрузил мир: тик 30356, агентов 3, сохранён 6 с назад
+[живчик 18:02:09 pid 89310] я хозяин мира, тик 30356, догоняю 116 тиков
+[живчик 18:02:10 pid 90024] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 18:02:10 pid 90024] я зритель
+[живчик 18:02:13 pid 90381] запуск, хранилище: MySQL h551183_detifi@h551183_detifi.mysql.masterhost.ru/h551183_detifi
+[живчик 18:02:13 pid 90381] я зритель
+=== запусков процессов за 6 минут
+17
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 303 -> http://devalby.ru/login
