@@ -1,28 +1,42 @@
-Проверка: 2026-10-22 16:20 UTC
+Проверка: 2026-10-22 16:21 UTC
 FTP_SERVER: задан
 FTP_USERNAME: задан
 FTP_PASSWORD: задан
 сервер: [ftp.hosting.masterhost.ru]
 длина пароля: 13
-адрес GitHub: 13.83.236.197
+адрес GitHub: 4.149.236.251
 --- /
 drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 15:00 tmp
-drwxr-xr-x   1 h551183_devalby_ru 551183        136 Oct 22 16:04 www
+drwxr-xr-x   1 h551183_devalby_ru 551183        136 Oct 22 16:21 www
 --- /www/
--rw-r--r--   1 h551183_devalby_ru 551183        480 Oct 22 16:04 app.js
-drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 16:04 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 16:04 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 16:04 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 16:04 public
+-rw-r--r--   1 h551183_devalby_ru 551183        480 Oct 22 16:20 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 16:21 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 16:20 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 16:20 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 16:21 public
 -rw-r--r--   1 h551183_devalby_ru 551183       6384 Oct 22 15:01 server.js
-drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 16:04 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 16:04 tmp
---- /tmp/
--rw-r--r--   1 h551183_devalby_ru 551183         29 Oct 22 16:04 restart.txt
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 16:21 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 16:21 tmp
+--- /www/node_modules/
+drwxr-xr-x   1 h551183_devalby_ru 551183         62 Oct 22 16:21 aws-ssl-profiles
+drwxr-xr-x   1 h551183_devalby_ru 551183        128 Oct 22 16:21 generate-function
+drwxr-xr-x   1 h551183_devalby_ru 551183         90 Oct 22 16:05 iconv-lite
+drwxr-xr-x   1 h551183_devalby_ru 551183        104 Oct 22 16:05 is-property
+drwxr-xr-x   1 h551183_devalby_ru 551183        118 Oct 22 16:05 long
+drwxr-xr-x   1 h551183_devalby_ru 551183         76 Oct 22 16:05 lru.min
+drwxr-xr-x   1 h551183_devalby_ru 551183        156 Oct 22 16:05 mysql2
+drwxr-xr-x   1 h551183_devalby_ru 551183         72 Oct 22 16:05 named-placeholders
+drwxr-xr-x   1 h551183_devalby_ru 551183        146 Oct 22 16:05 safer-buffer
+drwxr-xr-x   1 h551183_devalby_ru 551183         62 Oct 22 16:05 sql-escaper
+drwxr-xr-x   1 h551183_devalby_ru 551183          8 Oct 22 14:58 @types
+drwxr-xr-x   1 h551183_devalby_ru 551183       1442 Oct 22 16:06 undici-types
+lrwxrwxrwx   1 h551183_devalby_ru 551183         71 Oct 22 13:06 unit-http -> ../../../../../usr/nvm/versions/node/v21.5.0/lib/node_modules/unit-http
+--- /www/tmp/
+-rw-r--r--   1 h551183_devalby_ru 551183         29 Oct 22 16:20 restart.txt
 === сайт
 >> http://devalby.ru/
 HTTP/1.1 200 OK
-Date: Thu, 22 Oct 2026 16:20:55 GMT
+Date: Thu, 22 Oct 2026 16:21:51 GMT
 Content-Type: text/plain
 Transfer-Encoding: chunked
 Connection: keep-alive
@@ -33,7 +47,7 @@ Hello, World!
 
 >> http://devalby.ru/login
 HTTP/1.1 200 OK
-Date: Thu, 22 Oct 2026 16:20:55 GMT
+Date: Thu, 22 Oct 2026 16:21:52 GMT
 Content-Type: text/plain
 Transfer-Encoding: chunked
 Connection: keep-alive
@@ -44,7 +58,7 @@ Hello, World!
 
 >> http://www.devalby.ru/
 HTTP/1.1 200 OK
-Date: Thu, 22 Oct 2026 16:20:56 GMT
+Date: Thu, 22 Oct 2026 16:21:53 GMT
 Content-Type: text/plain
 Transfer-Encoding: chunked
 Connection: keep-alive
