@@ -1,13 +1,15 @@
-Проверка: 2026-10-22 14:47 UTC
+Проверка: 2026-10-22 14:48 UTC
 FTP_SERVER: задан
 FTP_USERNAME: задан
 FTP_PASSWORD: задан
 логин: [h551183_devalby_ru]
 сервер: [ftp.hosting.masterhost.ru]
 длина пароля: 13
-адрес GitHub: 4.249.22.142
+адрес GitHub: 4.155.134.213
 --- /
-www
-tmp
---- /devalby.ru/
-curl: (9) Server denied you to change to the given directory
+drwxr-xr-x   1 h551183_devalby_ru 551183          0 Oct 22 13:06 tmp
+drwxr-xr-x   1 h551183_devalby_ru 551183         36 Oct 22 13:06 www
+--- /www/
+-rwxr-xr-x   1 h551183_devalby_ru 551183        168 Oct 22 13:06 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183         18 Oct 22 13:06 node_modules
+--- /tmp/
