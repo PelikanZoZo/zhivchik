@@ -1,14 +1,55 @@
-Проверка: 2026-10-22 14:48 UTC
+Проверка: 2026-10-22 16:20 UTC
 FTP_SERVER: задан
 FTP_USERNAME: задан
 FTP_PASSWORD: задан
 сервер: [ftp.hosting.masterhost.ru]
 длина пароля: 13
-адрес GitHub: 57.151.128.80
+адрес GitHub: 13.83.236.197
 --- /
-drwxr-xr-x   1 h551183_devalby_ru 551183          0 Oct 22 13:06 tmp
-drwxr-xr-x   1 h551183_devalby_ru 551183         36 Oct 22 13:06 www
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 15:00 tmp
+drwxr-xr-x   1 h551183_devalby_ru 551183        136 Oct 22 16:04 www
 --- /www/
--rwxr-xr-x   1 h551183_devalby_ru 551183        168 Oct 22 13:06 app.js
-drwxr-xr-x   1 h551183_devalby_ru 551183         18 Oct 22 13:06 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        480 Oct 22 16:04 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 16:04 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 16:04 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 16:04 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 16:04 public
+-rw-r--r--   1 h551183_devalby_ru 551183       6384 Oct 22 15:01 server.js
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 16:04 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 16:04 tmp
 --- /tmp/
+-rw-r--r--   1 h551183_devalby_ru 551183         29 Oct 22 16:04 restart.txt
+=== сайт
+>> http://devalby.ru/
+HTTP/1.1 200 OK
+Date: Thu, 22 Oct 2026 16:20:55 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Keep-Alive: timeout=10
+Server: Unit/1.31.1
+
+Hello, World!
+
+>> http://devalby.ru/login
+HTTP/1.1 200 OK
+Date: Thu, 22 Oct 2026 16:20:55 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Keep-Alive: timeout=10
+Server: Unit/1.31.1
+
+Hello, World!
+
+>> http://www.devalby.ru/
+HTTP/1.1 200 OK
+Date: Thu, 22 Oct 2026 16:20:56 GMT
+Content-Type: text/plain
+Transfer-Encoding: chunked
+Connection: keep-alive
+Keep-Alive: timeout=10
+Server: Unit/1.31.1
+
+Hello, World!
+
