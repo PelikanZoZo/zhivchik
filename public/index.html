@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Живчик</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Цифровые организмы, которые учатся на опыте и эволюционируют, когда меняется среда.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title">
+      <h1>Живчик <span aria-hidden="true">●</span></h1>
+      <p class="mode" id="mode">Просыпается…</p>
+    </div>
+    <p class="lede">Два вида цифровых существ в одной чашке Петри. Никто из них не знает, что съедобно. Ассоциативные запоминают вкус каждого вещества. Нейро — маленькие нейросети: учатся на награде при жизни и передают мозг потомкам с мутациями.</p>
+  </header>
+
+  <section class="species" id="species" aria-label="Виды"></section>
+
+  <div class="grid">
+    <div class="dish-box">
+      <canvas id="dish" width="800" height="600" aria-label="Мир существ. Клик — бросить еду, клик по существу — заглянуть в его мозг."></canvas>
+      <div class="dish-hint">клик — бросить еду · клик по существу — его мозг · синее — холод</div>
+    </div>
+
+    <div class="side">
+      <section class="panel" aria-labelledby="h-brain">
+        <div class="panel-head">
+          <h2 id="h-brain">Мозг</h2>
+          <span class="who" id="who"></span>
+        </div>
+        <div class="vitals" id="vitals"></div>
+        <div class="prefs" id="prefs"></div>
+        <div class="legend" id="legend"></div>
+        <p class="note" id="brain-note"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-world">
+        <h2 id="h-world">Правила мира</h2>
+        <p class="law" id="law"></p>
+        <div class="controls">
+          <button id="b-flip" class="primary" type="button">Перевернуть мир</button>
+          <button id="b-winter" type="button" aria-pressed="false">Зима</button>
+          <button id="b-famine" type="button" aria-pressed="false">Голод</button>
+          <button id="b-reset" type="button">Новый мир</button>
+        </div>
+        <div class="confirm" id="confirm" hidden>
+          <span>Стереть мир и всю эволюцию?</span>
+          <button id="b-reset-yes" type="button" class="danger">Стереть</button>
+          <button id="b-reset-no" type="button">Отмена</button>
+        </div>
+        <label class="chk"><input id="inherit" type="checkbox" checked> Потомки наследуют мозг родителя</label>
+        <div class="row" id="speed-row"><label for="speed">Скорость</label><input id="speed" type="range" min="1" max="20" value="2"><span id="speed-v">×2</span></div>
+        <div class="row" id="key-row" hidden><label for="key">Ключ</label><input id="key" type="password" autocomplete="off" placeholder="ключ управления"></div>
+        <p class="error" id="error" role="status"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="h-log">
+        <h2 id="h-log">Журнал наблюдений</h2>
+        <ul class="log" id="log"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
