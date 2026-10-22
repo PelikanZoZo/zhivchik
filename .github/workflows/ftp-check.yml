@@ -24,6 +24,12 @@ jobs:
             for v in FTP_SERVER FTP_USERNAME FTP_PASSWORD; do
               if [ -n "${!v}" ]; then echo "$v: задан"; else echo "$v: ПУСТО"; fi
             done
+            echo "логин: [$FTP_USERNAME]"
+            echo "сервер: [$FTP_SERVER]"
+            echo "длина пароля: ${#FTP_PASSWORD}"
+            case "$FTP_PASSWORD" in " "*|*" ") echo "в пароле пробел по краям!";; esac
+            case "$FTP_PASSWORD" in *$'\n'*|*$'\r'*) echo "в пароле перенос строки!";; esac
+            echo "адрес GitHub: $(curl -s --max-time 10 https://api.ipify.org)"
             for dir in "" "devalby.ru/"; do
               echo "--- /$dir"
               curl -sS --max-time 30 --list-only "ftp://$FTP_SERVER/$dir" --user "$FTP_USERNAME:$FTP_PASSWORD" 2>&1 \
