@@ -24,7 +24,7 @@ jobs:
         run: |
           npm ci --omit=dev
           mkdir -p dist/tmp
-          cp -r app.js server.js package.json package-lock.json src public node_modules dist/
+          cp -r app.js package.json package-lock.json src public node_modules dist/
           date -u > dist/tmp/restart.txt
 
       - name: Залить в www/ и перезапустить

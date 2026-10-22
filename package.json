@@ -2,10 +2,9 @@
   "name": "zhivchik",
   "version": "0.2.0",
   "description": "Цифровой организм, который учится на опыте и подстраивается под изменения среды",
-  "type": "module",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node app.js",
     "arena": "node tools/arena.js"
   },
   "engines": {

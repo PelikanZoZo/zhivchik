@@ -1,4 +1,5 @@
-// Сервер Живчика. Держит мир живым постоянно, сохраняет его и отдаёт страницу.
+// Сервер Живчика. Запускается через app.js.
+// Держит мир живым постоянно, сохраняет его и отдаёт страницу.
 //
 // Настройки — переменные окружения или файл .env рядом (см. .env.example).
 // Без базы данных хранит всё в папке data/.
@@ -8,10 +9,10 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { World } from "./public/sim/world.js";
-import { createStore } from "./src/store/index.js";
+import { World } from "../public/sim/world.js";
+import { createStore } from "./store/index.js";
 
-const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = path.join(ROOT, "public");
 
 // ---------- настройки ----------
