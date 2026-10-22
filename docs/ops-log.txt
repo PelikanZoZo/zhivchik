@@ -1,19 +1,43 @@
-Запуск: 2026-10-22 17:36 UTC
-=== время
-Thu 22 Oct 2026 08:36:57 PM MSK
+Запуск: 2026-10-22 17:44 UTC
+=== папка data (мир в файлах, если процесс не видит базу)
+ls: cannot access 'data': No such file or directory
 === процессы
-  67889 Thu Oct 22 20:35:47 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  68253 Thu Oct 22 20:36:23 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  68610 Thu Oct 22 20:36:30 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-=== последние запуски и ошибки
-2026/10/22 20:34:48 [info] 65749#65749 "devalby_ru" application started
-2026/10/22 20:35:03 [info] 66108#66108 "devalby_ru" application started
-2026/10/22 20:35:11 [info] 66465#66465 "devalby_ru" application started
-2026/10/22 20:35:41 [info] 66835#66835 "devalby_ru" application started
-2026/10/22 20:35:45 [info] 67192#67192 "devalby_ru" application started
-2026/10/22 20:35:46 [info] 67528#67528 "devalby_ru" application started
-2026/10/22 20:36:22 [info] 67913#67913 "devalby_ru" application started
-2026/10/22 20:36:29 [info] 68270#68270 "devalby_ru" application started
+  73548 Thu Oct 22 20:41:56 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  74622 Thu Oct 22 20:43:22 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  74979 Thu Oct 22 20:43:47 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+=== запуски за последние 30 минут
+100
+=== не-info строки за 30 минут
+    at ModuleJob.run (node:internal/modules/esm/module_job:218:25)
+    at async ModuleLoader.import (node:internal/modules/esm/loader:329:24)
+Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/world.js' imported from /home/h551183/devalby.ru/www/src/server.js
+    at finalizeResolution (node:internal/modules/esm/resolve:263:11)
+    at moduleResolve (node:internal/modules/esm/resolve:908:10)
+    at defaultResolve (node:internal/modules/esm/resolve:1121:11)
+    at nextResolve (node:internal/modules/esm/hooks:750:28)
+    at resolve (file:///usr/nvm/versions/node/v21.5.0/lib/node_modules/unit-http/loader.mjs:19:12)
+    at nextResolve (node:internal/modules/esm/hooks:750:28)
+    at Hooks.resolve (node:internal/modules/esm/hooks:238:30)
+    at handleMessage (node:internal/modules/esm/worker:199:24)
+    at checkForMessages (node:internal/modules/esm/worker:141:28)
+    at process.<anonymous> (node:internal/modules/esm/worker:160:5) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/h551183/devalby.ru/www/public/sim/world.js'
+}
+Живчик не запустился: Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/h551183/devalby.ru/www/public/sim/brains/index.js' imported from /home/h551183/devalby.ru/www/public/sim/world.js
+    at finalizeResolution (node:internal/modules/esm/resolve:263:11)
+    at moduleResolve (node:internal/modules/esm/resolve:908:10)
+    at defaultResolve (node:internal/modules/esm/resolve:1121:11)
+    at nextResolve (node:internal/modules/esm/hooks:750:28)
+    at resolve (file:///usr/nvm/versions/node/v21.5.0/lib/node_modules/unit-http/loader.mjs:19:12)
+    at nextResolve (node:internal/modules/esm/hooks:750:28)
+    at Hooks.resolve (node:internal/modules/esm/hooks:238:30)
+    at handleMessage (node:internal/modules/esm/worker:199:24)
+    at Immediate.checkForMessages (node:internal/modules/esm/worker:141:28)
+    at process.processImmediate (node:internal/timers:478:21) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/h551183/devalby.ru/www/public/sim/brains/index.js'
+}
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 303 -> http://devalby.ru/login
