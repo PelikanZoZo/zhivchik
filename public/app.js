@@ -135,7 +135,7 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
       }
     }
-  const HALO = { flee: "rgba(255,80,80,.18)", fight: "rgba(255,160,40,.24)", help: "rgba(90,210,230,.22)" };
+  const HALO = { flee: "rgba(255,80,80,.18)", survive: "rgba(255,60,60,.32)", fight: "rgba(255,160,40,.24)", help: "rgba(90,210,230,.22)", forage: "rgba(110,170,250,.16)" };
   for (const c of agents) {
     const col = SPECIES[c.species].color;
     const r = 9 + c.health / 25, pulse = c.mode === "sleep" ? 1 : 1 + Math.sin(t * 4 + c.id) * 0.05;
@@ -187,7 +187,8 @@ function draw() {
   for (const p of lerped(v.predators, prevView?.predators)) {
     const bite = p.genes?.bite ?? 0.3;
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
-    ctx.globalAlpha = p.stunned ? 0.5 + 0.5 * Math.abs(Math.sin(t * 12)) : p.leaving ? 0.55 : p.tired ? 0.6 : 1;
+    ctx.globalAlpha = p.stunned ? 0.5 + 0.5 * Math.abs(Math.sin(t * 12)) : p.leaving ? 0.55 : p.tired ? 0.6 : 1 - 0.4 * (p.weak ?? 0);
+    const sc = 1 - 0.25 * (p.weak ?? 0); ctx.scale(sc, sc); // ослабевший хищник «съёживается»
     ctx.fillStyle = `hsl(${265 - bite * 45}, 70%, ${62 - bite * 8}%)`; ctx.strokeStyle = "#d9ccff"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-10, 10); ctx.lineTo(-5, 0); ctx.lineTo(-10, -10); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore(); ctx.globalAlpha = 1;
@@ -199,6 +200,7 @@ function draw() {
     ctx.fillStyle = "#d9ccff"; ctx.font = "11px JetBrains Mono, monospace";
     if (p.tired) ctx.fillText("z", p.x + 16, p.y - 16);
     else if (p.confused) ctx.fillText("?", p.x + 16, p.y - 16);
+    else if ((p.weak ?? 0) >= 0.5) ctx.fillText("слаб", p.x + 16, p.y - 16);
     ctx.fillStyle = "rgba(217,204,255,.7)"; ctx.font = "10px JetBrains Mono, monospace"; ctx.fillText("п" + p.gen, p.x - 8, p.y + 34);
   }
 }
@@ -262,15 +264,17 @@ function renderAgent() {
     scaleRow("Сила", c.strength, scaleColor(c.strength)) +
     scaleRow("Здоровье", c.health, scaleColor(c.health)) +
     scaleRow("Эмоции", c.emotions, scaleColor(c.emotions)) +
+    scaleRow("Сытость", c.satiety ?? 100, scaleColor(c.satiety ?? 100)) +
     scaleRow("Скука", c.boredom, scaleColor(100 - c.boredom)) +
     scaleRow("Агрессия", c.aggression, "var(--gene-aggro)");
   $("genes").innerHTML = GENES.map((g) => {
     const v = c.genes?.[g.id] ?? 0;
     return `<div class="scale" title="${g.hint}"><span>${g.name}</span><div class="track"><i style="width:${Math.round(v * 100)}%;background:var(--gene-${g.id})"></i></div><code>${v.toFixed(2)}</code></div>`;
   }).join("");
-  const MODES = { sleep: "спит", rest: "отдыхает — мало сил", bored: "скучает, реагирует вяло", fight: "дерётся с хищником", help: "спешит на помощь сородичу", flee: "убегает от хищника" };
+  const MODES = { sleep: "спит", rest: "отдыхает — мало сил", bored: "скучает, реагирует вяло", fight: "дерётся с хищником", help: "спешит на помощь сородичу", flee: "убегает от хищника", survive: "инстинкт выживания: ранен, спасается из последних сил", forage: "голоден — инстинкт гонит к еде" };
   let state = MODES[c.mode] || (c.strength >= RULES.breedStrength ? "полон сил, готов к размножению" : "");
-  if (c.hunger > RULES.hungryAfter) state = (state ? state + ", " : "") + "голодает";
+  if (c.hunger > RULES.hungryAfter) state = (state ? state + ", " : "") + "голодает — теряет здоровье";
+  else if (c.hunger > RULES.weakFromHunger) state = (state ? state + ", " : "") + "слабеет от голода";
   state = state ? state + " · " : "";
   $("agent-meta").textContent = `${state}возраст ${ticks(c.age)} тиков · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
 

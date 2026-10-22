@@ -36,6 +36,9 @@ export const RULES = {
   moldLife: [3600, 6000],    // и живёт (вторую половину — отмирает)
   newcomerAfter: 12000,      // пришелец, если столько тиков нет самки или самца
   hungryAfter: 8000,         // столько тиков без еды — и здоровье начинает таять
+  weakFromHunger: 3000,      // с этого момента без еды агент слабеет и замедляется (сильнее всего к hungryAfter)
+  predatorStarve: 3000,      // столько тиков погони без укуса — и хищник начинает слабеть
+  survivalHealth: 35,        // здоровье ниже — включается инстинкт выживания
   restBelow: 20,             // сила ниже — отдыхает
   sleepBelow: 3,             // сила ниже — засыпает
   sleepLength: [600, 1200],  // сон длится
@@ -200,6 +203,7 @@ export class World {
       id: this.serial, gen, genes, x, y, a: Math.atan2(H / 2 - y, W / 2 - x),
       hp: 130 + 90 * genes.bite, maxHp: 130 + 90 * genes.bite, stamina: 100, tired: false,
       age: 0, stunned: 0, confused: 0, leaving: false, target: null, kills: 0, dealt: 0,
+      chase: 0, weak: 0, // слабость от долгой неудачной охоты, 0…1
     });
     const top = PREDATOR_GENES.reduce((m, g) => (genes[g.id] > genes[m.id] ? g : m));
     this.note(`Появился хищник поколения ${gen}` + (genes[top.id] > 0.55 ? ` — особенно силён в «${top.name.toLowerCase()}» (${genes[top.id].toFixed(2)}).` : "."));
@@ -223,9 +227,16 @@ export class World {
       if (p.stamina < 15 && !p.tired) { p.tired = true; this.note("Хищник выдохся и остановился передохнуть."); }
       if (p.tired && p.stamina > 60) p.tired = false;
       const drain = 1.4 - 0.8 * g.endurance; // выносливые устают медленнее
-      let speed = 1.3 + 0.6 * g.speed;
+      // Слабость от неудачной охоты: долго гонится и не может укусить — слабеет и замедляется
+      p.chase ??= 0; p.weak ??= 0;
+      const wasWeak = p.weak >= 0.5;
+      p.weak = clamp((p.chase - RULES.predatorStarve) / (RULES.predatorStarve * 1.5), 0, 1);
+      if (!wasWeak && p.weak >= 0.5) this.note("Хищник ослаб от неудачной охоты и замедлился.");
+      if (p.weak > 0.5) p.hp -= 0.01 * p.weak;
+      const slow = 1 - 0.45 * p.weak;
+      let speed = (1.3 + 0.6 * g.speed) * slow;
       if (p.stunned > 0) { p.stunned--; speed = -1.2; p.stamina += 0.05; }
-      else if (p.tired) { speed = 0.5; p.stamina += 0.15; p.a += rnd(-0.1, 0.1); }
+      else if (p.tired) { speed = 0.5 * slow; p.stamina += 0.15 * (1 - 0.5 * p.weak); p.a += rnd(-0.1, 0.1); }
       else if (p.leaving) {
         speed = 1.8;
         p.a = Math.atan2(0, (p.x < W / 2 ? -20 : W + 20) - p.x);
@@ -241,7 +252,8 @@ export class World {
         }
         p.target = prey?.id ?? null;
         if (prey) {
-          if (best < 50 && p.stamina > 25) { speed = 1.8 + 0.6 * g.speed; p.stamina -= 0.3 * drain; }
+          p.chase++;
+          if (best < 50 && p.stamina > 25) { speed = (1.8 + 0.6 * g.speed) * slow; p.stamina -= 0.3 * drain; }
           else p.stamina -= 0.025 * drain;
           steer(p, prey.x, prey.y, 0.12);
         } else { p.a += rnd(-0.15, 0.15); p.stamina += 0.1; }
@@ -301,7 +313,12 @@ export class World {
     const touch = {};
     a.age++;
     a.hunger++;
-    const bored = a.boredom > RULES.boredAbove;
+    // Голод: чем дольше без еды, тем слабее и медленнее (0…1)
+    const starving = clamp((a.hunger - RULES.weakFromHunger) / (RULES.hungryAfter - RULES.weakFromHunger), 0, 1);
+    // Инстинкт выживания: ранен — спасает жизнь любой ценой; голоден — ищет еду, а не скучает
+    const wounded = a.health < RULES.survivalHealth;
+    const hungry = a.hunger > RULES.hungryAfter * 0.6;
+    const bored = a.boredom > RULES.boredAbove && !hungry && !wounded;
     const perception = (130 + 120 * g.obs) * (bored ? 0.7 : 1);
 
     // Что вокруг
@@ -315,16 +332,22 @@ export class World {
       if (o.species !== a.species) nearMate = Math.min(nearMate, d);
       if (d < perception && !kinUnderAttack) for (const p of this.predators) if (!p.leaving && !p.stunned && dist(p, o) < 16) kinUnderAttack = p;
     }
-    let foodNear = false;
-    for (const m of this.molds) if (m.biomass > 3 && dist(a, m) < perception) { foodNear = true; break; }
+    let foodNear = false, foodTarget = null, foodDist = Infinity;
+    for (const m of this.molds) {
+      if (m.biomass <= 3) continue;
+      const d = dist(a, m);
+      if (d < perception) { foodNear = true; if (d < foodDist) { foodDist = d; foodTarget = m; } }
+    }
 
     // ---- сон ----
     if (a.sleep > 0) {
       a.mode = "sleep";
       a.sleep--;
-      a.strength += a.hunger < RULES.hungryAfter ? 0.03 : 0.01;
+      a.strength += 0.03 * (1 - 0.7 * starving);
       const attacked = threat && nearestPred < 16;
       if (attacked && Math.random() < 0.02 + 0.1 * g.react) { a.sleep = 0; a.rage += 20; this.note(`${a.name} проснулся от нападения хищника.`); }
+      // инстинкт: раненый чутко спит — хищник рядом будит
+      else if (threat && nearestPred < 70 && a.health < 60 && Math.random() < 0.05 + 0.1 * g.react) { a.sleep = 0; this.note(`${a.name} почуял хищника во сне и проснулся.`); }
       if (a.strength >= 50) a.sleep = 0;
     } else {
       // ---- бодрствование ----
@@ -337,19 +360,25 @@ export class World {
       const aggr = this.aggroLevel(a);
       const canFight = a.strength > 30;
       a.mode = "active";
-      if (aware && canFight && aggr > 45) a.mode = "fight";
+      if (aware && wounded) a.mode = "survive"; // инстинкт сильнее агрессии: раненый бежит
+      else if (aware && canFight && aggr > 45) a.mode = "fight";
       else if (kinUnderAttack && canFight && g.help > 0.3 && (!threat || nearestPred > 20 || aggr > 30)) a.mode = "help";
       else if (aware) a.mode = "flee";
-      else if (a.strength < RULES.restBelow) a.mode = "rest";
+      else if (a.strength < RULES.restBelow && !hungry) a.mode = "rest";
+      else if (hungry && foodTarget) a.mode = "forage";
       else if (bored) a.mode = "bored";
 
       if (a.mode === "fight" && nearestPred < 80) steer(a, threat.x, threat.y, 0.2);
+      if (a.mode === "survive") steer(a, 2 * a.x - threat.x, 2 * a.y - threat.y, 0.25); // прочь от хищника
+      if (a.mode === "forage") steer(a, foodTarget.x, foodTarget.y, 0.15);
       if (a.mode === "help") steer(a, kinUnderAttack.x, kinUnderAttack.y, 0.25);
 
       // Скорость: рывок возможен только при достаточной силе; усталость замедляет
       const sprinting = (a.mode === "flee" || a.mode === "help" || (a.mode === "fight" && nearestPred < 80)) && a.strength > 25;
-      let speed = sprinting ? 1.5 + 1.0 * g.speed : 1.2 + 0.2 * g.speed;
-      speed *= 0.6 + 0.4 * (a.strength / 100);
+      const adrenaline = a.mode === "survive" && a.strength > 5; // выброс адреналина: последние силы — в бег
+      let speed = adrenaline ? 2.1 + 1.0 * g.speed : sprinting ? 1.5 + 1.0 * g.speed : 1.2 + 0.2 * g.speed;
+      speed *= adrenaline ? 0.85 : 0.6 + 0.4 * (a.strength / 100);
+      speed *= 1 - 0.4 * starving; // голодный медленнее
       if (a.mode === "rest") speed = 0.5;
       if (bored) speed *= 0.8;
       let nx = a.x + Math.cos(a.a) * speed, ny = a.y + Math.sin(a.a) * speed;
@@ -359,8 +388,8 @@ export class World {
 
       // Сила: тратится на жизнь, движение, рывки и драки; гены тоже чего-то стоят
       const upkeep = 0.0006 * GENES.reduce((s, x) => s + g[x.id], 0);
-      if (a.mode === "rest") a.strength += a.hunger < RULES.hungryAfter ? 0.004 : 0;
-      else a.strength -= 0.005 + upkeep + (sprinting ? 0.02 * (1 + 0.5 * g.speed) : 0);
+      if (a.mode === "rest") a.strength += 0.004 * (1 - starving); // голодному отдых почти не помогает
+      else a.strength -= 0.005 + upkeep + (sprinting ? 0.02 * (1 + 0.5 * g.speed) : 0) + (adrenaline ? 0.04 : 0);
       if (a.mode === "fight" || a.mode === "help") a.strength -= 0.01;
 
       // Еда
@@ -423,6 +452,7 @@ export class World {
       if (p.stunned || p.leaving || dist(a, p) > 13) continue;
       const bite = (0.1 + 0.15 * p.genes.bite) * (p.tired ? 0.4 : 1) * (a.sleep > 0 ? 1.5 : 1);
       a.health -= bite; p.dealt += bite;
+      p.chase = Math.max(0, (p.chase ?? 0) - 15); // укус возвращает хищнику силы
       a.emotions -= 0.3; a.rage += 0.2;
       touch.predator = -25;
       if (a.age % 20 === 0 && a.sleep <= 0 && a.strength > 10) {
@@ -431,7 +461,7 @@ export class World {
         for (const h of helpers) p.hp -= 1.5 * (0.5 + h.strength / 50);
         const aggr = this.aggroLevel(a);
         p.hp -= 2 * (aggr / 100) * (0.5 + a.strength / 50);
-        const chance = (a.strength / 300) * (1 + 1.5 * (aggr / 100)) * (1 + 0.4 * helpers.length);
+        const chance = (a.strength / 300) * (1 + 1.5 * (aggr / 100)) * (1 + 0.4 * helpers.length) * (1 - 0.5 * starving);
         if (Math.random() < chance) {
           p.stunned = 80; p.hp -= (8 + a.strength / 8) * (1 + aggr / 100);
           a.strength -= 3;
@@ -613,7 +643,7 @@ export class World {
       molds: this.molds.map((m) => [Math.round(m.x), Math.round(m.y), r1(m.biomass), m.age > m.life * 0.5 ? 1 : 0]),
       predators: this.predators.map((p) => ({
         id: p.id, gen: p.gen, x: r1(p.x), y: r1(p.y), a: +p.a.toFixed(2),
-        hp: Math.round((p.hp / p.maxHp) * 100), stamina: Math.round(p.stamina), tired: p.tired,
+        hp: Math.round((p.hp / p.maxHp) * 100), stamina: Math.round(p.stamina), tired: p.tired, weak: +(p.weak ?? 0).toFixed(2),
         stunned: p.stunned > 0, confused: p.confused > 0, leaving: p.leaving,
         genes: Object.fromEntries(PREDATOR_GENES.map((g) => [g.id, +p.genes[g.id].toFixed(2)])),
       })),
@@ -623,6 +653,7 @@ export class World {
         genes: Object.fromEntries(GENES.map((g) => [g.id, +a.genes[g.id].toFixed(2)])),
         strength: Math.round(a.strength), health: Math.round(a.health), emotions: Math.round(a.emotions),
         boredom: Math.round(a.boredom), aggression: Math.round(this.aggroLevel(a)), hunger: a.hunger,
+        satiety: Math.round(clamp(100 - (a.hunger / RULES.hungryAfter) * 100)),
         trail: a.trail,
       })),
     };
