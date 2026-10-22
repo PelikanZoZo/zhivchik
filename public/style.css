@@ -12,9 +12,13 @@
   --warn: #d39a1f;
   --bad: #c9484a;
   --water: #3f7fd0;
+  --gene-help: #2f9e6a;
   --gene-speed: #2f9fb5;
-  --gene-camo: #8a7bd6;
   --gene-aggro: #e08a2c;
+  --gene-obs: #c8a21e;
+  --gene-react: #d0507a;
+  --gene-emp: #e07bb5;
+  --gene-cunning: #8a7bd6;
   --f-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
   --f-body: "Golos Text", "Segoe UI", system-ui, sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -23,14 +27,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0c120e; --panel: #131c16; --ink: #e3ece5; --muted: #8fa295; --line: #26352b;
     --life: #4cc48a; --good: #5cc27b; --warn: #e3b04a; --bad: #e66a6c; --water: #6aa2ea;
-    --gene-speed: #5cc8db; --gene-camo: #a99cf0; --gene-aggro: #f2a24e;
+    --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0c120e; --panel: #131c16; --ink: #e3ece5; --muted: #8fa295; --line: #26352b;
   --life: #4cc48a; --good: #5cc27b; --warn: #e3b04a; --bad: #e66a6c; --water: #6aa2ea;
-  --gene-speed: #5cc8db; --gene-camo: #a99cf0; --gene-aggro: #f2a24e;
+  --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -129,3 +133,6 @@ input[type=password] { flex: 1; min-width: 0; font: 13px var(--f-mono); padding:
 .evo-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
 .evo-legend span { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .evo-legend i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+.pgenes { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+.pgenes b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; }
+.world-card h2 + #pred-info { margin-top: -4px; }

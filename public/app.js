@@ -1,7 +1,7 @@
 // Интерфейс. Если рядом есть сервер — показывает его живой мир.
 // Если сервера нет (статичный хостинг, превью) — считает мир сам, тем же кодом.
 
-import { World, SPECIES, RULES, TPS, W, H, GENES } from "./sim/world.js";
+import { World, SPECIES, RULES, TPS, W, H, GENES, PREDATOR_GENES } from "./sim/world.js";
 import { SIGNALS, SENSOR } from "./sim/sensors.js";
 
 const $ = (id) => document.getElementById(id);
@@ -135,51 +135,60 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
       }
     }
+  const HALO = { flee: "rgba(255,80,80,.18)", fight: "rgba(255,160,40,.24)", help: "rgba(90,210,230,.22)" };
   for (const c of agents) {
     const col = SPECIES[c.species].color;
-    const r = 9 + c.strength / 25, pulse = 1 + Math.sin(t * 4 + c.id) * 0.05;
-    const g = c.genes || { speed: 0, camo: 0, aggro: 0 };
-    if (c.fleeing) { ctx.fillStyle = "rgba(255,80,80,.18)"; ctx.beginPath(); ctx.arc(c.x, c.y, r * 2.2, 0, Math.PI * 2); ctx.fill(); }
-    if (c.fighting) { ctx.fillStyle = "rgba(255,160,40,.22)"; ctx.beginPath(); ctx.arc(c.x, c.y, r * 2.2, 0, Math.PI * 2); ctx.fill(); }
+    const r = 9 + c.health / 25, pulse = c.mode === "sleep" ? 1 : 1 + Math.sin(t * 4 + c.id) * 0.05;
+    const g = c.genes || {};
+    if (HALO[c.mode]) { ctx.fillStyle = HALO[c.mode]; ctx.beginPath(); ctx.arc(c.x, c.y, r * 2.2, 0, Math.PI * 2); ctx.fill(); }
     // скорость — светлые «струи» позади
-    if (g.speed > 0.2) {
+    if ((g.speed ?? 0) > 0.2 && c.mode !== "sleep") {
       ctx.strokeStyle = `rgba(230,240,235,${0.15 + g.speed * 0.4})`; ctx.lineWidth = 1.5;
       for (const off of [-0.4, 0, 0.4]) {
         ctx.beginPath(); ctx.moveTo(c.x - Math.cos(c.a + off) * r, c.y - Math.sin(c.a + off) * r);
         ctx.lineTo(c.x - Math.cos(c.a + off) * (r + 6 + g.speed * 10), c.y - Math.sin(c.a + off) * (r + 6 + g.speed * 10)); ctx.stroke();
       }
     }
-    // агрессия — шипы
-    if (g.aggro > 0.2) {
+    // агрессия (сейчас) — шипы
+    if (c.aggression > 25) {
+      const lv = c.aggression / 100;
       ctx.strokeStyle = "#ffb050"; ctx.lineWidth = 2;
-      const n = 6 + Math.round(g.aggro * 6);
+      const n = 6 + Math.round(lv * 6);
       for (let k = 0; k < n; k++) {
         const ang = (k / n) * Math.PI * 2;
         ctx.beginPath(); ctx.moveTo(c.x + Math.cos(ang) * r, c.y + Math.sin(ang) * r);
-        ctx.lineTo(c.x + Math.cos(ang) * (r + 3 + g.aggro * 6), c.y + Math.sin(ang) * (r + 3 + g.aggro * 6)); ctx.stroke();
+        ctx.lineTo(c.x + Math.cos(ang) * (r + 3 + lv * 6), c.y + Math.sin(ang) * (r + 3 + lv * 6)); ctx.stroke();
       }
     }
-    // маскировка — агент становится прозрачнее
-    ctx.globalAlpha = (0.4 + 0.6 * (c.health / 100)) * (1 - 0.6 * g.camo);
+    // хитрость — агент прозрачнее; сон и отдых — тусклее
+    const dim = c.mode === "sleep" ? 0.45 : c.mode === "rest" ? 0.7 : 1;
+    ctx.globalAlpha = dim * (1 - 0.5 * (g.cunning ?? 0));
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x, c.y, r * pulse, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#0b140f"; ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(SPECIES[c.species].sex, c.x, c.y + 1); ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
-    // кольцо энергии
-    ctx.strokeStyle = scaleColor(c.energy); ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(c.x, c.y, r + 4, -Math.PI / 2, -Math.PI / 2 + (c.energy / 100) * Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = "#0b140f"; ctx.beginPath(); ctx.arc(c.x + Math.cos(c.a) * r * 0.5, c.y + Math.sin(c.a) * r * 0.5, 2.4, 0, Math.PI * 2); ctx.fill();
+    // кольцо силы
+    ctx.strokeStyle = scaleColor(c.strength); ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r + 4, -Math.PI / 2, -Math.PI / 2 + (c.strength / 100) * Math.PI * 2); ctx.stroke();
+    // скука — серое пунктирное кольцо
+    if (c.boredom > 60) {
+      ctx.strokeStyle = "rgba(170,180,175,.6)"; ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(c.x, c.y, r + 8, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (c.mode !== "sleep") { ctx.fillStyle = "#0b140f"; ctx.beginPath(); ctx.arc(c.x + Math.cos(c.a) * r * 0.5, c.y + Math.sin(c.a) * r * 0.5, 2.4, 0, Math.PI * 2); ctx.fill(); }
+    else { ctx.fillStyle = "#e3ece5"; ctx.font = "11px JetBrains Mono, monospace"; ctx.fillText("z z", c.x + r, c.y - r); }
     if (c.id === selected) {
-      ctx.strokeStyle = "#e3ece5"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(c.x, c.y, r + 9, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = "#e3ece5"; ctx.font = "12px JetBrains Mono, monospace"; ctx.fillText(c.name, c.x + r + 12, c.y - r - 4);
+      ctx.strokeStyle = "#e3ece5"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(c.x, c.y, r + 11, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "#e3ece5"; ctx.font = "12px JetBrains Mono, monospace"; ctx.fillText(c.name, c.x + r + 14, c.y - r - 4);
     }
   }
 
-  // хищники: фиолетовые клинья
+  // хищники: клинья; чем сильнее укус, тем краснее; размер — от поколения не зависит
   for (const p of lerped(v.predators, prevView?.predators)) {
+    const bite = p.genes?.bite ?? 0.3;
     ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
     ctx.globalAlpha = p.stunned ? 0.5 + 0.5 * Math.abs(Math.sin(t * 12)) : p.leaving ? 0.55 : p.tired ? 0.6 : 1;
-    ctx.fillStyle = "#9b7cf0"; ctx.strokeStyle = "#d9ccff"; ctx.lineWidth = 1.5;
+    ctx.fillStyle = `hsl(${265 - bite * 45}, 70%, ${62 - bite * 8}%)`; ctx.strokeStyle = "#d9ccff"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-10, 10); ctx.lineTo(-5, 0); ctx.lineTo(-10, -10); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.restore(); ctx.globalAlpha = 1;
     // внешнее кольцо — здоровье, внутреннее — выносливость
@@ -187,7 +196,10 @@ function draw() {
     ctx.beginPath(); ctx.arc(p.x, p.y, 20, -Math.PI / 2, -Math.PI / 2 + (p.hp / 100) * Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = p.tired ? "rgba(255,120,120,.8)" : "rgba(255,220,120,.7)"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(p.x, p.y, 24, -Math.PI / 2, -Math.PI / 2 + ((p.stamina ?? 100) / 100) * Math.PI * 2); ctx.stroke();
-    if (p.tired) { ctx.fillStyle = "#d9ccff"; ctx.font = "11px JetBrains Mono, monospace"; ctx.fillText("z", p.x + 16, p.y - 16); }
+    ctx.fillStyle = "#d9ccff"; ctx.font = "11px JetBrains Mono, monospace";
+    if (p.tired) ctx.fillText("z", p.x + 16, p.y - 16);
+    else if (p.confused) ctx.fillText("?", p.x + 16, p.y - 16);
+    ctx.fillStyle = "rgba(217,204,255,.7)"; ctx.font = "10px JetBrains Mono, monospace"; ctx.fillText("п" + p.gen, p.x - 8, p.y + 34);
   }
 }
 
@@ -206,7 +218,7 @@ function renderTop() {
         <div><b>${st.deaths ?? 0}</b><small>погибло, из них хищн. ${st.eaten ?? 0}</small></div>
         <div><b>${kticks(st.avgLife)}</b><small>средняя жизнь, тиков</small></div>
       </div>
-      <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)} ${SPECIES[c.species].sex}<span class="mini"><i style="width:${c.energy}%;background:${scaleColor(c.energy)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
+      <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)} ${SPECIES[c.species].sex}<span class="mini"><i style="width:${c.strength}%;background:${scaleColor(c.strength)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
     </article>`;
   }).join("");
 
@@ -217,6 +229,11 @@ function renderTop() {
   $("t-birth").textContent = view.nextBirth > 0 ? `через ${ticks(view.nextBirth)} тиков` : "уже можно";
   $("t-birth").title = view.nextBirth > 0 ? approx(view.nextBirth) : "";
   $("t-rain").textContent = view.raining ? `идёт, ещё ${ticks(view.raining)} тиков` : view.sinceRain == null ? "ещё не было" : `был ${ticks(view.sinceRain)} тиков назад`;
+  const pd = details?.predators;
+  if (pd) {
+    const genes = pd.genes ? PREDATOR_GENES.map((g) => `<span title="${g.name}">${g.name} <b>${pd.genes[g.id].toFixed(2)}</b></span>`).join("") : "";
+    $("pred-info").innerHTML = `<div class="timers"><div><dt>Поколение хищников</dt><dd>${pd.gen || "—"}</dd></div><div><dt>Поймали агентов / погибло хищников</dt><dd>${pd.kills} / ${pd.died}</dd></div></div>` + (genes ? `<div class="pgenes">${genes}</div>` : "");
+  }
   $("t-pred").textContent = `${view.predatorsInWindow} из ${RULES.predatorMax}` + (view.predators.length ? ` · сейчас в мире: ${view.predators.length}` : "");
 }
 
@@ -242,15 +259,19 @@ function renderAgent() {
   const sp = SPECIES[c.species];
   $("who").innerHTML = `<span style="color:${sp.color}">${esc(c.name)} ${sp.sex}</span>`;
   $("scales").innerHTML =
-    scaleRow("Энергия", c.energy, scaleColor(c.energy)) +
+    scaleRow("Сила", c.strength, scaleColor(c.strength)) +
+    scaleRow("Здоровье", c.health, scaleColor(c.health)) +
     scaleRow("Эмоции", c.emotions, scaleColor(c.emotions)) +
-    scaleRow("Сила", c.strength, "var(--warn)") +
-    scaleRow("Здоровье", c.health, scaleColor(c.health));
+    scaleRow("Скука", c.boredom, scaleColor(100 - c.boredom)) +
+    scaleRow("Агрессия", c.aggression, "var(--gene-aggro)");
   $("genes").innerHTML = GENES.map((g) => {
     const v = c.genes?.[g.id] ?? 0;
     return `<div class="scale" title="${g.hint}"><span>${g.name}</span><div class="track"><i style="width:${Math.round(v * 100)}%;background:var(--gene-${g.id})"></i></div><code>${v.toFixed(2)}</code></div>`;
   }).join("");
-  const state = c.fighting ? "встречает хищника в бою · " : c.fleeing ? "убегает от хищника · " : c.energy >= RULES.greenEnergy ? "сыт, готов к размножению · " : "";
+  const MODES = { sleep: "спит", rest: "отдыхает — мало сил", bored: "скучает, реагирует вяло", fight: "дерётся с хищником", help: "спешит на помощь сородичу", flee: "убегает от хищника" };
+  let state = MODES[c.mode] || (c.strength >= RULES.breedStrength ? "полон сил, готов к размножению" : "");
+  if (c.hunger > RULES.hungryAfter) state = (state ? state + ", " : "") + "голодает";
+  state = state ? state + " · " : "";
   $("agent-meta").textContent = `${state}возраст ${ticks(c.age)} тиков · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
 
   const b = details?.brains?.[c.id];

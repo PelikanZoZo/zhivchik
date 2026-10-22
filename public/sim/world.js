@@ -1,11 +1,15 @@
-// Мир Живчика, версия 3.
+// Мир Живчика, версия 5.
 //
-//   Агенты Зелёный (ассоциативный мозг) и Красный (нейросеть). У каждого четыре шкалы:
-//   энергия, эмоции, сила, здоровье. Едят плесень. Убегают от хищников или отбиваются силой.
-//   Размножаются, когда у обоих энергия в зелёной зоне, — не чаще раза в RULES.birthCooldown тиков.
-//   Хищники появляются сами, не больше 2 за RULES.predatorWindow тиков, и охотятся на агентов.
-//   Каждые RULES.humidityEvery тиков поднимается влажность — на ней вырастают синие колонии плесени,
-//   которые потом медленно отмирают.
+//   Зелёные — самцы (ассоциативный мозг), Красные — самки (нейросеть).
+//   Параметры агента: Сила, Здоровье, Эмоции, Скука и текущая Агрессия.
+//     Сила — главный ресурс: даёт еда и сон, тратят движение, рывки, драки и соперничество.
+//     Мало силы — агент замедляется и отдыхает, почти ноль — засыпает. Много — может ускориться,
+//     обороняться и отталкивать хищника.
+//     Скука растёт, когда вокруг нет ни еды, ни партнёров, ни хищников: агент реагирует вяло.
+//     Самцы отталкивают друг друга от самки, тратя силу, — агрессия у обоих растёт.
+//   Гены развития (наследуются, мутируют): взаимопомощь, скорость, агрессия, наблюдательность,
+//   реакция, сочувствие, хитрость.
+//   Хищники тоже эволюционируют: каждый новый — потомок самых удачливых охотников прошлого.
 //
 // Время мира — в тиках (см. RULES). Один и тот же код работает в браузере и на сервере.
 
@@ -13,24 +17,30 @@ import { SIGNALS, sense } from "./sensors.js";
 import { createBrain } from "./brains/index.js";
 
 export const W = 800, H = 600;
-export const VERSION = 4;
+export const VERSION = 5;
 export const TPS = 20; // скорость мира по умолчанию: тиков в секунду (на сервере — настройка TPS)
 
 // Все периоды мира — в тиках. При TPS=20 тысяча тиков ≈ 50 секунд.
 export const RULES = {
-  birthCooldown: 6000,      // пауза между рождениями во всём мире (~5 мин)
-  minBreedAge: 1200,        // размножаться можно с этого возраста
-  predatorWindow: 12000,    // в этом окне — не больше predatorMax хищников (~10 мин)
+  birthCooldown: 6000,       // пауза между рождениями во всём мире
+  minBreedAge: 1200,         // размножаться можно с этого возраста
+  breedStrength: 60,         // сила обоих для размножения
+  predatorWindow: 12000,     // в этом окне — не больше predatorMax хищников
   predatorMax: 2,
-  predatorChance: 1 / 6000, // шанс появления хищника в каждом тике (в среднем раз в 6000 тиков)
-  predatorHunt: 4800,       // столько хищник охотится, потом уходит (~4 мин)
-  humidityEvery: 6000,      // волна влажности (~5 мин)
-  rainEvery: [15000, 30000], // дождь — случайно, раз в 15–30 тысяч тиков (~12–25 мин)
-  rainLength: 1200,         // и идёт столько тиков (~1 мин), держа влажность почти на 100%
-  moldGrow: 600,            // колония плесени растёт
-  moldLife: [3600, 6000],   // и живёт (вторую половину — отмирает)
-  newcomerAfter: 12000,     // пришелец, если столько тиков нет самки или самца (~10 мин)
-  greenEnergy: 70,          // «зелёный уровень» энергии для размножения
+  predatorChance: 1 / 6000,  // шанс появления хищника в каждом тике
+  predatorHunt: 4800,        // столько хищник охотится, потом уходит
+  humidityEvery: 6000,       // волна влажности
+  rainEvery: [15000, 30000], // дождь — случайно, раз в 15–30 тысяч тиков
+  rainLength: 1200,          // и идёт столько тиков, держа влажность почти на 100%
+  moldGrow: 600,             // колония плесени растёт
+  moldLife: [3600, 6000],    // и живёт (вторую половину — отмирает)
+  newcomerAfter: 12000,      // пришелец, если столько тиков нет самки или самца
+  hungryAfter: 8000,         // столько тиков без еды — и здоровье начинает таять
+  restBelow: 20,             // сила ниже — отдыхает
+  sleepBelow: 3,             // сила ниже — засыпает
+  sleepLength: [600, 1200],  // сон длится
+  boredAbove: 60,            // скука выше — реагирует вяло
+  rivalryCooldown: 200,      // самец не толкается чаще
   maxAgents: 14,
 };
 
@@ -40,12 +50,25 @@ export const SPECIES = {
 };
 export const FEMALE_SHARE = 0.65; // самок рождается чаще
 
-// Гены защиты от хищников. Передаются потомкам (среднее родителей + мутация), у основателей почти нули.
-// Каждый ген помогает, но стоит энергии — поэтому отбор решает, что выгоднее в этом мире.
+// Гены развития агентов: 0…1, наследуются (среднее родителей + мутация). Каждый чем-то полезен
+// и чего-то стоит — отбор сам решает, что выгоднее в этом мире.
 export const GENES = [
-  { id: "speed", name: "Скорость", hint: "быстрее убегает, но больше тратит" },
-  { id: "camo", name: "Маскировка", hint: "хищник замечает позже и реже выбирает целью" },
-  { id: "aggro", name: "Агрессия", hint: "не бежит, а дерётся: чаще отбивается и ранит хищника" },
+  { id: "help", name: "Взаимопомощь", hint: "идёт на помощь, когда хищник напал на сородича; вместе отбиваются легче" },
+  { id: "speed", name: "Скорость", hint: "быстрее бегает и делает рывки, но рывок дороже по силе" },
+  { id: "aggro", name: "Агрессия", hint: "чаще дерётся, чем бежит; сильнее бьёт хищника и соперников" },
+  { id: "obs", name: "Наблюдательность", hint: "замечает хищника, еду и сородичей издалека" },
+  { id: "react", name: "Реакция", hint: "быстрее поворачивает и мгновенно пугается; может проснуться при нападении" },
+  { id: "emp", name: "Сочувствие", hint: "делится силой со слабым сородичем; близость радует сильнее" },
+  { id: "cunning", name: "Хитрость", hint: "хищник реже выбирает целью; в погоне может сбить его со следа" },
+];
+
+// Гены хищников — эволюция свободная: потомки самых удачливых охотников с мутациями
+export const PREDATOR_GENES = [
+  { id: "speed", name: "Скорость" },
+  { id: "endurance", name: "Выносливость" },
+  { id: "sense", name: "Чутьё" },
+  { id: "bite", name: "Укус" },
+  { id: "guile", name: "Коварство" },
 ];
 
 const randn = () => {
@@ -54,10 +77,15 @@ const randn = () => {
   while (!v) v = Math.random();
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 };
-
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const steer = (obj, tx, ty, max) => {
+  const t = Math.atan2(ty - obj.y, tx - obj.x);
+  obj.a += clamp(Math.atan2(Math.sin(t - obj.a), Math.cos(t - obj.a)), -max, max);
+};
+const mutate = (v, sigma = 0.05, jumpChance = 0.25, jump = 0.22) =>
+  clamp(v + randn() * sigma + (Math.random() < jumpChance ? randn() * jump : 0), 0, 1);
 
 export class World {
   constructor(data) {
@@ -75,11 +103,14 @@ export class World {
     this.predatorSpawns = data?.predatorSpawns ?? [];
     this.molds = data?.molds ?? [];
     this.predators = data?.predators ?? [];
+    this.predatorHof = data?.predatorHof ?? []; // лучшие охотники — родители будущих хищников
+    this.predatorGen = data?.predatorGen ?? 0;
+    this.predatorStats = data?.predatorStats ?? { spawned: 0, kills: 0, died: 0 };
     this.stats = data?.stats ?? {};
     this.hof = data?.hof ?? {};
     this.log = data?.log ?? [];
-    this.geneHistory = data?.geneHistory ?? []; // средние гены живых после каждого рождения
-    this.lives = []; // закончившиеся жизни, ждут записи в базу
+    this.geneHistory = data?.geneHistory ?? [];
+    this.lives = [];
     this.agents = (data?.agents ?? []).map((a) => ({ ...a, brain: createBrain(a.brain.type, a.brain), trail: [] }));
     for (const sp of Object.keys(SPECIES)) {
       this.stats[sp] ??= { births: 0, deaths: 0, eaten: 0, recent: [], best: 0 };
@@ -92,46 +123,43 @@ export class World {
     this.humidity = 0.7;
     this.lastHumidity = this.tick;
     this.molds = [];
-    for (let i = 0; i < 6; i++) this.spawnMold(null, null, true);
+    for (let i = 0; i < 7; i++) this.spawnMold(null, null, true);
     this.agents = [];
     this.predators = [];
     this.spawnAgent("green", null, null, W * 0.4, H / 2);
     this.spawnAgent("red", null, null, W * 0.6, H / 2);
-    this.note("Мир создан: Зелёный и Красный. Они ещё ничего о нём не знают.");
+    this.note("Мир создан: Зелёный и Красная. Они ещё ничего о нём не знают.");
   }
 
-  // ---------- плесень и влажность ----------
+  // ---------- плесень, влажность, дождь ----------
   spawnMold(x, y, grown) {
     if (this.molds.length >= 30) return;
     const peak = rnd(35, 60);
     this.molds.push({
       x: clamp(x ?? rnd(30, W - 30), 10, W - 10), y: clamp(y ?? rnd(30, H - 30), 10, H - 10),
       biomass: grown ? peak : 3, peak, age: grown ? RULES.moldGrow : 0,
-      life: Math.round(rnd(...RULES.moldLife)), // потом медленно отмирает
+      life: Math.round(rnd(...RULES.moldLife)),
     });
   }
 
   stepEnvironment() {
-    // Каждые 5 минут — волна влажности, потом она медленно спадает
     if (this.tick - this.lastHumidity >= RULES.humidityEvery) this.raiseHumidity();
-    // Дождь: случайное событие, сильно поднимает влажность и держит её, пока идёт
     if (!this.rainLeft && this.tick >= this.nextRain) this.startRain();
     if (this.rainLeft > 0) {
       this.rainLeft--;
       this.humidity = Math.min(1, this.humidity + 0.002);
       if (!this.rainLeft) this.note("Дождь закончился.");
-    } else this.humidity *= 0.9997; // спадает примерно вдвое за 2 000 тиков
+    } else this.humidity *= 0.9997;
     if (this.humidity > 0.2 && Math.random() < (this.humidity - 0.2) * 0.013) this.spawnMold();
 
     for (let i = this.molds.length - 1; i >= 0; i--) {
       const m = this.molds[i];
       m.age++;
-      if (m.age < RULES.moldGrow) m.biomass = Math.min(m.peak, m.biomass + m.peak / RULES.moldGrow * (0.5 + this.humidity));
-      else if (m.age > m.life * 0.5) m.biomass -= m.peak / (m.life * 0.5); // медленное отмирание
+      if (m.age < RULES.moldGrow) m.biomass = Math.min(m.peak, m.biomass + (m.peak / RULES.moldGrow) * (0.5 + this.humidity));
+      else if (m.age > m.life * 0.5) m.biomass -= m.peak / (m.life * 0.5);
       if (m.biomass <= 0.5) this.molds.splice(i, 1);
     }
 
-    // Хищники: случайно, но не больше 2 за 10 минут
     this.predatorSpawns = this.predatorSpawns.filter((t) => this.tick - t < RULES.predatorWindow);
     if (this.agents.length && this.predatorSpawns.length < RULES.predatorMax && Math.random() < RULES.predatorChance) this.spawnPredator();
   }
@@ -156,42 +184,67 @@ export class World {
     const side = Math.floor(Math.random() * 4);
     const x = side === 0 ? 5 : side === 1 ? W - 5 : rnd(20, W - 20);
     const y = side === 2 ? 5 : side === 3 ? H - 5 : rnd(20, H - 20);
+    // Родитель — победитель «турнира» двух случайных охотников из зала славы
+    let genes, gen = 1;
+    const hof = this.predatorHof;
+    if (hof.length) {
+      const a = hof[Math.floor(Math.random() * hof.length)], b = hof[Math.floor(Math.random() * hof.length)];
+      const parent = a.fitness >= b.fitness ? a : b;
+      genes = Object.fromEntries(PREDATOR_GENES.map((g) => [g.id, mutate(parent.genes[g.id], 0.06, 0.3, 0.2)]));
+      gen = parent.gen + 1;
+    } else genes = Object.fromEntries(PREDATOR_GENES.map((g) => [g.id, rnd(0.15, 0.4)]));
+    this.predatorGen = Math.max(this.predatorGen, gen);
     this.serial++;
-    this.predators.push({ id: this.serial, x, y, a: Math.atan2(H / 2 - y, W / 2 - x), hp: 100, stamina: 100, tired: false, age: 0, stunned: 0, leaving: false, target: null });
-    this.note("Появился хищник.");
+    this.predatorStats.spawned++;
+    this.predators.push({
+      id: this.serial, gen, genes, x, y, a: Math.atan2(H / 2 - y, W / 2 - x),
+      hp: 130 + 90 * genes.bite, maxHp: 130 + 90 * genes.bite, stamina: 100, tired: false,
+      age: 0, stunned: 0, confused: 0, leaving: false, target: null, kills: 0, dealt: 0,
+    });
+    const top = PREDATOR_GENES.reduce((m, g) => (genes[g.id] > genes[m.id] ? g : m));
+    this.note(`Появился хищник поколения ${gen}` + (genes[top.id] > 0.55 ? ` — особенно силён в «${top.name.toLowerCase()}» (${genes[top.id].toFixed(2)}).` : "."));
+  }
+
+  retirePredator(p, why) {
+    // Удачливость охотника: добыча и нанесённый урон. Лучшие становятся родителями следующих.
+    const fitness = p.kills * 300 + p.dealt + Math.min(p.age, RULES.predatorHunt) / 100;
+    this.predatorHof.push({ fitness, gen: p.gen, genes: p.genes, kills: p.kills });
+    this.predatorHof.sort((a, b) => b.fitness - a.fitness);
+    for (const h of this.predatorHof) h.fitness *= 0.96; // старые заслуги тускнеют
+    if (this.predatorHof.length > 8) this.predatorHof.length = 8;
+    if (why === "died") this.predatorStats.died++;
   }
 
   stepPredators() {
     for (let i = this.predators.length - 1; i >= 0; i--) {
-      const p = this.predators[i];
+      const p = this.predators[i], g = p.genes;
       p.age++;
-      if (p.age > RULES.predatorHunt && !p.leaving) { p.leaving = true; this.note("Хищник так и не поймал добычу и уходит."); }
-      // Усталость: погоня и рывки тратят выносливость; выдохшийся хищник плетётся и отдыхает,
-      // пока не восстановится больше чем наполовину
-      p.stamina ??= 100;
+      if (p.age > RULES.predatorHunt && !p.leaving) { p.leaving = true; this.note("Хищник так и не наелся и уходит."); }
       if (p.stamina < 15 && !p.tired) { p.tired = true; this.note("Хищник выдохся и остановился передохнуть."); }
       if (p.tired && p.stamina > 60) p.tired = false;
-      let speed = 1.5;
-      if (p.stunned > 0) { p.stunned--; speed = -1.2; p.stamina += 0.05; } // отбили — отступает
+      const drain = 1.4 - 0.8 * g.endurance; // выносливые устают медленнее
+      let speed = 1.3 + 0.6 * g.speed;
+      if (p.stunned > 0) { p.stunned--; speed = -1.2; p.stamina += 0.05; }
       else if (p.tired) { speed = 0.5; p.stamina += 0.15; p.a += rnd(-0.1, 0.1); }
       else if (p.leaving) {
         speed = 1.8;
-        const ex = p.x < W / 2 ? -20 : W + 20;
-        p.a = Math.atan2(0, ex - p.x);
+        p.a = Math.atan2(0, (p.x < W / 2 ? -20 : W + 20) - p.x);
+      } else if (p.confused > 0) {
+        p.confused--; p.target = null; p.a += rnd(-0.3, 0.3); p.stamina += 0.05; // сбит со следа
       } else {
-        // охотится на самого заметного: маскировка уменьшает дальность, с которой агента видно
+        // Выбирает самую заметную добычу: хитрость и сон влияют на заметность, чутьё — на дальность
         let prey = null, bestScore = Infinity, best = Infinity;
+        const range = 220 + 200 * g.sense;
         for (const a of this.agents) {
-          const vis = 1 - 0.75 * a.genes.camo, d = dist(a, p);
-          if (d < 320 * vis && d / vis < bestScore) { bestScore = d / vis; best = d; prey = a; }
+          const vis = (1 - 0.6 * a.genes.cunning) * (a.sleep > 0 ? 1.3 : 1), d = dist(a, p);
+          if (d < range * vis && d / vis < bestScore) { bestScore = d / vis; best = d; prey = a; }
         }
         p.target = prey?.id ?? null;
         if (prey) {
-          if (best < 50 && p.stamina > 25) { speed = 2.0; p.stamina -= 0.3; } // рывок на короткой дистанции — дорого
-          else p.stamina -= 0.025; // погоня утомляет (около 3 минут непрерывной погони)
-          const t = Math.atan2(prey.y - p.y, prey.x - p.x);
-          p.a += clamp(Math.atan2(Math.sin(t - p.a), Math.cos(t - p.a)), -0.12, 0.12);
-        } else { p.a += rnd(-0.15, 0.15); p.stamina += 0.1; } // бродит — отдыхает
+          if (best < 50 && p.stamina > 25) { speed = 1.8 + 0.6 * g.speed; p.stamina -= 0.3 * drain; }
+          else p.stamina -= 0.025 * drain;
+          steer(p, prey.x, prey.y, 0.12);
+        } else { p.a += rnd(-0.15, 0.15); p.stamina += 0.1; }
       }
       p.x += Math.cos(p.a) * speed; p.y += Math.sin(p.a) * speed;
       if (!p.leaving) {
@@ -200,8 +253,13 @@ export class World {
         p.x = clamp(p.x, 5, W - 5); p.y = clamp(p.y, 5, H - 5);
       }
       p.stamina = clamp(p.stamina);
-      if (p.hp <= 0) { this.predators.splice(i, 1); this.note("Агенты отбились: хищник погиб."); continue; }
-      if (p.leaving && (p.x < -15 || p.x > W + 15)) this.predators.splice(i, 1);
+      if (p.hp <= 0) {
+        this.retirePredator(p, "died");
+        this.predators.splice(i, 1);
+        this.note("Агенты отбились: хищник погиб.");
+        continue;
+      }
+      if (p.leaving && (p.x < -15 || p.x > W + 15)) { this.retirePredator(p, "left"); this.predators.splice(i, 1); }
     }
   }
 
@@ -209,124 +267,185 @@ export class World {
   spawnAgent(species, parentA, parentB, x, y) {
     this.serial++;
     const sp = SPECIES[species];
-    let brain;
-    if (parentA) {
+    let brain, genes;
+    if (parentA && parentB) {
       const own = parentA.species === species ? parentA : parentB;
       const other = own === parentA ? parentB : parentA;
-      brain = own.brain.child(other?.brain);
+      brain = own.brain.child(other.brain);
+      genes = Object.fromEntries(GENES.map((g) => [g.id, mutate((parentA.genes[g.id] + parentB.genes[g.id]) / 2)]));
     } else {
-      // с нуля, или от лучшего из «зала славы» вида, если мир уже жил
       const best = this.hof[species]?.[0];
       brain = best ? createBrain(best.brain.type, best.brain).child() : createBrain(sp.brain);
-    }
-    let genes;
-    if (parentA && parentB) {
-      // смесь генов родителей + мутация; иногда заметный скачок
-      genes = {};
-      for (const g of GENES) {
-        const jump = Math.random() < 0.25 ? randn() * 0.25 : 0;
-        genes[g.id] = clamp((parentA.genes[g.id] + parentB.genes[g.id]) / 2 + randn() * 0.05 + jump, 0, 1);
-      }
-    } else {
-      const best = this.hof[species]?.[0]?.genes;
-      genes = {};
-      for (const g of GENES) genes[g.id] = clamp(best ? best[g.id] + randn() * 0.08 : rnd(0, 0.15), 0, 1);
+      genes = Object.fromEntries(GENES.map((g) => [g.id, best?.genes?.[g.id] != null ? mutate(best.genes[g.id], 0.08, 0) : rnd(0, 0.15)]));
     }
     const a = {
-      id: this.serial, name: `${sp.name}-${this.serial}`, species, genes,
+      id: this.serial, name: `${sp.name}-${this.serial}`, species, genes, brain,
       gen: parentA ? Math.max(parentA.gen, parentB?.gen ?? 0) + 1 : (this.hof[species]?.[0]?.gen ?? 0) + 1,
       parents: parentA ? [parentA.name, parentB?.name].filter(Boolean) : [],
       x: x ?? rnd(60, W - 60), y: y ?? rnd(60, H - 60), a: rnd(0, Math.PI * 2),
-      energy: parentA ? 60 : 85, emotions: 70, strength: parentA ? 20 : 30, health: 100,
-      age: 0, ate: 0, fleeing: false, fighting: false, brain, trail: [],
+      strength: parentA ? 55 : 80, health: 100, emotions: 70, boredom: 0, rage: 0,
+      hunger: 0, sleep: 0, alert: 0, lastPush: -RULES.rivalryCooldown,
+      mode: "active", age: 0, ate: 0, trail: [],
     };
     this.agents.push(a);
     return a;
   }
 
+  aggroLevel(a) {
+    return clamp(a.genes.aggro * 60 + a.rage); // врождённая агрессия + текущая ярость
+  }
+
   stepAgent(a) {
-    const before = { energy: a.energy, emotions: a.emotions, health: a.health };
-    const touch = {};
-
-    // Чувства и решение мозга
-    const turn = a.brain.act(sense(this, a));
-    a.a += turn * 0.3;
-
-    // Страх: хищник рядом — бежит быстрее, тратит больше
     const g = a.genes;
-    let nearestPred = Infinity, threat = null;
+    const before = { strength: a.strength, emotions: a.emotions, health: a.health };
+    const touch = {};
+    a.age++;
+    a.hunger++;
+    const bored = a.boredom > RULES.boredAbove;
+    const perception = (130 + 120 * g.obs) * (bored ? 0.7 : 1);
+
+    // Что вокруг
+    let threat = null, nearestPred = Infinity;
     for (const p of this.predators) if (!p.leaving) { const d = dist(a, p); if (d < nearestPred) { nearestPred = d; threat = p; } }
-    // Агрессивный и сильный не бежит, а встречает хищника
-    a.fighting = nearestPred < 130 && g.aggro > 0.45 && a.strength > 25;
-    a.fleeing = nearestPred < 130 && a.emotions < 60 && !a.fighting;
-    if (a.fighting && nearestPred < 70) {
-      const t = Math.atan2(threat.y - a.y, threat.x - a.x);
-      a.a += clamp(Math.atan2(Math.sin(t - a.a), Math.cos(t - a.a)), -0.2, 0.2);
+    let nearKin = Infinity, nearMate = Infinity, kinUnderAttack = null;
+    for (const o of this.agents) {
+      if (o === a) continue;
+      const d = dist(a, o);
+      nearKin = Math.min(nearKin, d);
+      if (o.species !== a.species) nearMate = Math.min(nearMate, d);
+      if (d < perception && !kinUnderAttack) for (const p of this.predators) if (!p.leaving && !p.stunned && dist(p, o) < 16) kinUnderAttack = p;
     }
-    // Бегство быстрее, но зависит от сил (голодный бегает плохо) и от гена скорости
-    const speed = a.fleeing ? 1.5 + 0.8 * (a.energy / 100) + 0.9 * g.speed : a.energy < 10 ? 0.8 : 1.3 + 0.3 * g.speed;
-    let nx = a.x + Math.cos(a.a) * speed, ny = a.y + Math.sin(a.a) * speed;
-    if (nx < 4 || nx > W - 4) { a.a = Math.PI - a.a; nx = clamp(nx, 4, W - 4); }
-    if (ny < 4 || ny > H - 4) { a.a = -a.a; ny = clamp(ny, 4, H - 4); }
-    a.x = nx; a.y = ny; a.age++;
+    let foodNear = false;
+    for (const m of this.molds) if (m.biomass > 3 && dist(a, m) < perception) { foodNear = true; break; }
 
-    // Энергия: тратится на жизнь и движение (около 12 минут без еды)
-    // Каждый ген защиты стоит энергии
-    a.energy -= 0.007 * (a.fleeing ? 2 : 1) * (1 + 0.25 * g.speed + 0.15 * g.camo + 0.15 * g.aggro);
+    // ---- сон ----
+    if (a.sleep > 0) {
+      a.mode = "sleep";
+      a.sleep--;
+      a.strength += a.hunger < RULES.hungryAfter ? 0.03 : 0.01;
+      const attacked = threat && nearestPred < 16;
+      if (attacked && Math.random() < 0.02 + 0.1 * g.react) { a.sleep = 0; a.rage += 20; this.note(`${a.name} проснулся от нападения хищника.`); }
+      if (a.strength >= 50) a.sleep = 0;
+    } else {
+      // ---- бодрствование ----
+      const turn = a.brain.act(sense(this, a));
+      a.a += turn * 0.3 * (0.6 + 0.8 * g.react) * (bored ? 0.5 : 1);
 
-    // Еда: откусывает от колонии плесени
-    for (const m of this.molds) {
-      if (m.biomass > 1 && dist(a, m) < 6 + m.biomass / 6 && a.energy < 100) {
-        const bite = Math.min(0.6, m.biomass);
-        m.biomass -= bite; a.energy += bite;
-        touch.mold = (touch.mold || 0) + bite * 15;
-        if (!a.ate++) this.note(`${a.name} впервые нашёл плесень и поел.`);
-        break;
+      // Реакция: чем выше, тем быстрее агент осознаёт опасность
+      a.alert = threat && nearestPred < perception ? a.alert + 1 : 0;
+      const aware = a.alert > (1 - g.react) * 30;
+      const aggr = this.aggroLevel(a);
+      const canFight = a.strength > 30;
+      a.mode = "active";
+      if (aware && canFight && aggr > 45) a.mode = "fight";
+      else if (kinUnderAttack && canFight && g.help > 0.3 && (!threat || nearestPred > 20 || aggr > 30)) a.mode = "help";
+      else if (aware) a.mode = "flee";
+      else if (a.strength < RULES.restBelow) a.mode = "rest";
+      else if (bored) a.mode = "bored";
+
+      if (a.mode === "fight" && nearestPred < 80) steer(a, threat.x, threat.y, 0.2);
+      if (a.mode === "help") steer(a, kinUnderAttack.x, kinUnderAttack.y, 0.25);
+
+      // Скорость: рывок возможен только при достаточной силе; усталость замедляет
+      const sprinting = (a.mode === "flee" || a.mode === "help" || (a.mode === "fight" && nearestPred < 80)) && a.strength > 25;
+      let speed = sprinting ? 1.5 + 1.0 * g.speed : 1.2 + 0.2 * g.speed;
+      speed *= 0.6 + 0.4 * (a.strength / 100);
+      if (a.mode === "rest") speed = 0.5;
+      if (bored) speed *= 0.8;
+      let nx = a.x + Math.cos(a.a) * speed, ny = a.y + Math.sin(a.a) * speed;
+      if (nx < 4 || nx > W - 4) { a.a = Math.PI - a.a; nx = clamp(nx, 4, W - 4); }
+      if (ny < 4 || ny > H - 4) { a.a = -a.a; ny = clamp(ny, 4, H - 4); }
+      a.x = nx; a.y = ny;
+
+      // Сила: тратится на жизнь, движение, рывки и драки; гены тоже чего-то стоят
+      const upkeep = 0.0006 * GENES.reduce((s, x) => s + g[x.id], 0);
+      if (a.mode === "rest") a.strength += a.hunger < RULES.hungryAfter ? 0.004 : 0;
+      else a.strength -= 0.005 + upkeep + (sprinting ? 0.02 * (1 + 0.5 * g.speed) : 0);
+      if (a.mode === "fight" || a.mode === "help") a.strength -= 0.01;
+
+      // Еда
+      for (const m of this.molds) {
+        if (m.biomass > 1 && dist(a, m) < 6 + m.biomass / 6 && a.strength < 100) {
+          const bite = Math.min(0.6, m.biomass);
+          m.biomass -= bite; a.strength += bite; a.hunger = 0;
+          touch.mold = (touch.mold || 0) + bite * 15;
+          a.boredom -= 0.5;
+          if (!a.ate++) this.note(`${a.name} впервые нашёл плесень и поел.`);
+          break;
+        }
+      }
+
+      if (a.strength < RULES.sleepBelow && a.mode !== "fight") {
+        a.sleep = Math.round(rnd(...RULES.sleepLength));
+        this.note(`${a.name} выбился из сил и уснул.`);
+      }
+
+      // Сочувствие: делится силой со слабым сородичем рядом
+      if (g.emp > 0.3 && a.strength > 50) {
+        for (const o of this.agents) {
+          if (o === a || dist(a, o) > 30 || !(o.health < 50 || o.strength < 15)) continue;
+          const share = 0.05 * g.emp;
+          a.strength -= share; o.strength += share; a.emotions += 0.02;
+          if (a.age % 400 === 0) this.note(`${a.name} делится силой с ослабевшим ${o.name}.`);
+          break;
+        }
+      }
+
+      // Хитрость: в погоне может сбить хищника со следа
+      if (threat && threat.target === a.id && nearestPred < 80 && a.age % 20 === 0 && Math.random() < g.cunning * 0.25 * (1 - threat.genes.guile)) {
+        threat.confused = 100;
+        this.note(`${a.name} сбил хищника со следа.`);
       }
     }
 
-    // Энергия плавно восполняет здоровье — если есть воля к жизни (эмоции не в красной зоне)
-    if (a.health < 100 && a.energy > 35 && a.emotions >= 15) { a.health += 0.02; a.energy -= 0.02; }
-    // Тоска: в красной зоне эмоций здоровье медленно тает
-    if (a.emotions < 15) a.health -= 0.01;
-    // Голод: без энергии тает здоровье
-    if (a.energy <= 0) a.health -= 0.02;
+    // ---- здоровье ----
+    if (a.health < 100 && a.strength > 40 && a.emotions >= 15) { a.health += 0.02; a.strength -= 0.02; }
+    if (a.emotions < 15) a.health -= 0.01;               // тоска
+    if (a.hunger > RULES.hungryAfter) a.health -= 0.015; // голод
 
-    // Сила: копится от сытости, тает от голода
-    if (a.energy > 60) a.strength += 0.0004; // примерно +0.5 в минуту
-    if (a.energy < 25) a.strength -= 0.002;
-
-    // Эмоции: стремятся к спокойствию; падают от страха, голода и ран; растут от еды и близости
-    if (nearestPred < 150) a.emotions -= 0.12 * (1 - 0.6 * g.aggro); // агрессивные боятся меньше
-    if (a.energy < 30) a.emotions -= 0.02;
+    // ---- эмоции ----
+    if (nearestPred < 150) a.emotions -= 0.12 * (1 - this.aggroLevel(a) / 170);
+    if (a.strength < 20) a.emotions -= 0.01;
     if (touch.mold) a.emotions += 0.03;
-    let nearKin = Infinity;
-    for (const o of this.agents) if (o !== a) nearKin = Math.min(nearKin, dist(a, o));
-    if (nearKin < 45) { a.emotions += 0.06; touch.partner = 8; }
-    // Рядом есть свои — эмоции тянутся к спокойствию. Никого рядом — к нулю (одиночество, ~10 мин до красной зоны)
+    if (nearKin < 45) { a.emotions += 0.06 * (1 + g.emp); touch.partner = 8; }
     if (nearKin < 200) a.emotions += (65 - a.emotions) * 0.0005;
-    else a.emotions -= a.emotions * 0.00012;
+    else a.emotions -= a.emotions * 0.00012; // одиночество
 
-    // Нападение хищника: здоровье уходит постепенно; сила даёт шанс отбиться
+    // ---- скука ----
+    const interesting = foodNear || nearMate < 150 || (threat && nearestPred < perception * 1.5);
+    a.boredom += interesting ? -0.15 : 0.02;
+
+    // ---- ярость остывает ----
+    a.rage -= 0.02;
+
+    // ---- нападение хищника ----
     for (const p of this.predators) {
       if (p.stunned || p.leaving || dist(a, p) > 13) continue;
-      a.health -= p.tired ? 0.06 : 0.15; // уставший кусает слабее
-      a.emotions -= 0.3;
+      const bite = (0.1 + 0.15 * p.genes.bite) * (p.tired ? 0.4 : 1) * (a.sleep > 0 ? 1.5 : 1);
+      a.health -= bite; p.dealt += bite;
+      a.emotions -= 0.3; a.rage += 0.2;
       touch.predator = -25;
-      if (a.age % 20 === 0) {
-        p.hp -= 4 * g.aggro * (0.5 + a.strength / 50); // агрессивные кусают в ответ
-        if (Math.random() < (a.strength / 260) * (1 + 2 * g.aggro)) {
-          p.stunned = 80; p.hp -= (15 + a.strength / 4) * (1 + g.aggro);
+      if (a.age % 20 === 0 && a.sleep <= 0 && a.strength > 10) {
+        // рядом сражающиеся сородичи помогают отбиться
+        const helpers = this.agents.filter((o) => o !== a && (o.mode === "fight" || o.mode === "help") && dist(o, p) < 30);
+        for (const h of helpers) p.hp -= 1.5 * (0.5 + h.strength / 50);
+        const aggr = this.aggroLevel(a);
+        p.hp -= 2 * (aggr / 100) * (0.5 + a.strength / 50);
+        const chance = (a.strength / 300) * (1 + 1.5 * (aggr / 100)) * (1 + 0.4 * helpers.length);
+        if (Math.random() < chance) {
+          p.stunned = 80; p.hp -= (8 + a.strength / 8) * (1 + aggr / 100);
           a.strength -= 3;
-          this.note(`${a.name} отбился от хищника.`);
+          if (a.strength > 60) { p.x += (p.x - a.x) * 2; p.y += (p.y - a.y) * 2; } // сильный отталкивает хищника
+          this.note(helpers.length ? `${a.name} с помощью сородичей отбился от хищника.` : `${a.name} отбился от хищника.`);
         }
       }
     }
 
-    a.energy = clamp(a.energy); a.health = clamp(a.health); a.strength = clamp(a.strength); a.emotions = clamp(a.emotions);
+    a.strength = clamp(a.strength); a.health = clamp(a.health); a.emotions = clamp(a.emotions);
+    a.boredom = clamp(a.boredom); a.rage = clamp(a.rage);
 
-    // Учёба: награда — это то, как изменилась жизнь за шаг
-    const reward = (a.energy - before.energy) / 10 + (a.health - before.health) / 4 + (a.emotions - before.emotions) / 20;
+    // ---- учёба ----
+    const reward = (a.strength - before.strength) / 10 + (a.health - before.health) / 4 + (a.emotions - before.emotions) / 20;
     for (const e of a.brain.learn({ reward, touch })) {
       const sig = SIGNALS.find((s) => s.id === e.signal).name;
       this.note(e.good ? `${a.name} понял: ${sig} — это хорошо.` : `${a.name} понял: ${sig} — опасно.`);
@@ -335,16 +454,40 @@ export class World {
     if (this.tick % 3 === 0) { a.trail.push([Math.round(a.x), Math.round(a.y)]); if (a.trail.length > 40) a.trail.shift(); }
   }
 
+  // Соперничество: самцы рядом с самкой толкаются. Побеждает тот, у кого больше силы с учётом агрессии.
+  stepRivalry() {
+    const males = this.agents.filter((a) => a.species === "green" && a.sleep <= 0 && a.strength > 15);
+    if (males.length < 2) return;
+    const females = this.agents.filter((a) => a.species === "red");
+    for (const f of females)
+      for (let i = 0; i < males.length; i++)
+        for (let j = i + 1; j < males.length; j++) {
+          const m1 = males[i], m2 = males[j];
+          if (dist(m1, f) > 60 || dist(m2, f) > 60 || dist(m1, m2) > 40) continue;
+          if (this.tick - m1.lastPush < RULES.rivalryCooldown || this.tick - m2.lastPush < RULES.rivalryCooldown) continue;
+          const power = (m) => m.strength * (0.5 + this.aggroLevel(m) / 100) * rnd(0.8, 1.2);
+          const [win, lose] = power(m1) >= power(m2) ? [m1, m2] : [m2, m1];
+          const ang = Math.atan2(lose.y - f.y, lose.x - f.x);
+          lose.x = clamp(lose.x + Math.cos(ang) * 30, 4, W - 4); lose.y = clamp(lose.y + Math.sin(ang) * 30, 4, H - 4);
+          win.strength -= 3; lose.strength -= 2;
+          win.rage = clamp(win.rage + 15); lose.rage = clamp(lose.rage + 15);
+          lose.emotions = clamp(lose.emotions - 10);
+          win.lastPush = lose.lastPush = this.tick;
+          if (Math.random() < 0.3) this.note(`${win.name} оттолкнул ${lose.name} от ${f.name}.`);
+        }
+  }
+
   tryBreed() {
     if (this.tick - this.lastBirth < RULES.birthCooldown || this.agents.length >= RULES.maxAgents) return;
-    // Пара — самец (Зелёный) и самка (Красная), обе сыты и рядом
-    const ready = this.agents.filter((a) => a.energy >= RULES.greenEnergy && a.emotions >= 40 && a.age > RULES.minBreedAge);
+    const ready = this.agents.filter((a) => a.strength >= RULES.breedStrength && a.emotions >= 40 && a.age > RULES.minBreedAge && a.sleep <= 0 && a.boredom < 80);
     for (const a of ready.filter((x) => x.species === "green"))
       for (const b of ready.filter((x) => x.species === "red")) {
         if (dist(a, b) > 30) continue;
         const species = Math.random() < FEMALE_SHARE ? "red" : "green";
         const child = this.spawnAgent(species, a, b, (a.x + b.x) / 2, (a.y + b.y) / 2);
-        a.energy -= 30; b.energy -= 30; a.emotions = clamp(a.emotions + 20); b.emotions = clamp(b.emotions + 20);
+        a.strength -= 30; b.strength -= 30;
+        a.emotions = clamp(a.emotions + 20); b.emotions = clamp(b.emotions + 20);
+        a.boredom = 0; b.boredom = 0;
         this.lastBirth = this.tick;
         this.stats[species].births++;
         this.note(`У ${a.name} и ${b.name} ${species === "red" ? "родилась" : "родился"} ${child.name} (поколение ${child.gen}).`);
@@ -357,17 +500,14 @@ export class World {
       }
   }
 
-  // Пришелец: если 20 минут в мире нет самки или самца, извне приходит особь недостающего пола
-  // с генами и мозгом лучших предков своего вида — иначе эволюция остановилась бы навсегда.
+  // Пришелец: если долго нет самки или самца, извне приходит особь недостающего пола
   checkLonelySex() {
     if (!this.agents.length) return;
     for (const sp of Object.keys(SPECIES)) {
-      if (this.agents.some((a) => a.species === sp)) { this.missingSince = { ...this.missingSince, [sp]: null }; continue; }
-      this.missingSince ??= {};
+      if (this.agents.some((a) => a.species === sp)) { this.missingSince[sp] = null; continue; }
       this.missingSince[sp] ??= this.tick;
       if (this.tick - this.missingSince[sp] >= RULES.newcomerAfter) {
-        const edge = Math.random() < 0.5;
-        const a = this.spawnAgent(sp, null, null, edge ? 10 : W - 10, rnd(60, H - 60));
+        const a = this.spawnAgent(sp, null, null, Math.random() < 0.5 ? 10 : W - 10, rnd(60, H - 60));
         this.missingSince[sp] = null;
         this.note(`Извне пришёл${sp === "red" ? "а" : ""} ${a.name}: ${RULES.newcomerAfter} тиков в мире не было ${sp === "red" ? "самок" : "самцов"}.`);
       }
@@ -395,10 +535,11 @@ export class World {
     hof.sort((x, y) => y.fitness - x.fitness); if (hof.length > 5) hof.length = 5;
     this.lives.push({ species: a.species, name: a.name, gen: a.gen, age: a.age, eaten: a.ate, endedAt: this.tick, brain: { ...a.brain.toJSON(), genes: a.genes } });
     this.agents.splice(this.agents.indexOf(a), 1);
-    this.note(cause === "predator" ? `${a.name} погиб от хищника, прожив ${a.age} тиков.` : `${a.name} умер от голода, прожив ${a.age} тиков.`);
+    const why = cause === "predator" ? "погиб от хищника" : cause === "hunger" ? "умер от голода" : "угас от тоски";
+    this.note(`${a.name} ${why}, прожив ${a.age} тиков.`);
     if (cause === "predator") {
       const p = this.predators.find((p) => dist(p, a) < 20 && !p.leaving);
-      if (p) { p.leaving = true; } // сытый хищник уходит
+      if (p) { p.kills++; p.leaving = true; this.predatorStats.kills++; } // сытый хищник уходит
     }
   }
 
@@ -410,13 +551,15 @@ export class World {
       this.stepAgent(a);
       if (a.health <= 0) {
         const byPredator = this.predators.some((p) => !p.leaving && dist(p, a) < 20);
-        this.die(a, byPredator ? "predator" : "hunger");
+        this.die(a, byPredator ? "predator" : a.hunger > RULES.hungryAfter ? "hunger" : "sorrow");
       }
     }
+    this.stepRivalry();
     this.tryBreed();
     this.checkLonelySex();
     if (!this.agents.length) {
       this.note("Все агенты погибли. Жизнь начинается заново: новая пара от лучших предков.");
+      for (const p of this.predators) this.retirePredator(p, "left");
       this.predators = [];
       this.spawnAgent("green", null, null, W * 0.4, H / 2);
       this.spawnAgent("red", null, null, W * 0.6, H / 2);
@@ -437,13 +580,11 @@ export class World {
         this.spawnPredator();
         break;
       case "mold": this.spawnMold(+p.x, +p.y); break;
-      case "reset":
-        this.tick = 0; this.serial = 0; this.log = []; this.stats = {}; this.hof = {}; this.geneHistory = [];
-        this.lastBirth = -RULES.birthCooldown; this.predatorSpawns = [];
-        this.rainLeft = 0; this.lastRain = null; this.nextRain = Math.round(rnd(...RULES.rainEvery));
-        for (const sp of Object.keys(SPECIES)) { this.stats[sp] = { births: 0, deaths: 0, eaten: 0, recent: [], best: 0 }; this.hof[sp] = []; }
-        this.genesis();
+      case "reset": {
+        const fresh = new World();
+        Object.assign(this, fresh);
         break;
+      }
       default: throw new Error("Неизвестное действие: " + type);
     }
   }
@@ -454,6 +595,12 @@ export class World {
   }
 
   // ---------- для интерфейса и базы ----------
+  predatorGeneAvg() {
+    const src = this.predators.length ? this.predators : this.predatorHof;
+    if (!src.length) return null;
+    return Object.fromEntries(PREDATOR_GENES.map((g) => [g.id, +(src.reduce((s, p) => s + p.genes[g.id], 0) / src.length).toFixed(2)]));
+  }
+
   view() {
     const r1 = (v) => Math.round(v * 10) / 10;
     return {
@@ -464,12 +611,18 @@ export class World {
       nextBirth: Math.max(0, RULES.birthCooldown - (this.tick - this.lastBirth)),
       predatorsInWindow: this.predatorSpawns.filter((t) => this.tick - t < RULES.predatorWindow).length,
       molds: this.molds.map((m) => [Math.round(m.x), Math.round(m.y), r1(m.biomass), m.age > m.life * 0.5 ? 1 : 0]),
-      predators: this.predators.map((p) => ({ id: p.id, x: r1(p.x), y: r1(p.y), a: +p.a.toFixed(2), hp: Math.round(p.hp), stamina: Math.round(p.stamina ?? 100), tired: !!p.tired, stunned: p.stunned > 0, leaving: p.leaving })),
+      predators: this.predators.map((p) => ({
+        id: p.id, gen: p.gen, x: r1(p.x), y: r1(p.y), a: +p.a.toFixed(2),
+        hp: Math.round((p.hp / p.maxHp) * 100), stamina: Math.round(p.stamina), tired: p.tired,
+        stunned: p.stunned > 0, confused: p.confused > 0, leaving: p.leaving,
+        genes: Object.fromEntries(PREDATOR_GENES.map((g) => [g.id, +p.genes[g.id].toFixed(2)])),
+      })),
       agents: this.agents.map((a) => ({
         id: a.id, name: a.name, species: a.species, gen: a.gen, parents: a.parents,
-        x: r1(a.x), y: r1(a.y), a: +a.a.toFixed(3), age: a.age, fleeing: a.fleeing, fighting: a.fighting,
+        x: r1(a.x), y: r1(a.y), a: +a.a.toFixed(3), age: a.age, mode: a.mode,
         genes: Object.fromEntries(GENES.map((g) => [g.id, +a.genes[g.id].toFixed(2)])),
-        energy: Math.round(a.energy), emotions: Math.round(a.emotions), strength: Math.round(a.strength), health: Math.round(a.health),
+        strength: Math.round(a.strength), health: Math.round(a.health), emotions: Math.round(a.emotions),
+        boredom: Math.round(a.boredom), aggression: Math.round(this.aggroLevel(a)), hunger: a.hunger,
         trail: a.trail,
       })),
     };
@@ -486,15 +639,20 @@ export class World {
         avgLife: r.length ? Math.round(r.reduce((x, y) => x + y, 0) / r.length) : null,
       };
     }
-    return { log: this.log.slice(0, 40), species, geneHistory: this.geneHistory.slice(-120), brains: Object.fromEntries(this.agents.map((a) => [a.id, a.brain.summary()])) };
+    return {
+      log: this.log.slice(0, 40), species, geneHistory: this.geneHistory.slice(-120),
+      predators: { gen: this.predatorGen, ...this.predatorStats, genes: this.predatorGeneAvg() },
+      brains: Object.fromEntries(this.agents.map((a) => [a.id, a.brain.summary()])),
+    };
   }
 
   toJSON() {
     return {
       version: VERSION, tick: this.tick, serial: this.serial, humidity: this.humidity, lastHumidity: this.lastHumidity,
       rainLeft: this.rainLeft, nextRain: this.nextRain, lastRain: this.lastRain,
-      lastBirth: this.lastBirth, missingSince: this.missingSince, predatorSpawns: this.predatorSpawns, molds: this.molds, predators: this.predators,
-      stats: this.stats, hof: this.hof, log: this.log, geneHistory: this.geneHistory,
+      lastBirth: this.lastBirth, missingSince: this.missingSince, predatorSpawns: this.predatorSpawns,
+      molds: this.molds, predators: this.predators, predatorHof: this.predatorHof, predatorGen: this.predatorGen,
+      predatorStats: this.predatorStats, stats: this.stats, hof: this.hof, log: this.log, geneHistory: this.geneHistory,
       agents: this.agents.map(({ trail, brain, ...a }) => ({ ...a, brain: brain.toJSON() })),
     };
   }
