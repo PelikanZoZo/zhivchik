@@ -48,7 +48,6 @@ const store = createStore(env, ROOT);
 let world = null;        // есть только у хозяина
 let live = null;         // у зрителя: последняя картинка от хозяина { view, details }
 let leader = false;
-let leaderMisses = 0;
 let lastStep = Date.now();
 let catchup = 0;         // сколько тиков ещё досчитать после сна
 const timers = [];
@@ -83,12 +82,15 @@ async function becomeLeader() {
     setInterval(persist, SAVE_EVERY),
     setInterval(publish, 200),
     setInterval(applyCommands, 500),
+    // Каждые 5 секунд подтверждаем роль хозяина. Это ещё и не даёт соединению с базой
+    // «уснуть»: хостинг закрывает молчащие соединения примерно через 30 секунд, и вместе
+    // с соединением пропадает блокировка. Потеряли роль — уходим сразу, чтобы не было двух хозяев.
     setInterval(async () => {
-      if (await store.stillLeader()) { leaderMisses = 0; return; }
-      // две неудачи подряд — значит, правда потеряли (а не случайный сбой связи)
-      if (++leaderMisses >= 2) { log("потерял роль хозяина, выхожу"); await persist(); process.exit(0); }
-      log("проверка роли хозяина не прошла, повторю");
-    }, 30000),
+      if (await store.stillLeader()) return;
+      leader = false;
+      log(`потерял роль хозяина на тике ${world.tick}, выхожу`);
+      process.exit(0);
+    }, 5000),
   );
 }
 

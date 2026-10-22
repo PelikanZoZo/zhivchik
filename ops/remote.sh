@@ -1,4 +1,4 @@
-# Проверка после исправления: хозяин должен оставаться тем же
-sleep 200
+# Проверка: хозяин мира должен оставаться одним и тем же
+sleep 240
 echo "=== записи сервера за последние 4 минуты"
-awk -v d="$(date -u -d '-4 min' '+%H:%M:%S')" '/\[живчик/ { split($2,t," "); if ($2 >= d) print }' ~/log/devalby.ru.error.log | tail -40
+grep -a "\[живчик" ~/log/devalby.ru.error.log | awk -v d="$(date -u -d '-4 min' '+%H:%M:%S')" '{ if ($2 >= d) print }' | tail -40
