@@ -48,8 +48,10 @@ export const RULES = {
 };
 
 export const SPECIES = {
-  green: { name: "Зелёный", plural: "Зелёные", sex: "♂", sexName: "самцы", color: "#46c27a", brain: "associative" },
-  red: { name: "Красный", plural: "Красные", sex: "♀", sexName: "самки", color: "#e2554f", brain: "neural" },
+  green: { name: "Зелёный", plural: "Зелёные", sex: "♂", sexName: "самцы", color: "#46c27a", brain: "associative", caution: 0 },
+  // Красные (самки) — врождённо осторожнее: раньше замечают и осознают опасность, реже дерутся,
+  // раньше включают инстинкт выживания и при угрозе бегут к своим
+  red: { name: "Красный", plural: "Красные", sex: "♀", sexName: "самки", color: "#e2554f", brain: "neural", caution: 1 },
 };
 export const FEMALE_SHARE = 0.65; // самок рождается чаще
 
@@ -63,6 +65,7 @@ export const GENES = [
   { id: "react", name: "Реакция", hint: "быстрее поворачивает и мгновенно пугается; может проснуться при нападении" },
   { id: "emp", name: "Сочувствие", hint: "делится силой со слабым сородичем; близость радует сильнее" },
   { id: "cunning", name: "Хитрость", hint: "хищник реже выбирает целью; в погоне может сбить его со следа" },
+  { id: "breed", name: "Инстинкт размножения", hint: "у самцов: полный сил ищет самку и готов к спариванию при меньшей силе; увлёкшись, позже замечает хищника. Самки передают ген сыновьям" },
 ];
 
 // Гены хищников — эволюция свободная: потомки самых удачливых охотников с мутациями
@@ -223,7 +226,11 @@ export class World {
     for (let i = this.predators.length - 1; i >= 0; i--) {
       const p = this.predators[i], g = p.genes;
       p.age++;
-      if (p.age > RULES.predatorHunt && !p.leaving) { p.leaving = true; this.note("Хищник так и не наелся и уходит."); }
+      if (p.age > RULES.predatorHunt && !p.leaving) {
+        p.leaving = true; this.note("Хищник так и не наелся и уходит.");
+        // пережившие погоню становятся смелее
+        for (const a of this.agents) if (dist(a, p) < 200) { const f0 = a.fear, c0 = a.courage; a.courage += 3; this.balanceFearCourage(a, f0, c0); }
+      }
       if (p.stamina < 15 && !p.tired) { p.tired = true; this.note("Хищник выдохся и остановился передохнуть."); }
       if (p.tired && p.stamina > 60) p.tired = false;
       const drain = 1.4 - 0.8 * g.endurance; // выносливые устают медленнее
@@ -247,7 +254,7 @@ export class World {
         let prey = null, bestScore = Infinity, best = Infinity;
         const range = 220 + 200 * g.sense;
         for (const a of this.agents) {
-          const vis = (1 - 0.6 * a.genes.cunning) * (a.sleep > 0 ? 1.3 : 1), d = dist(a, p);
+          const vis = (1 - 0.6 * a.genes.cunning) * (a.sleep > 0 ? 1.3 : 1) * (a.mode === "hide" ? 0.4 : 1), d = dist(a, p);
           if (d < range * vis && d / vis < bestScore) { bestScore = d / vis; best = d; prey = a; }
         }
         p.target = prey?.id ?? null;
@@ -296,11 +303,28 @@ export class World {
       parents: parentA ? [parentA.name, parentB?.name].filter(Boolean) : [],
       x: x ?? rnd(60, W - 60), y: y ?? rnd(60, H - 60), a: rnd(0, Math.PI * 2),
       strength: parentA ? 55 : 80, health: 100, emotions: 70, boredom: 0, rage: 0,
+      // Страх и Смелость — опыт этой особи (не наследуются); вместе не больше 100
+      fear: 20 + 20 * sp.caution, courage: 15,
       hunger: 0, sleep: 0, alert: 0, lastPush: -RULES.rivalryCooldown,
       mode: "active", age: 0, ate: 0, trail: [],
     };
     this.agents.push(a);
     return a;
+  }
+
+  // Страх и смелость вместе не больше 100: что выросло сильнее за шаг, то вытесняет другое
+  balanceFearCourage(a, fear0, courage0) {
+    a.fear = clamp(a.fear); a.courage = clamp(a.courage);
+    if (a.fear + a.courage > 100) {
+      if (a.fear - fear0 >= a.courage - courage0) a.courage = 100 - a.fear;
+      else a.fear = 100 - a.courage;
+    }
+  }
+
+  nearestFemale(a) {
+    let best = null, bd = Infinity;
+    for (const o of this.agents) if (o.species === "red") { const d = dist(a, o); if (d < bd) { bd = d; best = o; } }
+    return best;
   }
 
   aggroLevel(a) {
@@ -310,25 +334,29 @@ export class World {
   stepAgent(a) {
     const g = a.genes;
     const before = { strength: a.strength, emotions: a.emotions, health: a.health };
+    a.fear ??= 20; a.courage ??= 15;
+    const fear0 = a.fear, courage0 = a.courage;
+    const isMale = a.species === "green";
     const touch = {};
     a.age++;
     a.hunger++;
     // Голод: чем дольше без еды, тем слабее и медленнее (0…1)
     const starving = clamp((a.hunger - RULES.weakFromHunger) / (RULES.hungryAfter - RULES.weakFromHunger), 0, 1);
     // Инстинкт выживания: ранен — спасает жизнь любой ценой; голоден — ищет еду, а не скучает
-    const wounded = a.health < RULES.survivalHealth;
+    const caution = SPECIES[a.species].caution;
+    const wounded = a.health < RULES.survivalHealth + 15 * caution;
     const hungry = a.hunger > RULES.hungryAfter * 0.6;
     const bored = a.boredom > RULES.boredAbove && !hungry && !wounded;
-    const perception = (130 + 120 * g.obs) * (bored ? 0.7 : 1);
+    const perception = (130 + 120 * g.obs) * (bored ? 0.7 : 1) * (1 + 0.5 * caution);
 
     // Что вокруг
     let threat = null, nearestPred = Infinity;
     for (const p of this.predators) if (!p.leaving) { const d = dist(a, p); if (d < nearestPred) { nearestPred = d; threat = p; } }
-    let nearKin = Infinity, nearMate = Infinity, kinUnderAttack = null;
+    let nearKin = Infinity, nearMate = Infinity, kinUnderAttack = null, kinNearest = null;
     for (const o of this.agents) {
       if (o === a) continue;
       const d = dist(a, o);
-      nearKin = Math.min(nearKin, d);
+      if (d < nearKin) { nearKin = d; kinNearest = o; }
       if (o.species !== a.species) nearMate = Math.min(nearMate, d);
       if (d < perception && !kinUnderAttack) for (const p of this.predators) if (!p.leaving && !p.stunned && dist(p, o) < 16) kinUnderAttack = p;
     }
@@ -356,21 +384,31 @@ export class World {
 
       // Реакция: чем выше, тем быстрее агент осознаёт опасность
       a.alert = threat && nearestPred < perception ? a.alert + 1 : 0;
-      const aware = a.alert > (1 - g.react) * 30;
-      const aggr = this.aggroLevel(a);
+      // увлечённый самкой самец позже замечает опасность; пугливый — раньше
+      const courting = isMale && g.breed > 0.2 && a.strength > 50 && nearMate < 250 && nearMate > 25 && !hungry;
+      const aware = a.alert > (1 - g.react) * 30 * (1 - 0.6 * caution) * (1 - 0.5 * a.fear / 100) * (courting ? 1 + g.breed : 1);
+      // осторожные и пугливые реже решаются драться, смелые — чаще
+      const aggr = this.aggroLevel(a) * (1 - 0.5 * caution) * (1 - 0.5 * a.fear / 100) + 0.4 * a.courage;
+      const panic = a.fear > 70 && threat && nearestPred < perception * 1.3;
       const canFight = a.strength > 30;
       a.mode = "active";
-      if (aware && wounded) a.mode = "survive"; // инстинкт сильнее агрессии: раненый бежит
+      // осторожная затаивается: хищник виден, но далеко и не идёт за ней — замирает
+      const hide = caution && aware && nearestPred > 90 && threat.target !== a.id && !hungry;
+      if (hide) a.mode = "hide";
+      else if (aware && wounded) a.mode = "survive"; // инстинкт сильнее агрессии: раненый бежит
+      else if ((aware || panic) && a.fear > 70) a.mode = "flee"; // паника: бежит, даже если угроза далеко
       else if (aware && canFight && aggr > 45) a.mode = "fight";
-      else if (kinUnderAttack && canFight && g.help > 0.3 && (!threat || nearestPred > 20 || aggr > 30)) a.mode = "help";
+      else if (kinUnderAttack && canFight && (g.help > 0.3 || a.courage > 60) && a.strength > 30 + 30 * caution - 0.3 * a.courage && (!threat || nearestPred > 20 || aggr > 30)) a.mode = "help";
       else if (aware) a.mode = "flee";
       else if (a.strength < RULES.restBelow && !hungry) a.mode = "rest";
       else if (hungry && foodTarget) a.mode = "forage";
+      else if (courting && kinNearest) a.mode = "court";
       else if (bored) a.mode = "bored";
 
       if (a.mode === "fight" && nearestPred < 80) steer(a, threat.x, threat.y, 0.2);
       if (a.mode === "survive") steer(a, 2 * a.x - threat.x, 2 * a.y - threat.y, 0.25); // прочь от хищника
       if (a.mode === "forage") steer(a, foodTarget.x, foodTarget.y, 0.15);
+      if (a.mode === "court") { const f = this.nearestFemale(a); if (f) steer(a, f.x, f.y, 0.1 + 0.15 * g.breed); }
       if (a.mode === "help") steer(a, kinUnderAttack.x, kinUnderAttack.y, 0.25);
 
       // Скорость: рывок возможен только при достаточной силе; усталость замедляет
@@ -380,6 +418,7 @@ export class World {
       speed *= adrenaline ? 0.85 : 0.6 + 0.4 * (a.strength / 100);
       speed *= 1 - 0.4 * starving; // голодный медленнее
       if (a.mode === "rest") speed = 0.5;
+      if (a.mode === "hide") speed = 0.15;
       if (bored) speed *= 0.8;
       let nx = a.x + Math.cos(a.a) * speed, ny = a.y + Math.sin(a.a) * speed;
       if (nx < 4 || nx > W - 4) { a.a = Math.PI - a.a; nx = clamp(nx, 4, W - 4); }
@@ -388,7 +427,7 @@ export class World {
 
       // Сила: тратится на жизнь, движение, рывки и драки; гены тоже чего-то стоят
       const upkeep = 0.0006 * GENES.reduce((s, x) => s + g[x.id], 0);
-      if (a.mode === "rest") a.strength += 0.004 * (1 - starving); // голодному отдых почти не помогает
+      if (a.mode === "rest" || a.mode === "hide") a.strength += 0.004 * (1 - starving); // голодному отдых почти не помогает
       else a.strength -= 0.005 + upkeep + (sprinting ? 0.02 * (1 + 0.5 * g.speed) : 0) + (adrenaline ? 0.04 : 0);
       if (a.mode === "fight" || a.mode === "help") a.strength -= 0.01;
 
@@ -433,12 +472,17 @@ export class World {
     if (a.hunger > RULES.hungryAfter) a.health -= 0.015; // голод
 
     // ---- эмоции ----
-    if (nearestPred < 150) a.emotions -= 0.12 * (1 - this.aggroLevel(a) / 170);
+    if (nearestPred < 150 * (1 + 0.3 * caution)) a.emotions -= 0.12 * (1 - this.aggroLevel(a) / 170);
     if (a.strength < 20) a.emotions -= 0.01;
     if (touch.mold) a.emotions += 0.03;
     if (nearKin < 45) { a.emotions += 0.06 * (1 + g.emp); touch.partner = 8; }
     if (nearKin < 200) a.emotions += (65 - a.emotions) * 0.0005;
     else a.emotions -= a.emotions * 0.00012; // одиночество
+
+    // ---- страх и смелость ----
+    if (threat && nearestPred < 150) a.fear += 0.006 * (1 - a.courage / 120); // хищник рядом пугает (смелого — меньше)
+    if (a.mode === "help" || a.mode === "fight") a.courage += 0.015;          // встретить угрозу лицом — значит решаться
+    if (!threat) { a.fear -= 0.012; a.courage -= 0.0005; }                    // в безопасности страх уходит быстро, смелость — медленно
 
     // ---- скука ----
     const interesting = foodNear || nearMate < 150 || (threat && nearestPred < perception * 1.5);
@@ -453,7 +497,7 @@ export class World {
       const bite = (0.1 + 0.15 * p.genes.bite) * (p.tired ? 0.4 : 1) * (a.sleep > 0 ? 1.5 : 1);
       a.health -= bite; p.dealt += bite;
       p.chase = Math.max(0, (p.chase ?? 0) - 15); // укус возвращает хищнику силы
-      a.emotions -= 0.3; a.rage += 0.2;
+      a.emotions -= 0.3; a.rage += 0.2; a.fear += 0.12 * (1 - a.courage / 150);
       touch.predator = -25;
       if (a.age % 20 === 0 && a.sleep <= 0 && a.strength > 10) {
         // рядом сражающиеся сородичи помогают отбиться
@@ -461,10 +505,11 @@ export class World {
         for (const h of helpers) p.hp -= 1.5 * (0.5 + h.strength / 50);
         const aggr = this.aggroLevel(a);
         p.hp -= 2 * (aggr / 100) * (0.5 + a.strength / 50);
-        const chance = (a.strength / 300) * (1 + 1.5 * (aggr / 100)) * (1 + 0.4 * helpers.length) * (1 - 0.5 * starving);
+        const chance = (a.strength / 300) * (1 + 1.5 * (aggr / 100)) * (1 + 0.4 * helpers.length) * (1 - 0.5 * starving) * (1 + 0.5 * a.courage / 100);
         if (Math.random() < chance) {
           p.stunned = 80; p.hp -= (8 + a.strength / 8) * (1 + aggr / 100);
-          a.strength -= 3;
+          a.strength -= 3; a.courage += 10;
+          for (const h of helpers) h.courage = clamp((h.courage ?? 15) + 4);
           if (a.strength > 60) { p.x += (p.x - a.x) * 2; p.y += (p.y - a.y) * 2; } // сильный отталкивает хищника
           this.note(helpers.length ? `${a.name} с помощью сородичей отбился от хищника.` : `${a.name} отбился от хищника.`);
         }
@@ -473,6 +518,7 @@ export class World {
 
     a.strength = clamp(a.strength); a.health = clamp(a.health); a.emotions = clamp(a.emotions);
     a.boredom = clamp(a.boredom); a.rage = clamp(a.rage);
+    this.balanceFearCourage(a, fear0, courage0);
 
     // ---- учёба ----
     const reward = (a.strength - before.strength) / 10 + (a.health - before.health) / 4 + (a.emotions - before.emotions) / 20;
@@ -500,6 +546,9 @@ export class World {
           const ang = Math.atan2(lose.y - f.y, lose.x - f.x);
           lose.x = clamp(lose.x + Math.cos(ang) * 30, 4, W - 4); lose.y = clamp(lose.y + Math.sin(ang) * 30, 4, H - 4);
           win.strength -= 3; lose.strength -= 2;
+          const f0w = win.fear, c0w = win.courage, f0l = lose.fear, c0l = lose.courage;
+          win.courage += 3; lose.fear += 3;
+          this.balanceFearCourage(win, f0w, c0w); this.balanceFearCourage(lose, f0l, c0l);
           win.rage = clamp(win.rage + 15); lose.rage = clamp(lose.rage + 15);
           lose.emotions = clamp(lose.emotions - 10);
           win.lastPush = lose.lastPush = this.tick;
@@ -509,7 +558,8 @@ export class World {
 
   tryBreed() {
     if (this.tick - this.lastBirth < RULES.birthCooldown || this.agents.length >= RULES.maxAgents) return;
-    const ready = this.agents.filter((a) => a.strength >= RULES.breedStrength && a.emotions >= 40 && a.age > RULES.minBreedAge && a.sleep <= 0 && a.boredom < 80);
+    const need = (a) => RULES.breedStrength - (a.species === "green" ? 20 * a.genes.breed : 0); // инстинкт самца снижает порог
+    const ready = this.agents.filter((a) => a.strength >= need(a) && a.emotions >= 40 && a.age > RULES.minBreedAge && a.sleep <= 0 && a.boredom < 80 && (a.fear ?? 0) < 85);
     for (const a of ready.filter((x) => x.species === "green"))
       for (const b of ready.filter((x) => x.species === "red")) {
         if (dist(a, b) > 30) continue;
@@ -565,6 +615,8 @@ export class World {
     hof.sort((x, y) => y.fitness - x.fitness); if (hof.length > 5) hof.length = 5;
     this.lives.push({ species: a.species, name: a.name, gen: a.gen, age: a.age, eaten: a.ate, endedAt: this.tick, brain: { ...a.brain.toJSON(), genes: a.genes } });
     this.agents.splice(this.agents.indexOf(a), 1);
+    // гибель сородича на глазах пугает тех, кто рядом
+    if (cause === "predator") for (const o of this.agents) if (dist(o, a) < 150) { const f0 = o.fear, c0 = o.courage; o.fear += 12; this.balanceFearCourage(o, f0, c0); }
     const why = cause === "predator" ? "погиб от хищника" : cause === "hunger" ? "умер от голода" : "угас от тоски";
     this.note(`${a.name} ${why}, прожив ${a.age} тиков.`);
     if (cause === "predator") {
@@ -654,6 +706,7 @@ export class World {
         strength: Math.round(a.strength), health: Math.round(a.health), emotions: Math.round(a.emotions),
         boredom: Math.round(a.boredom), aggression: Math.round(this.aggroLevel(a)), hunger: a.hunger,
         satiety: Math.round(clamp(100 - (a.hunger / RULES.hungryAfter) * 100)),
+        fear: Math.round(a.fear ?? 0), courage: Math.round(a.courage ?? 0),
         trail: a.trail,
       })),
     };

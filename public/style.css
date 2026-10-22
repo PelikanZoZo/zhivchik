@@ -19,6 +19,9 @@
   --gene-react: #d0507a;
   --gene-emp: #e07bb5;
   --gene-cunning: #8a7bd6;
+  --gene-breed: #e05a6c;
+  --fear: #7d6fb0;
+  --courage: #d6a21e;
   --f-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
   --f-body: "Golos Text", "Segoe UI", system-ui, sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -27,14 +30,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0c120e; --panel: #131c16; --ink: #e3ece5; --muted: #8fa295; --line: #26352b;
     --life: #4cc48a; --good: #5cc27b; --warn: #e3b04a; --bad: #e66a6c; --water: #6aa2ea;
-    --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0;
+    --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0; --gene-breed: #f07a8a; --fear: #a99be0; --courage: #f0c14a;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0c120e; --panel: #131c16; --ink: #e3ece5; --muted: #8fa295; --line: #26352b;
   --life: #4cc48a; --good: #5cc27b; --warn: #e3b04a; --bad: #e66a6c; --water: #6aa2ea;
-  --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0;
+  --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0; --gene-breed: #f07a8a; --fear: #a99be0; --courage: #f0c14a;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }

@@ -135,7 +135,7 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
       }
     }
-  const HALO = { flee: "rgba(255,80,80,.18)", survive: "rgba(255,60,60,.32)", fight: "rgba(255,160,40,.24)", help: "rgba(90,210,230,.22)", forage: "rgba(110,170,250,.16)" };
+  const HALO = { flee: "rgba(255,80,80,.18)", survive: "rgba(255,60,60,.32)", fight: "rgba(255,160,40,.24)", help: "rgba(90,210,230,.22)", forage: "rgba(110,170,250,.16)", court: "rgba(255,150,190,.18)" };
   for (const c of agents) {
     const col = SPECIES[c.species].color;
     const r = 9 + c.health / 25, pulse = c.mode === "sleep" ? 1 : 1 + Math.sin(t * 4 + c.id) * 0.05;
@@ -161,7 +161,7 @@ function draw() {
       }
     }
     // хитрость — агент прозрачнее; сон и отдых — тусклее
-    const dim = c.mode === "sleep" ? 0.45 : c.mode === "rest" ? 0.7 : 1;
+    const dim = c.mode === "sleep" ? 0.45 : c.mode === "rest" ? 0.7 : c.mode === "hide" ? 0.35 : 1;
     ctx.globalAlpha = dim * (1 - 0.5 * (g.cunning ?? 0));
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x, c.y, r * pulse, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
@@ -266,15 +266,19 @@ function renderAgent() {
     scaleRow("Эмоции", c.emotions, scaleColor(c.emotions)) +
     scaleRow("Сытость", c.satiety ?? 100, scaleColor(c.satiety ?? 100)) +
     scaleRow("Скука", c.boredom, scaleColor(100 - c.boredom)) +
-    scaleRow("Агрессия", c.aggression, "var(--gene-aggro)");
+    scaleRow("Агрессия", c.aggression, "var(--gene-aggro)") +
+    scaleRow("Страх", c.fear ?? 0, "var(--fear)") +
+    scaleRow("Смелость", c.courage ?? 0, "var(--courage)");
   $("genes").innerHTML = GENES.map((g) => {
     const v = c.genes?.[g.id] ?? 0;
     return `<div class="scale" title="${g.hint}"><span>${g.name}</span><div class="track"><i style="width:${Math.round(v * 100)}%;background:var(--gene-${g.id})"></i></div><code>${v.toFixed(2)}</code></div>`;
   }).join("");
-  const MODES = { sleep: "спит", rest: "отдыхает — мало сил", bored: "скучает, реагирует вяло", fight: "дерётся с хищником", help: "спешит на помощь сородичу", flee: "убегает от хищника", survive: "инстинкт выживания: ранен, спасается из последних сил", forage: "голоден — инстинкт гонит к еде" };
+  const MODES = { sleep: "спит", rest: "отдыхает — мало сил", bored: "скучает, реагирует вяло", fight: "дерётся с хищником", help: "спешит на помощь сородичу", flee: (c.fear ?? 0) > 70 ? "в панике убегает" : "убегает от хищника", survive: "инстинкт выживания: ранен, спасается из последних сил", forage: "голоден — инстинкт гонит к еде", hide: "затаилась — хищник рядом", court: "инстинкт размножения: ищет самку" };
   let state = MODES[c.mode] || (c.strength >= RULES.breedStrength ? "полон сил, готов к размножению" : "");
   if (c.hunger > RULES.hungryAfter) state = (state ? state + ", " : "") + "голодает — теряет здоровье";
   else if (c.hunger > RULES.weakFromHunger) state = (state ? state + ", " : "") + "слабеет от голода";
+  const character = (c.courage ?? 0) >= 60 ? "смелый характер" : (c.fear ?? 0) >= 60 ? "пугливый характер" : "";
+  if (character) state = state ? `${state}, ${character}` : character;
   state = state ? state + " · " : "";
   $("agent-meta").textContent = `${state}возраст ${ticks(c.age)} тиков · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
 
