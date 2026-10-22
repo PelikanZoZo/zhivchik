@@ -36,11 +36,14 @@ jobs:
           sudo apt-get install -y -qq lftp > /dev/null
           mkdir -p docs
           set -o pipefail
-          # Новый www/tmp/restart.txt — сигнал приложению перезапуститься с новым кодом
+          # Модули — только изменившиеся (по размеру), код — целиком, и в самом конце
+          # новый www/tmp/restart.txt: сигнал приложению перезапуститься уже с полным новым кодом
           lftp -u "$FTP_USERNAME,$FTP_PASSWORD" "$FTP_SERVER" -e "
             set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; set ftp:passive-mode yes;
-            mirror -R --verbose=1 --parallel=4 --only-newer dist/ www/;
+            mirror -R --verbose=1 --parallel=4 --ignore-time dist/node_modules/ www/node_modules/;
+            mirror -R --verbose=1 --parallel=4 --exclude-glob node_modules/ --exclude-glob tmp/ dist/ www/;
             chmod 755 www/app.js;
+            mkdir -p www/tmp; put dist/tmp/restart.txt -o www/tmp/restart.txt;
             ls www/;
             bye" 2>&1 | sed "s/$FTP_PASSWORD/***/g" | tail -60 > docs/deploy-log.txt && status=0 || status=$?
           echo "итог: $status" >> docs/deploy-log.txt
