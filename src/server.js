@@ -128,7 +128,7 @@ async function publish() {
 async function applyCommands() {
   try {
     for (const c of await store.takeCommands()) {
-      try { world.action(c.type, c); if (c.type === "reset") await persist(); } catch (e) { console.error("Команда не выполнена:", e.message); }
+      try { world.action(c.type, c); log(`команда с сайта: ${c.type} (тик ${world.tick})`); if (c.type === "reset") await persist(); } catch (e) { log(`команда ${c.type} не выполнена: ${e.message}`); }
     }
   } catch {}
 }
@@ -229,6 +229,7 @@ const server = createServer(async (req, res) => {
       if (ADMIN_KEY && body.key !== ADMIN_KEY) return send(res, 403, { error: "Нужен ключ управления. Его задаёт ADMIN_KEY в настройках сервера." });
       if (world) {
         world.action(body.type, body);
+        log(`команда с сайта: ${body.type} (тик ${world.tick})`);
         if (body.type === "reset") await persist();
       } else {
         const { key, ...cmd } = body;
