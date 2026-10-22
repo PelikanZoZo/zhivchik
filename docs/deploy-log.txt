@@ -8,14 +8,14 @@ Removing old file `public/app.js'
 Transferring file `public/app.js'
 Removing old file `public/index.html'
 Transferring file `public/index.html'
-Removing old file `public/package.json'
-Transferring file `public/package.json'
 Removing old file `src/auth.js'
 Transferring file `src/auth.js'
-Removing old file `public/style.css'
-Transferring file `public/style.css'
+Removing old file `public/package.json'
+Transferring file `public/package.json'
 Removing old file `src/package.json'
 Transferring file `src/package.json'
+Removing old file `public/style.css'
+Transferring file `public/style.css'
 Removing old file `src/server.js'
 Transferring file `src/server.js'
 Removing old file `public/sim/sensors.js'
@@ -24,26 +24,26 @@ Removing old file `public/sim/world.js'
 Transferring file `public/sim/world.js'
 Removing old file `src/store/file.js'
 Transferring file `src/store/file.js'
-Removing old file `src/store/index.js'
-Transferring file `src/store/index.js'
 Removing old file `public/sim/brains/associative.js'
 Transferring file `public/sim/brains/associative.js'
-Removing old file `src/store/mysql.js'
-Transferring file `src/store/mysql.js'
 Removing old file `public/sim/brains/index.js'
 Transferring file `public/sim/brains/index.js'
 Removing old file `public/sim/brains/neural.js'
 Transferring file `public/sim/brains/neural.js'
+Removing old file `src/store/index.js'
+Transferring file `src/store/index.js'
+Removing old file `src/store/mysql.js'
+Transferring file `src/store/mysql.js'
 mkdir: Access failed: 550 www/tmp: File exists
--rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 17:32 app.js
+-rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 17:35 app.js
 drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 17:23 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 17:32 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 17:32 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 17:34 public
-drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 17:34 src
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 17:35 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 17:35 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 17:35 public
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 17:35 src
 drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 17:24 tmp
 итог: 0
---- проверка сайта 17:34 UTC
+--- проверка сайта 17:35 UTC
 >> http://devalby.ru/api/state
 {"error":"Нужно войти"}
 [HTTP 401]
