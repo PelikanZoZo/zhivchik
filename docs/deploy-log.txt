@@ -1,61 +1,74 @@
-Transferring file `node_modules/mysql2/lib/parsers/static_binary_parser.js'
-Transferring file `node_modules/mysql2/lib/promise/inherit_events.js'
-Transferring file `node_modules/mysql2/typings/mysql/index.d.ts'
-Transferring file `node_modules/mysql2/lib/parsers/static_text_parser.js'
-Transferring file `node_modules/mysql2/lib/promise/make_done_cb.js'
-Transferring file `node_modules/mysql2/typings/mysql/info.txt'
-Transferring file `node_modules/mysql2/lib/parsers/string.js'
-Making directory `node_modules/mysql2/typings/mysql/lib'
-Transferring file `node_modules/mysql2/lib/promise/pool.js'
-Transferring file `node_modules/mysql2/lib/promise/pool_cluster.js'
-Transferring file `node_modules/mysql2/lib/parsers/text_parser.js'
-Transferring file `node_modules/mysql2/typings/mysql/lib/Auth.d.ts'
-Transferring file `node_modules/mysql2/lib/promise/pool_connection.js'
-Transferring file `node_modules/mysql2/lib/promise/prepared_statement_info.js'
-Transferring file `node_modules/mysql2/typings/mysql/lib/Connection.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/Pool.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/PoolCluster.d.ts'
-Transferring file `node_modules/mysql2/typings/mysql/lib/PoolConnection.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/Server.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/Tracing.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/Tracing.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/TypedParameter.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/TypedParameter.d.ts'
-Making directory `node_modules/mysql2/typings/mysql/lib/constants'
-Making directory `node_modules/mysql2/typings/mysql/lib/parsers'
-Making directory `node_modules/mysql2/typings/mysql/lib/protocol'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/CharsetToEncoding.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/ParserCache.d.ts'
-Making directory `node_modules/mysql2/typings/mysql/lib/protocol/packets'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Charsets.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/index.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/Types.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/Field.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/parsers/typeCast.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/constants/index.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/FieldPacket.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/OkPacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/OkPacket.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ProcedurePacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ProcedurePacket.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ResultSetHeader.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/ResultSetHeader.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/RowDataPacket.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/RowDataPacket.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/index.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/index.d.ts'
-Making directory `node_modules/mysql2/typings/mysql/lib/protocol/packets/params'
-Making directory `node_modules/mysql2/typings/mysql/lib/protocol/sequences'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/ErrorPacketParams.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/ErrorPacketParams.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/OkPacketParams.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/packets/params/OkPacketParams.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/ExecutableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/ExecutableBase.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Prepare.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Prepare.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Query.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Query.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/QueryableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/QueryableBase.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Sequence.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/Sequence.d.ts'
-Making directory `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/ExecutableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/ExecutableBase.d.ts'
+Removing old file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
 Transferring file `node_modules/mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
 mkdir: Access failed: 550 tmp: File exists
--rw-r--r--   1 h551183_devalby_ru 551183        141 Oct 22 14:57 app.js
-drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 14:59 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        452 Oct 22 14:57 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 14:57 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         56 Oct 22 14:58 public
--rw-r--r--   1 h551183_devalby_ru 551183       6384 Oct 22 14:57 server.js
+-rw-r--r--   1 h551183_devalby_ru 551183        141 Oct 22 15:01 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 15:01 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        452 Oct 22 15:01 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 15:01 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         56 Oct 22 15:01 public
+-rw-r--r--   1 h551183_devalby_ru 551183       6384 Oct 22 15:01 server.js
 drwxr-xr-x   1 h551183_devalby_ru 551183         10 Oct 22 14:58 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 14:58 tmp
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 15:01 tmp
 итог: 0
+--- проверка сайта 15:04 UTC
+>> http://devalby.ru/api/state
+Hello, World!
+[HTTP 200]
+
+>> http://devalby.ru/api/details
+Hello, World!
+[HTTP 200]
+
+>> http://devalby.ru/
+Hello, World!
+[HTTP 200]
+
