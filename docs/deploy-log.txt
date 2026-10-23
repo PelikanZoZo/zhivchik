@@ -4,8 +4,8 @@ Transferring file `package.json'
 Transferring file `public/app.js'
 Transferring file `public/index.html'
 Transferring file `public/package.json'
-Transferring file `src/auth.js'
 Transferring file `public/style.css'
+Transferring file `src/auth.js'
 Transferring file `src/package.json'
 Transferring file `src/server.js'
 Transferring file `public/sim/sensors.js'
@@ -17,15 +17,15 @@ Transferring file `public/sim/brains/associative.js'
 Transferring file `public/sim/brains/index.js'
 Transferring file `public/sim/brains/neural.js'
 mkdir: Access failed: 550 www/tmp: File exists
--rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 22 22:02 app.js
+-rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 23 05:44 app.js
 drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 17:23 node_modules
--rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 22 22:02 package.json
--rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 22 22:02 package-lock.json
-drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 22 22:03 public
-drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 22 22:03 src
-drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 22 22:03 tmp
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 23 05:44 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 23 05:44 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 23 05:45 public
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 23 05:45 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 23 05:45 tmp
 итог: 0
---- проверка сайта 22:03 UTC
+--- проверка сайта 05:45 UTC
 >> http://devalby.ru/api/state
 {"error":"Нужно войти"}
 [HTTP 401]
