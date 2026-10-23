@@ -346,11 +346,18 @@ function renderEvolution() {
     <div class="evo-legend">${GENES.map((g) => `<span><i style="background:var(--gene-${g.id})"></i>${g.name} ${last[g.id].toFixed(2)}</span>`).join("")}</div>`;
 }
 
+function renderEpochs() {
+  const e = details?.epochs || [];
+  $("epochs").innerHTML = e.length
+    ? `<table><thead><tr><th>Эпоха</th><th>Прожила, тиков</th><th>Поколений</th><th>Конец</th></tr></thead><tbody>${[...e].reverse().slice(0, 6).map((x) => `<tr><td>${x.epoch}</td><td>${ticks(x.ticks)}</td><td>${x.generations}</td><td>погибли ${esc(x.why)}</td></tr>`).join("")}</tbody></table>`
+    : `<p class="empty">Это первая эпоха. Если погибнут все Красные или все Зелёные, мир начнётся заново, а здесь появятся итоги.</p>`;
+}
+
 function renderMode() {
   const v = view;
   $("mode").innerHTML = mode === "server"
-    ? `<b>●</b> мир живёт на сервере · тик ${ticks(v.tick)} · ${v.tps || TPS} тиков/с` + (v.catchup ? ` · догоняет пропущенное: ещё ${ticks(v.catchup)} тиков` : "")
-    : `мир считается в этом браузере · тик ${ticks(v.tick)}`;
+    ? `<b>●</b> мир живёт на сервере · эпоха ${v.epoch ?? 1} · тик ${ticks(v.tick)} · ${v.tps || TPS} тиков/с` + (v.catchup ? ` · догоняет пропущенное: ещё ${ticks(v.catchup)} тиков` : "")
+    : `мир считается в этом браузере · эпоха ${v.epoch ?? 1} · тик ${ticks(v.tick)}`;
 }
 
 let lastLog = "";
@@ -394,7 +401,7 @@ function loop(now) {
   last = now;
   draw();
   if (frame % 6 === 0) { renderTop(); renderAgent(); renderMode(); renderLog(); }
-  if (frame % 60 === 0) renderEvolution();
+  if (frame % 60 === 0) { renderEvolution(); renderEpochs(); }
   frame++;
   requestAnimationFrame(loop);
 }

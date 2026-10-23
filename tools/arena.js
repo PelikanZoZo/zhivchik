@@ -9,7 +9,7 @@ const w = new World();
 const t0 = Date.now();
 let extinct = 0, maxPop = 0, predKilled = 0;
 const origNote = w.note.bind(w);
-w.note = (text) => { if (text.startsWith("Все агенты")) extinct++; if (text.includes("хищник погиб")) predKilled++; origNote(text); };
+w.note = (text) => { if (text.startsWith("Погибли все")) extinct++; if (text.includes("хищник погиб")) predKilled++; origNote(text); };
 for (let t = 1; t <= TICKS; t++) {
   w.step();
   maxPop = Math.max(maxPop, w.agents.length);
@@ -23,4 +23,4 @@ for (let t = 1; t <= TICKS; t++) {
     console.log(`${String(t / 3600 / TPS).padStart(4)}ч | ♂${d.green.alive} ♀${d.red.alive} | пок.${String(gen).padStart(3)} | рожд ${d.green.births + d.red.births} | съед ${d.green.eaten + d.red.eaten} голод ${d.green.deaths + d.red.deaths - d.green.eaten - d.red.eaten} | хищн.убито ${predKilled} ловили ${w.predatorStats.kills} | ${genes} || хищн. пок.${w.predatorGen} ${pgs}`);
   }
 }
-console.log(`вымираний: ${extinct}, макс. население: ${maxPop}, ${HOURS} ч за ${Date.now() - t0} мс`);
+console.log(`перезапусков мира: ${extinct}, макс. население: ${maxPop}, ${HOURS} ч за ${Date.now() - t0} мс`);

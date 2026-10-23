@@ -37,7 +37,6 @@ export const RULES = {
   rainLength: 1200,          // и идёт столько тиков, держа влажность почти на 100%
   moldGrow: 600,             // колония плесени растёт
   moldLife: [3600, 6000],    // и живёт (вторую половину — отмирает)
-  newcomerAfter: 12000,      // пришелец, если столько тиков нет самки или самца
   // Голод — шкала 0…100. Растёт сам, быстрее от бега, драк и лечения; еда его снижает.
   hungerFocus: 25,           // голод выше — внимание начинает тянуть к еде; ниже — агент сам решает, что делать
   hungerStrong: 60,          // выше — еда главное: агент идёт к ней, забыв про скуку и ухаживания
@@ -112,7 +111,6 @@ export class World {
     this.nextRain = data?.nextRain ?? Math.round(rnd(...RULES.rainEvery));
     this.lastRain = data?.lastRain ?? null;
     this.lastBirth = data?.lastBirth ?? -RULES.birthCooldown;
-    this.missingSince = data?.missingSince ?? {};
     this.predatorSpawns = data?.predatorSpawns ?? [];
     this.molds = data?.molds ?? [];
     this.predators = data?.predators ?? [];
@@ -124,6 +122,8 @@ export class World {
     this.log = data?.log ?? [];
     this.geneHistory = data?.geneHistory ?? [];
     this.fightCount = data?.fightCount ?? 0; // драк самцов за всё время
+    this.epoch = data?.epoch ?? 1;          // номер мира с последнего полного сброса
+    this.epochs = data?.epochs ?? [];       // итоги прошлых эпох
     this.lives = [];
     this.agents = (data?.agents ?? []).map((a) => ({ ...a, brain: createBrain(a.brain.type, a.brain), trail: [] }));
     // голод раньше считался в тиках без еды — переводим в шкалу 0…100
@@ -639,20 +639,6 @@ export class World {
       }
   }
 
-  // Пришелец: если долго нет самки или самца, извне приходит особь недостающего пола
-  checkLonelySex() {
-    if (!this.agents.length) return;
-    for (const sp of Object.keys(SPECIES)) {
-      if (this.agents.some((a) => a.species === sp)) { this.missingSince[sp] = null; continue; }
-      this.missingSince[sp] ??= this.tick;
-      if (this.tick - this.missingSince[sp] >= RULES.newcomerAfter) {
-        const a = this.spawnAgent(sp, null, null, Math.random() < 0.5 ? 10 : W - 10, rnd(60, H - 60));
-        this.missingSince[sp] = null;
-        this.note(`Извне пришёл${sp === "red" ? "а" : ""} ${a.name}: ${RULES.newcomerAfter} тиков в мире не было ${sp === "red" ? "самок" : "самцов"}.`);
-      }
-    }
-  }
-
   recordGenes() {
     if (!this.agents.length) return;
     const avg = {};
@@ -701,14 +687,26 @@ export class World {
     }
     this.stepRivalry();
     this.tryBreed();
-    this.checkLonelySex();
-    if (!this.agents.length) {
-      this.note("Все агенты погибли. Жизнь начинается заново: новая пара от лучших предков.");
-      for (const p of this.predators) this.retirePredator(p, "left");
-      this.predators = [];
-      this.spawnAgent("green", null, null, W * 0.4, H / 2);
-      this.spawnAgent("red", null, null, W * 0.6, H / 2);
-    }
+    // Погибли все Красные или все Зелёные — эпоха окончена, мир автоматически начинается заново
+    const greens = this.agents.some((a) => a.species === "green"), reds = this.agents.some((a) => a.species === "red");
+    if (!greens || !reds) this.restart(!greens && !reds ? "все агенты" : !greens ? "все Зелёные" : "все Красные");
+  }
+
+  // Новый мир с нуля (как кнопка «Новый мир»); номер эпохи и итоги прошлых эпох сохраняются
+  restart(why) {
+    const pending = this.lives; // жизни, ещё не записанные в базу, не теряем
+    const summary = why && {
+      epoch: this.epoch ?? 1, ticks: this.tick, why,
+      generations: Math.max(0, ...Object.values(this.hof).flat().map((h) => h.gen), ...this.agents.map((a) => a.gen)),
+      births: Object.values(this.stats).reduce((s, x) => s + x.births, 0),
+    };
+    const epochs = [...(this.epochs ?? []), ...(summary ? [summary] : [])].slice(-50);
+    const epoch = (this.epoch ?? 1) + 1;
+    Object.assign(this, new World());
+    this.lives = pending;
+    this.epoch = epoch;
+    this.epochs = epochs;
+    if (summary) this.note(`Погибли ${why} — мир перезапущен. Эпоха ${summary.epoch} прожила ${summary.ticks} тиков, ${summary.generations} поколений, ${summary.births} рождений. Началась эпоха ${epoch}.`);
   }
 
   // ---------- управление ----------
@@ -725,11 +723,10 @@ export class World {
         this.spawnPredator();
         break;
       case "mold": this.spawnMold(+p.x, +p.y); break;
-      case "reset": {
-        const fresh = new World();
-        Object.assign(this, fresh);
+      case "reset":
+        this.restart(null);
+        this.note(`Мир начат заново кнопкой «Новый мир». Эпоха ${this.epoch}.`);
         break;
-      }
       default: throw new Error("Неизвестное действие: " + type);
     }
   }
@@ -749,7 +746,7 @@ export class World {
   view() {
     const r1 = (v) => Math.round(v * 10) / 10;
     return {
-      version: VERSION, tick: this.tick, W, H, tpsBase: TPS,
+      version: VERSION, tick: this.tick, epoch: this.epoch, W, H, tpsBase: TPS,
       humidity: r1(this.humidity * 100),
       nextHumidity: Math.max(0, RULES.humidityEvery - (this.tick - this.lastHumidity)),
       raining: this.rainLeft, sinceRain: this.lastRain == null ? null : this.tick - this.lastRain,
@@ -788,7 +785,7 @@ export class World {
       };
     }
     return {
-      log: this.log.slice(0, 40), species, fights: this.fightCount, geneHistory: this.geneHistory.slice(-120),
+      log: this.log.slice(0, 40), species, fights: this.fightCount, epochs: this.epochs.slice(-10), geneHistory: this.geneHistory.slice(-120),
       predators: { gen: this.predatorGen, ...this.predatorStats, genes: this.predatorGeneAvg() },
       brains: Object.fromEntries(this.agents.map((a) => [a.id, a.brain.summary()])),
     };
@@ -798,9 +795,9 @@ export class World {
     return {
       version: VERSION, tick: this.tick, serial: this.serial, humidity: this.humidity, lastHumidity: this.lastHumidity,
       rainLeft: this.rainLeft, nextRain: this.nextRain, lastRain: this.lastRain,
-      lastBirth: this.lastBirth, missingSince: this.missingSince, predatorSpawns: this.predatorSpawns,
+      lastBirth: this.lastBirth, predatorSpawns: this.predatorSpawns,
       molds: this.molds, predators: this.predators, predatorHof: this.predatorHof, predatorGen: this.predatorGen,
-      predatorStats: this.predatorStats, fightCount: this.fightCount, stats: this.stats, hof: this.hof, log: this.log, geneHistory: this.geneHistory,
+      predatorStats: this.predatorStats, fightCount: this.fightCount, epoch: this.epoch, epochs: this.epochs, stats: this.stats, hof: this.hof, log: this.log, geneHistory: this.geneHistory,
       agents: this.agents.map(({ trail, brain, ...a }) => ({ ...a, brain: brain.toJSON() })),
     };
   }
