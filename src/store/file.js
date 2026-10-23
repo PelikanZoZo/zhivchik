@@ -46,6 +46,14 @@ export class FileStore {
     }
   }
 
+  async allLives() {
+    try { return (await fs.readFile(this.livesFile, "utf8")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)); } catch { return []; }
+  }
+
+  async wipeHistory() {
+    await fs.rm(this.livesFile, { force: true });
+  }
+
   // Локально приложение всегда одно, поэтому оно всегда хозяин мира
   async tryLead() { return true; }
   async stillLeader() { return true; }

@@ -279,6 +279,34 @@ setInterval(async () => {
   }
 }, 10000);
 
+// Полный сброс «с самого нуля»: появление файла tmp/wipe-request (его кладут по SSH) — хозяин мира
+// сохраняет резервную копию мира и летописи в backup/, стирает весь опыт и начинает новый мир.
+const WIPE_FILE = path.join(ROOT, "tmp", "wipe-request");
+let wiping = false;
+setInterval(async () => {
+  if (!leader || wiping || !fs.existsSync(WIPE_FILE)) return;
+  wiping = true;
+  try {
+    const dir = path.join(ROOT, "..", "backup");
+    await fsp.mkdir(dir, { recursive: true });
+    const lives = await store.allLives();
+    const file = path.join(dir, `zhivchik-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+    await fsp.writeFile(file, JSON.stringify({ world: world.toJSON(), lives }));
+    log(`полный сброс: резервная копия ${file} (тик ${world.tick}, жизней в летописи ${lives.length})`);
+    await store.wipeHistory();
+    world = new World();
+    catchup = 0;
+    lastStep = Date.now();
+    world.note("Мир перезапущен с самого нуля: весь прежний опыт стёрт.");
+    await persist();
+    await fsp.rm(WIPE_FILE, { force: true });
+    log("полный сброс выполнен: новый мир, опыт стёрт");
+  } catch (e) {
+    log("полный сброс не удался:", e.message);
+  }
+  wiping = false;
+}, 3000);
+
 async function shutdown() {
   log(`остановка (${leader ? "хозяин, тик " + world?.tick : "зритель"}), сохраняю`);
   await persist();

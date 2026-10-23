@@ -74,6 +74,17 @@ export class MysqlStore {
     return rows;
   }
 
+  // Полный сброс опыта: вся летопись жизней и очередь команд (перед этим — резервная копия)
+  async allLives() {
+    const [rows] = await this.pool.query("SELECT * FROM lives ORDER BY id");
+    return rows;
+  }
+
+  async wipeHistory() {
+    await this.pool.query("DELETE FROM lives");
+    await this.pool.query("DELETE FROM commands");
+  }
+
   // ---------- хозяин мира ----------
   // Хостинг может запустить несколько копий приложения. Хозяином становится та,
   // что взяла блокировку MySQL. Блокировка держится, пока живо соединение этой копии с базой.
