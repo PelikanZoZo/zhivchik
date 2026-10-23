@@ -80,7 +80,7 @@ async function becomeLeader() {
   timers.push(
     setInterval(run, 1000 / TPS),
     setInterval(persist, SAVE_EVERY),
-    setInterval(publish, 200),
+    setInterval(publish, 1000), // картинка мира для других копий — раз в секунду (бережём базу хостинга)
     setInterval(applyCommands, 500),
     // Каждые 5 секунд подтверждаем роль хозяина. Это ещё и не даёт соединению с базой
     // «уснуть»: хостинг закрывает молчащие соединения примерно через 30 секунд, и вместе
@@ -94,19 +94,24 @@ async function becomeLeader() {
   );
 }
 
+// Зритель читает картинку мира из базы только когда его кто-то спрашивает, и не чаще раза в секунду.
+// Раньше каждая копия читала её 5 раз в секунду круглые сутки — лишняя нагрузка на базу хостинга.
+let liveAt = 0, liveReading = null;
+async function freshLive() {
+  if (Date.now() - liveAt < 1000) return;
+  liveReading ??= store.readLive()
+    .then((v) => { if (v) live = v; liveAt = Date.now(); })
+    .catch(() => {})
+    .finally(() => { liveReading = null; });
+  await liveReading;
+}
+
 function becomeViewer() {
   log("я зритель");
-  let busy = false;
   timers.push(
     setInterval(async () => {
-      if (busy) return;
-      busy = true;
-      try { live = (await store.readLive()) || live; } catch {}
-      busy = false;
-    }, 200),
-    setInterval(async () => {
       try { if (await store.tryLead()) await becomeLeader(); } catch {}
-    }, 5000),
+    }, 10000),
   );
 }
 
@@ -219,6 +224,7 @@ const server = createServer(async (req, res) => {
     }
     if (p === "/login") return redirect(res, "/");
 
+    if (p.startsWith("/api/") && !world) await freshLive();
     if (p.startsWith("/api/") && !world && !live) return send(res, 503, { error: "Мир ещё просыпается, обнови через секунду." });
 
     if (p === "/api/state") return send(res, 200, world ? stateView() : live.view);

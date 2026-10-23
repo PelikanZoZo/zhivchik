@@ -11,7 +11,7 @@ const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ "<": "&lt;", ">": "&gt
 let mode = null;          // "server" | "local"
 let local = null;         // World в локальном режиме
 let view = null, prevView = null, viewAt = 0;
-const pollMs = 150;
+const pollMs = 250; // как часто страница спрашивает сервер о мире
 let details = null;
 let selected = null;
 
