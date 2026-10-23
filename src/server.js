@@ -10,7 +10,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { World, VERSION } from "../public/sim/world.js";
+import { World, VERSION, RULES } from "../public/sim/world.js";
 import { createStore } from "./store/index.js";
 import { createAuth, loginPage } from "./auth.js";
 
@@ -232,6 +232,13 @@ const server = createServer(async (req, res) => {
         log(`команда с сайта: ${body.type} (тик ${world.tick})`);
         if (body.type === "reset") await persist();
       } else {
+        // Мир считает другая копия: проверяем то, что видно по её последней картинке, чтобы кнопка
+        // не отвечала «готово» там, где хозяин мира откажет
+        const v = live?.view;
+        if (body.type === "rain" && v?.raining) return send(res, 400, { error: "Дождь уже идёт." });
+        if (body.type === "predator" && v && v.predatorsInWindow >= RULES.predatorMax)
+          return send(res, 400, { error: `Лимит: не больше ${RULES.predatorMax} хищников за ${RULES.predatorWindow} тиков.` });
+        if (!["humidity", "rain", "predator", "mold", "reset"].includes(body.type)) return send(res, 400, { error: "Неизвестное действие." });
         const { key, ...cmd } = body;
         await store.pushCommand(cmd); // хозяин выполнит в течение полсекунды
       }

@@ -135,6 +135,20 @@ function draw() {
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);
       }
     }
+  // драка самцов: красная зигзагообразная черта между дерущимися
+  for (const c of agents) {
+    if (c.brawl == null || c.id > c.brawl) continue;
+    const o = agents.find((x) => x.id === c.brawl);
+    if (!o) continue;
+    ctx.strokeStyle = "rgba(255,70,60,.9)"; ctx.lineWidth = 2.5; ctx.beginPath();
+    const n = 6;
+    for (let k = 0; k <= n; k++) {
+      const x = c.x + (o.x - c.x) * (k / n), y = c.y + (o.y - c.y) * (k / n), off = k % 2 ? 5 : -5;
+      const nx = -(o.y - c.y), ny = o.x - c.x, L = Math.hypot(nx, ny) || 1;
+      k ? ctx.lineTo(x + (nx / L) * off, y + (ny / L) * off) : ctx.moveTo(x, y);
+    }
+    ctx.stroke();
+  }
   const HALO = { flee: "rgba(255,80,80,.18)", survive: "rgba(255,60,60,.32)", fight: "rgba(255,160,40,.24)", help: "rgba(90,210,230,.22)", forage: "rgba(110,170,250,.16)", court: "rgba(255,150,190,.18)" };
   for (const c of agents) {
     const col = SPECIES[c.species].color;
@@ -219,7 +233,7 @@ function renderTop() {
       <div class="sp-nums">
         <div><b>${members.length}</b><small>живых</small></div>
         <div><b>${st.births ?? 0}</b><small>родилось</small></div>
-        <div><b>${st.deaths ?? 0}</b><small>погибло: хищн. ${st.eaten ?? 0}, старость ${st.oldAge ?? 0}</small></div>
+        <div><b>${st.deaths ?? 0}</b><small>погибло: хищн. ${st.eaten ?? 0}, старость ${st.oldAge ?? 0}${st.fightDeaths ? ", в драках " + st.fightDeaths : ""}</small></div>
         <div><b>${kticks(st.avgLife)}</b><small>средняя жизнь, тиков</small></div>
       </div>
       <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)} ${SPECIES[c.species].sex}${PHASE_MARK[c.phase] ?? ""}<span class="mini"><i style="width:${c.strength}%;background:${scaleColor(c.strength)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
@@ -361,7 +375,10 @@ $("b-rain").onclick = () => act("rain");
 $("b-pred").onclick = () => act("predator");
 $("b-reset").onclick = () => { $("confirm").hidden = false; };
 $("b-reset-no").onclick = () => { $("confirm").hidden = true; };
-$("b-reset-yes").onclick = async () => { $("confirm").hidden = true; if (await act("reset")) selected = null; };
+$("b-reset-yes").onclick = async () => {
+  $("confirm").hidden = true;
+  if (await act("reset")) { selected = null; view = { ...view, tick: -1 }; prevView = null; lastLog = ""; } // принять первую же картинку нового мира
+};
 $("speed").oninput = (e) => ($("speed-v").textContent = "×" + e.target.value);
 
 // ---------- цикл ----------

@@ -60,7 +60,7 @@ export const SPECIES = {
   // раньше включают инстинкт выживания и при угрозе бегут к своим
   red: { name: "Красный", plural: "Красные", sex: "♀", sexName: "самки", color: "#e2554f", brain: "neural", caution: 1 },
 };
-export const FEMALE_SHARE = 0.65; // самок рождается чаще
+export const FEMALE_SHARE = 0.5; // пол потомка — случайно, поровну
 
 // Гены развития агентов: 0…1, наследуются (среднее родителей + мутация). Каждый чем-то полезен
 // и чего-то стоит — отбор сам решает, что выгоднее в этом мире.
@@ -123,6 +123,7 @@ export class World {
     this.hof = data?.hof ?? {};
     this.log = data?.log ?? [];
     this.geneHistory = data?.geneHistory ?? [];
+    this.fightCount = data?.fightCount ?? 0; // драк самцов за всё время
     this.lives = [];
     this.agents = (data?.agents ?? []).map((a) => ({ ...a, brain: createBrain(a.brain.type, a.brain), trail: [] }));
     // голод раньше считался в тиках без еды — переводим в шкалу 0…100
@@ -358,7 +359,7 @@ export class World {
     a.fear ??= 20; a.courage ??= 15;
     const fear0 = a.fear, courage0 = a.courage;
     const ph = this.phase(a);
-    if (a.age === RULES.youthEnd) this.note(`${a.name} повзрослел${a.species === "red" ? "а" : ""}: теперь может размножаться.`);
+    if (a.age === RULES.youthEnd && a.parents?.length) this.note(`${a.name} повзрослел${a.species === "red" ? "а" : ""}: теперь может размножаться.`);
     if (a.age === RULES.oldStart) this.note(`${a.name} состарил${a.species === "red" ? "ась" : "ся"}: медленнее, слабее, потомства больше не будет.`);
     const isMale = a.species === "green";
     const touch = {};
@@ -562,30 +563,56 @@ export class World {
     if (this.tick % 3 === 0) { a.trail.push([Math.round(a.x), Math.round(a.y)]); if (a.trail.length > 40) a.trail.shift(); }
   }
 
-  // Соперничество: самцы рядом с самкой толкаются. Побеждает тот, у кого больше силы с учётом агрессии.
+  // Соперничество самцов. Рядом с самкой они толкаются; если оба разъярены — дерутся всерьёз
+  // и ранят друг друга. Голодные самцы у одной колонии плесени тоже могут подраться за еду.
   stepRivalry() {
-    const males = this.agents.filter((a) => a.species === "green" && a.sleep <= 0 && a.strength > 15 && this.phase(a).id === "mature");
+    const males = this.agents.filter((a) => a.species === "green" && a.sleep <= 0 && a.strength > 15 && this.phase(a).id !== "old");
     if (males.length < 2) return;
     const females = this.agents.filter((a) => a.species === "red");
-    for (const f of females)
-      for (let i = 0; i < males.length; i++)
-        for (let j = i + 1; j < males.length; j++) {
-          const m1 = males[i], m2 = males[j];
-          if (dist(m1, f) > 60 || dist(m2, f) > 60 || dist(m1, m2) > 40) continue;
-          if (this.tick - m1.lastPush < RULES.rivalryCooldown || this.tick - m2.lastPush < RULES.rivalryCooldown) continue;
-          const power = (m) => m.strength * (0.5 + this.aggroLevel(m) / 100) * rnd(0.8, 1.2);
-          const [win, lose] = power(m1) >= power(m2) ? [m1, m2] : [m2, m1];
-          const ang = Math.atan2(lose.y - f.y, lose.x - f.x);
-          lose.x = clamp(lose.x + Math.cos(ang) * 30, 4, W - 4); lose.y = clamp(lose.y + Math.sin(ang) * 30, 4, H - 4);
+    const ready = (m) => this.tick - (m.lastPush ?? -1e9) >= RULES.rivalryCooldown;
+    for (let i = 0; i < males.length; i++)
+      for (let j = i + 1; j < males.length; j++) {
+        const m1 = males[i], m2 = males[j];
+        if (dist(m1, m2) > 40 || !ready(m1) || !ready(m2)) continue;
+        // за самку — только зрелые; за еду — любые не старые, если оба голодны и стоят у одной колонии
+        const f = this.phase(m1).id === "mature" && this.phase(m2).id === "mature"
+          ? females.find((x) => dist(m1, x) < 60 && dist(m2, x) < 60) : null;
+        const mold = !f && m1.hunger > RULES.hungerFocus && m2.hunger > RULES.hungerFocus
+          ? this.molds.find((m) => m.biomass > 3 && dist(m1, m) < 35 && dist(m2, m) < 35) : null;
+        if (!f && !mold) continue;
+        const prize = f ?? mold;
+        const power = (m) => m.strength * (0.5 + this.aggroLevel(m) / 100) * this.phase(m).fight * rnd(0.8, 1.2);
+        const [win, lose] = power(m1) >= power(m2) ? [m1, m2] : [m2, m1];
+        // Драка, если оба достаточно злы (сочувствие удерживает); за еду драться легче, когда очень голоден
+        const temper = (m) => this.aggroLevel(m) * (1 - 0.6 * m.genes.emp) + (mold ? m.hunger * 0.3 : 0);
+        const fight = temper(m1) > 60 && temper(m2) > 50;
+        const ang = Math.atan2(lose.y - prize.y, lose.x - prize.x);
+        lose.x = clamp(lose.x + Math.cos(ang) * (fight ? 45 : 30), 4, W - 4); lose.y = clamp(lose.y + Math.sin(ang) * (fight ? 45 : 30), 4, H - 4);
+        const f0w = win.fear, c0w = win.courage, f0l = lose.fear, c0l = lose.courage;
+        if (fight) {
+          const hurtLose = (6 + 10 * this.aggroLevel(win) / 100) * (0.5 + win.strength / 100);
+          const hurtWin = (2 + 5 * this.aggroLevel(lose) / 100) * (0.5 + lose.strength / 100);
+          lose.health -= hurtLose; win.health -= hurtWin;
+          win.strength -= 8; lose.strength -= 6;
+          win.courage += 6; lose.fear += 10;
+          win.rage = clamp(win.rage + 25); lose.rage = clamp(lose.rage + 10);
+          lose.emotions = clamp(lose.emotions - 20); win.emotions = clamp(win.emotions - 5);
+          win.hurtBy = lose.hurtBy = "fight"; win.hurtAt = lose.hurtAt = this.tick;
+          win.brawl = lose.brawl = this.tick; win.brawlWith = lose.id; lose.brawlWith = win.id;
+          this.fightCount = (this.fightCount ?? 0) + 1;
+          this.note(`${win.name} подрался с ${lose.name} ${f ? "из-за " + f.name : "из-за еды"}: ${lose.name} ранен (−${Math.round(hurtLose)} здоровья), ${win.name} тоже задет (−${Math.round(hurtWin)}).`);
+        } else {
           win.strength -= 3; lose.strength -= 2;
-          const f0w = win.fear, c0w = win.courage, f0l = lose.fear, c0l = lose.courage;
           win.courage += 3; lose.fear += 3;
-          this.balanceFearCourage(win, f0w, c0w); this.balanceFearCourage(lose, f0l, c0l);
-          win.rage = clamp(win.rage + 15); lose.rage = clamp(lose.rage + 15);
+          win.rage = clamp(win.rage + 6); lose.rage = clamp(lose.rage + 6);
           lose.emotions = clamp(lose.emotions - 10);
-          win.lastPush = lose.lastPush = this.tick;
-          if (Math.random() < 0.3) this.note(`${win.name} оттолкнул ${lose.name} от ${f.name}.`);
+          if (Math.random() < 0.3) this.note(`${win.name} оттолкнул ${lose.name} ${f ? "от " + f.name : "от еды"}.`);
         }
+        this.balanceFearCourage(win, f0w, c0w); this.balanceFearCourage(lose, f0l, c0l);
+        win.health = clamp(win.health); lose.health = clamp(lose.health);
+        // после настоящей драки оба долго не ввязываются в новую (раны, проигравший держится подальше)
+        win.lastPush = lose.lastPush = this.tick + (fight ? 1400 : 0);
+      }
   }
 
   tryBreed() {
@@ -642,6 +669,7 @@ export class World {
     st.best = Math.max(st.best, a.age);
     if (cause === "predator") st.eaten++;
     if (cause === "old") st.oldAge = (st.oldAge ?? 0) + 1;
+    if (cause === "fight") st.fightDeaths = (st.fightDeaths ?? 0) + 1;
     const hof = this.hof[a.species];
     for (const h of hof) h.fitness *= 0.97;
     hof.push({ fitness: a.age, name: a.name, gen: a.gen, genes: a.genes, brain: a.brain.toJSON() });
@@ -650,7 +678,7 @@ export class World {
     this.agents.splice(this.agents.indexOf(a), 1);
     // гибель сородича на глазах пугает тех, кто рядом
     if (cause === "predator") for (const o of this.agents) if (dist(o, a) < 150) { const f0 = o.fear, c0 = o.courage; o.fear += 12; this.balanceFearCourage(o, f0, c0); }
-    const why = { predator: "погиб от хищника", hunger: "умер от голода", old: "умер от старости", sorrow: "угас от тоски" }[cause];
+    const why = { predator: "погиб от хищника", fight: "погиб в драке с сородичем", hunger: "умер от голода", old: "умер от старости", sorrow: "угас от тоски" }[cause];
     this.note(`${a.name} ${why}, прожив ${a.age} тиков.`);
     if (cause === "predator") {
       const p = this.predators.find((p) => dist(p, a) < 20 && !p.leaving);
@@ -667,6 +695,7 @@ export class World {
       if (a.age >= (a.lifespan ?? Infinity)) { this.die(a, "old"); continue; }
       if (a.health <= 0) {
         const byPredator = this.predators.some((p) => !p.leaving && dist(p, a) < 20);
+        if (!byPredator && a.hurtBy === "fight" && this.tick - (a.hurtAt ?? -1e9) < 600) { this.die(a, "fight"); continue; }
         this.die(a, byPredator ? "predator" : a.hunger > RULES.hungerStarve ? "hunger" : "sorrow");
       }
     }
@@ -736,6 +765,7 @@ export class World {
       agents: this.agents.map((a) => ({
         id: a.id, name: a.name, species: a.species, gen: a.gen, parents: a.parents,
         phase: this.phase(a).id, lifespan: a.lifespan,
+        brawl: this.tick - (a.brawl ?? -1e9) < 60 ? a.brawlWith : null,
         x: r1(a.x), y: r1(a.y), a: +a.a.toFixed(3), age: a.age, mode: a.mode,
         genes: Object.fromEntries(GENES.map((g) => [g.id, +a.genes[g.id].toFixed(2)])),
         strength: Math.round(a.strength), health: Math.round(a.health), emotions: Math.round(a.emotions),
@@ -752,13 +782,13 @@ export class World {
       const r = st.recent;
       species[sp] = {
         alive: this.agents.filter((a) => a.species === sp).length,
-        births: st.births, deaths: st.deaths, eaten: st.eaten, oldAge: st.oldAge ?? 0,
+        births: st.births, deaths: st.deaths, eaten: st.eaten, oldAge: st.oldAge ?? 0, fightDeaths: st.fightDeaths ?? 0,
         best: Math.max(st.best, ...this.agents.filter((a) => a.species === sp).map((a) => a.age), 0),
         avgLife: r.length ? Math.round(r.reduce((x, y) => x + y, 0) / r.length) : null,
       };
     }
     return {
-      log: this.log.slice(0, 40), species, geneHistory: this.geneHistory.slice(-120),
+      log: this.log.slice(0, 40), species, fights: this.fightCount, geneHistory: this.geneHistory.slice(-120),
       predators: { gen: this.predatorGen, ...this.predatorStats, genes: this.predatorGeneAvg() },
       brains: Object.fromEntries(this.agents.map((a) => [a.id, a.brain.summary()])),
     };
@@ -770,7 +800,7 @@ export class World {
       rainLeft: this.rainLeft, nextRain: this.nextRain, lastRain: this.lastRain,
       lastBirth: this.lastBirth, missingSince: this.missingSince, predatorSpawns: this.predatorSpawns,
       molds: this.molds, predators: this.predators, predatorHof: this.predatorHof, predatorGen: this.predatorGen,
-      predatorStats: this.predatorStats, stats: this.stats, hof: this.hof, log: this.log, geneHistory: this.geneHistory,
+      predatorStats: this.predatorStats, fightCount: this.fightCount, stats: this.stats, hof: this.hof, log: this.log, geneHistory: this.geneHistory,
       agents: this.agents.map(({ trail, brain, ...a }) => ({ ...a, brain: brain.toJSON() })),
     };
   }
