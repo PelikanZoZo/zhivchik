@@ -1,0 +1,57 @@
+# Сетевая диагностика: DNS, регистрация домена, сайт, FTP, SSH. Результат — docs/net-check.txt
+name: Проверка сети
+on:
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/net-check.yml", "docs/net-check.request"]
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Проверить
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSHPASS: ${{ secrets.SSH_PASSWORD }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          sudo apt-get install -y -qq dnsutils whois sshpass netcat-openbsd > /dev/null 2>&1
+          mkdir -p docs
+          {
+            echo "Проверка: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo "=== DNS devalby.ru (через 8.8.8.8 и 1.1.1.1)"
+            dig +short devalby.ru A @8.8.8.8; dig +short www.devalby.ru A @1.1.1.1
+            echo "--- NS"; dig +short devalby.ru NS @8.8.8.8
+            echo "=== регистрация домена"
+            whois devalby.ru 2>&1 | grep -iE "state|paid-till|free-date|registrar|created" | head -8
+            echo "=== сайт по адресам"
+            for ip in $(dig +short devalby.ru A @8.8.8.8); do
+              echo ">> $ip:80"; timeout 15 nc -zv -w 10 $ip 80 2>&1 | tail -1
+              curl -sS --max-time 20 -o /dev/null -w "HTTP %{http_code} за %{time_total}с\n" -H "Host: devalby.ru" http://$ip/ 2>&1 | tail -1
+            done
+            echo ">> http://devalby.ru/login"; curl -sS --max-time 25 -o /dev/null -w "HTTP %{http_code} за %{time_total}с\n" http://devalby.ru/login 2>&1 | tail -1
+            echo "=== masterhost снаружи"
+            curl -sS --max-time 20 -o /dev/null -w "masterhost.ru HTTP %{http_code}\n" https://masterhost.ru/ 2>&1 | tail -1
+            echo "=== FTP $FTP_SERVER:21"; timeout 15 nc -zv -w 10 "$FTP_SERVER" 21 2>&1 | tail -1
+            curl -sS --max-time 25 --list-only "ftp://$FTP_SERVER/" --user "$FTP_USERNAME:$FTP_PASSWORD" 2>&1 | sed "s/$FTP_PASSWORD/***/g" | head -5
+            echo "=== SSH $SSH_HOST:22"; timeout 15 nc -zv -w 10 "$SSH_HOST" 22 2>&1 | tail -1
+            timeout 60 sshpass -e ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=20 "$SSH_USER@$SSH_HOST" '
+              echo "вошёл: $(date)"; echo "--- процессы"; ps -eo pid,lstart,pcpu,rss,args | grep -a "node --loader" | grep -av grep
+              echo "--- место на диске"; df -h ~ 2>/dev/null | tail -1; du -sh ~/devalby.ru ~/log 2>/dev/null
+              echo "--- журнал (хвост)"; tail -25 ~/log/devalby.ru.error.log
+              echo "--- запросы к сайту изнутри"; curl -sS --max-time 15 -o /dev/null -w "localhost: HTTP %{http_code}\n" -H "Host: devalby.ru" http://127.0.0.1/ 2>&1 | tail -1
+            ' 2>&1 | sed -e "s/$SSHPASS/***/g" | grep -aviE "pass(word)?=|DBPASS"
+          } > docs/net-check.txt 2>&1 || true
+          cat docs/net-check.txt
+      - name: Сохранить
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/net-check.txt
+          git commit -m "Результат проверки сети" || exit 0
+          git pull --rebase -q && git push
