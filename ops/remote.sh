@@ -1,9 +1,4 @@
-# Полный сброс мира и опыта (по просьбе 23.10 09:28). Ждём, пока новый код поднимется, потом сигнал.
-sleep 40
-grep -a "\[живчик" ~/log/devalby.ru.error.log | grep -a "я хозяин" | tail -1
-mkdir -p ~/devalby.ru/www/tmp && touch ~/devalby.ru/www/tmp/wipe-request && echo "сигнал сброса отправлен"
-for i in $(seq 1 20); do sleep 3; [ -f ~/devalby.ru/www/tmp/wipe-request ] || break; done
-echo "=== журнал"
-grep -a "\[живчик" ~/log/devalby.ru.error.log | grep -a "сброс\|загрузил мир\|я хозяин" | tail -4
-echo "=== резервные копии"; ls -la ~/devalby.ru/backup 2>&1 | tail -3
-echo "=== файл сигнала"; ls ~/devalby.ru/www/tmp/
+# После выкладки автоперезапуска: мир загрузился, ошибок нет
+sleep 45
+grep -a "\[живчик" ~/log/devalby.ru.error.log | grep -a "загрузил мир\|НОВЫЙ МИР\|я хозяин" | tail -2
+echo "=== ошибки за 3 минуты"; awk -v d="$(date -d '-3 min' '+%Y/%m/%d %H:%M')" 'BEGIN{p=0} /^20[0-9][0-9]\//{p=($0>=d)} p && /Error/' ~/log/devalby.ru.error.log | tail -5
