@@ -1,26 +1,17 @@
 mirror: Fatal error: max-retries exceeded
 mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-mirror: Fatal error: max-retries exceeded
-chmod: Fatal error: max-retries exceeded
-mkdir: Fatal error: max-retries exceeded
-put: dist/tmp/restart.txt: Fatal error: max-retries exceeded
-ls: ls www/: Fatal error: max-retries exceeded
-итог: 1
---- проверка сайта 14:57 UTC
+mkdir: Access failed: 550 www/tmp: File exists
+-rwxr-xr-x   1 h551183_devalby_ru 551183        500 Oct 23 06:41 app.js
+drwxr-xr-x   1 h551183_devalby_ru 551183        314 Oct 22 17:23 node_modules
+-rw-r--r--   1 h551183_devalby_ru 551183        426 Oct 23 06:41 package.json
+-rw-r--r--   1 h551183_devalby_ru 551183       5253 Oct 23 06:41 package-lock.json
+drwxr-xr-x   1 h551183_devalby_ru 551183         80 Oct 23 06:42 public
+drwxr-xr-x   1 h551183_devalby_ru 551183         66 Oct 23 06:42 src
+drwxr-xr-x   1 h551183_devalby_ru 551183         22 Oct 23 21:07 tmp
+итог: 0
+--- проверка сайта 21:07 UTC
 >> http://devalby.ru/api/state
-curl: (28) Operation timed out after 60000 milliseconds with 0 bytes received
+curl: (28) Operation timed out after 60002 milliseconds with 0 bytes received
 
 [HTTP 000]
 
