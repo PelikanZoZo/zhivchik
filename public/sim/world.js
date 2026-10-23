@@ -22,12 +22,12 @@ export const TPS = 20; // скорость мира по умолчанию: т�
 
 // Все периоды мира — в тиках. При TPS=20 тысяча тиков ≈ 50 секунд.
 export const RULES = {
-  birthCooldown: 6000,       // пауза между рождениями во всём мире
+  birthCooldown: 3000,       // пауза между рождениями во всём мире (было 6000 — теперь вдвое чаще)
   // Срок жизни агента (в тиках): молодость → зрелость → старость → смерть от старости
   youthEnd: 6000,            // до этого возраста — молодой: быстрый, но ещё не силён и не размножается
   oldStart: 60000,           // с этого возраста — старый: медленнее, слабее, не размножается
   lifespan: [84000, 96000],  // естественная смерть — у каждого свой срок в этих пределах
-  breedStrength: 60,         // сила обоих для размножения
+  breedStrength: 50,         // размножаться можно при силе обоих выше этого — при любых других условиях
   predatorWindow: 12000,     // в этом окне — не больше predatorMax хищников
   predatorMax: 2,
   predatorChance: 1 / 6000,  // шанс появления хищника в каждом тике
@@ -575,8 +575,7 @@ export class World {
         const m1 = males[i], m2 = males[j];
         if (dist(m1, m2) > 40 || !ready(m1) || !ready(m2)) continue;
         // за самку — только зрелые; за еду — любые не старые, если оба голодны и стоят у одной колонии
-        const f = this.phase(m1).id === "mature" && this.phase(m2).id === "mature"
-          ? females.find((x) => dist(m1, x) < 60 && dist(m2, x) < 60) : null;
+        const f = null; // самцы не мешают друг другу размножаться: за самку не толкаются и не дерутся
         const mold = !f && m1.hunger > RULES.hungerFocus && m2.hunger > RULES.hungerFocus
           ? this.molds.find((m) => m.biomass > 3 && dist(m1, m) < 35 && dist(m2, m) < 35) : null;
         if (!f && !mold) continue;
@@ -615,28 +614,37 @@ export class World {
       }
   }
 
+  // Сколько самец может дать потомству: сила + энергия (сытость) + скорость + хитрость, каждое 0…1
+  mateScore(m) {
+    return m.strength / 100 + (100 - m.hunger) / 100 + m.genes.speed + m.genes.cunning;
+  }
+
   tryBreed() {
     if (this.tick - this.lastBirth < RULES.birthCooldown || this.agents.length >= RULES.maxAgents) return;
-    const need = (a) => RULES.breedStrength - (a.species === "green" ? 20 * a.genes.breed : 0); // инстинкт самца снижает порог
-    const ready = this.agents.filter((a) => a.strength >= need(a) && a.emotions >= 40 && this.phase(a).id === "mature" && a.sleep <= 0 && a.boredom < 80 && (a.fear ?? 0) < 85 && a.hunger < RULES.healBelowHunger);
-    for (const a of ready.filter((x) => x.species === "green"))
-      for (const b of ready.filter((x) => x.species === "red")) {
-        if (dist(a, b) > 30) continue;
-        const species = Math.random() < FEMALE_SHARE ? "red" : "green";
-        const child = this.spawnAgent(species, a, b, (a.x + b.x) / 2, (a.y + b.y) / 2);
-        a.strength -= 30; b.strength -= 30;
-        a.emotions = clamp(a.emotions + 20); b.emotions = clamp(b.emotions + 20);
-        a.boredom = 0; b.boredom = 0;
-        this.lastBirth = this.tick;
-        this.stats[species].births++;
-        this.note(`У ${a.name} и ${b.name} ${species === "red" ? "родилась" : "родился"} ${child.name} (поколение ${child.gen}).`);
-        for (const gd of GENES) {
-          const v = child.genes[gd.id], parentsAvg = (a.genes[gd.id] + b.genes[gd.id]) / 2;
-          if (v >= 0.25 && v - parentsAvg >= 0.12) this.note(`У ${child.name} проявилась ${gd.name.toLowerCase()}: ${v.toFixed(2)} (у родителей ${parentsAvg.toFixed(2)}).`);
-        }
-        this.recordGenes();
-        return;
+    // Размножаться может любой зрелый и бодрствующий агент, если сила выше порога, — при любых других условиях
+    const ready = this.agents.filter((a) => a.strength > RULES.breedStrength && this.phase(a).id === "mature" && a.sleep <= 0);
+    for (const b of ready.filter((x) => x.species === "red")) {
+      // все готовые самцы, которые касаются самки; гены передаёт лучший по сумме параметров
+      const suitors = ready.filter((x) => x.species === "green" && dist(x, b) <= 30);
+      if (!suitors.length) continue;
+      const scored = suitors.map((m) => ({ m, score: this.mateScore(m) })).sort((x, y) => y.score - x.score);
+      const a = scored[0].m;
+      const species = Math.random() < FEMALE_SHARE ? "red" : "green";
+      const child = this.spawnAgent(species, a, b, (a.x + b.x) / 2, (a.y + b.y) / 2);
+      a.strength -= 30; b.strength -= 30;
+      a.emotions = clamp(a.emotions + 20); b.emotions = clamp(b.emotions + 20);
+      a.boredom = 0; b.boredom = 0;
+      this.lastBirth = this.tick;
+      this.stats[species].births++;
+      this.note(`У ${a.name} и ${b.name} ${species === "red" ? "родилась" : "родился"} ${child.name} (поколение ${child.gen}).`);
+      if (scored.length > 1) this.note(`Рядом с ${b.name} было ${scored.length} самца — гены передал ${a.name} (${scored[0].score.toFixed(2)} против ${scored[1].score.toFixed(2)} у ${scored[1].m.name}).`);
+      for (const gd of GENES) {
+        const v = child.genes[gd.id], parentsAvg = (a.genes[gd.id] + b.genes[gd.id]) / 2;
+        if (v >= 0.25 && v - parentsAvg >= 0.12) this.note(`У ${child.name} проявилась ${gd.name.toLowerCase()}: ${v.toFixed(2)} (у родителей ${parentsAvg.toFixed(2)}).`);
       }
+      this.recordGenes();
+      return;
+    }
   }
 
   recordGenes() {
