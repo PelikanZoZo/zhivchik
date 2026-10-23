@@ -22,6 +22,9 @@
   --gene-breed: #e05a6c;
   --fear: #7d6fb0;
   --courage: #d6a21e;
+  --life-young: #9fd8b4;
+  --life-mature: #3aa55d;
+  --life-old: #a7b0aa;
   --f-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
   --f-body: "Golos Text", "Segoe UI", system-ui, sans-serif;
   --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -30,14 +33,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0c120e; --panel: #131c16; --ink: #e3ece5; --muted: #8fa295; --line: #26352b;
     --life: #4cc48a; --good: #5cc27b; --warn: #e3b04a; --bad: #e66a6c; --water: #6aa2ea;
-    --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0; --gene-breed: #f07a8a; --fear: #a99be0; --courage: #f0c14a;
+    --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0; --gene-breed: #f07a8a; --fear: #a99be0; --courage: #f0c14a; --life-young: #3f7a57; --life-mature: #5cc27b; --life-old: #5f6a63;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0c120e; --panel: #131c16; --ink: #e3ece5; --muted: #8fa295; --line: #26352b;
   --life: #4cc48a; --good: #5cc27b; --warn: #e3b04a; --bad: #e66a6c; --water: #6aa2ea;
-  --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0; --gene-breed: #f07a8a; --fear: #a99be0; --courage: #f0c14a;
+  --gene-help: #4cc48a; --gene-speed: #5cc8db; --gene-aggro: #f2a24e; --gene-obs: #e3c04a; --gene-react: #f0739c; --gene-emp: #f29acb; --gene-cunning: #a99cf0; --gene-breed: #f07a8a; --fear: #a99be0; --courage: #f0c14a; --life-young: #3f7a57; --life-mature: #5cc27b; --life-old: #5f6a63;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -139,3 +142,8 @@ input[type=password] { flex: 1; min-width: 0; font: 13px var(--f-mono); padding:
 .pgenes { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
 .pgenes b { color: var(--ink); font-family: var(--f-mono); font-weight: 500; }
 .world-card h2 + #pred-info { margin-top: -4px; }
+.scale .track.life { display: flex; position: relative; overflow: visible; }
+.scale .track.life i { border-radius: 0; transition: none; }
+.scale .track.life i:first-child { border-radius: 5px 0 0 5px; }
+.scale .track.life i:nth-child(3) { border-radius: 0 5px 5px 0; }
+.scale .track.life b { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: var(--ink); border-radius: 2px; }

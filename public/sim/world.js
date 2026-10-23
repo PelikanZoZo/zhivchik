@@ -23,7 +23,10 @@ export const TPS = 20; // скорость мира по умолчанию: т�
 // Все периоды мира — в тиках. При TPS=20 тысяча тиков ≈ 50 секунд.
 export const RULES = {
   birthCooldown: 6000,       // пауза между рождениями во всём мире
-  minBreedAge: 1200,         // размножаться можно с этого возраста
+  // Срок жизни агента (в тиках): молодость → зрелость → старость → смерть от старости
+  youthEnd: 6000,            // до этого возраста — молодой: быстрый, но ещё не силён и не размножается
+  oldStart: 60000,           // с этого возраста — старый: медленнее, слабее, не размножается
+  lifespan: [84000, 96000],  // естественная смерть — у каждого свой срок в этих пределах
   breedStrength: 60,         // сила обоих для размножения
   predatorWindow: 12000,     // в этом окне — не больше predatorMax хищников
   predatorMax: 2,
@@ -124,6 +127,8 @@ export class World {
     this.agents = (data?.agents ?? []).map((a) => ({ ...a, brain: createBrain(a.brain.type, a.brain), trail: [] }));
     // голод раньше считался в тиках без еды — переводим в шкалу 0…100
     for (const a of this.agents) if (a.hv !== 2) { a.hunger = clamp(((a.hunger ?? 0) / 8000) * 100); a.hv = 2; }
+    // у агентов, родившихся до появления срока жизни, он появляется сейчас; долгожителей делаем зрелыми
+    for (const a of this.agents) if (!a.lifespan) { a.lifespan = Math.round(rnd(...RULES.lifespan)); a.age = Math.min(a.age, RULES.oldStart - 12000); }
     for (const sp of Object.keys(SPECIES)) {
       this.stats[sp] ??= { births: 0, deaths: 0, eaten: 0, recent: [], best: 0 };
       this.hof[sp] ??= [];
@@ -308,11 +313,12 @@ export class World {
       gen: parentA ? Math.max(parentA.gen, parentB?.gen ?? 0) + 1 : (this.hof[species]?.[0]?.gen ?? 0) + 1,
       parents: parentA ? [parentA.name, parentB?.name].filter(Boolean) : [],
       x: x ?? rnd(60, W - 60), y: y ?? rnd(60, H - 60), a: rnd(0, Math.PI * 2),
-      strength: parentA ? 55 : 80, health: 100, emotions: 70, boredom: 0, rage: 0,
+      strength: parentA ? 45 : 80, health: 100, emotions: 70, boredom: 0, rage: 0,
       // Страх и Смелость — опыт этой особи (не наследуются); вместе не больше 100
       fear: 20 + 20 * sp.caution, courage: 15,
       hunger: parentA ? 30 : 15, hv: 2, sleep: 0, alert: 0, lastPush: -RULES.rivalryCooldown,
-      mode: "active", age: 0, ate: 0, trail: [],
+      // потомок рождается молодым; основатели и пришельцы приходят уже взрослыми
+      mode: "active", age: parentA ? 0 : RULES.youthEnd, lifespan: Math.round(rnd(...RULES.lifespan)), ate: 0, trail: [],
     };
     this.agents.push(a);
     return a;
@@ -325,6 +331,15 @@ export class World {
       if (a.fear - fear0 >= a.courage - courage0) a.courage = 100 - a.fear;
       else a.fear = 100 - a.courage;
     }
+  }
+
+  // Фаза жизни и её влияние: speed — скорость, cap — потолок силы, fight — способность отбиваться,
+  // heal — скорость лечения. В старости всё постепенно убывает к концу срока
+  phase(a) {
+    if (a.age < RULES.youthEnd) return { id: "young", speed: 1.2, cap: 70, fight: 0.8, heal: 1.2 };
+    if (a.age < RULES.oldStart) return { id: "mature", speed: 1, cap: 100, fight: 1.2, heal: 1 };
+    const k = clamp((a.age - RULES.oldStart) / ((a.lifespan ?? RULES.lifespan[0]) - RULES.oldStart), 0, 1);
+    return { id: "old", speed: 0.85 - 0.25 * k, cap: 80 - 40 * k, fight: 0.7 - 0.3 * k, heal: 0.5 };
   }
 
   nearestFemale(a) {
@@ -342,6 +357,9 @@ export class World {
     const before = { strength: a.strength, emotions: a.emotions, health: a.health };
     a.fear ??= 20; a.courage ??= 15;
     const fear0 = a.fear, courage0 = a.courage;
+    const ph = this.phase(a);
+    if (a.age === RULES.youthEnd) this.note(`${a.name} повзрослел${a.species === "red" ? "а" : ""}: теперь может размножаться.`);
+    if (a.age === RULES.oldStart) this.note(`${a.name} состарил${a.species === "red" ? "ась" : "ся"}: медленнее, слабее, потомства больше не будет.`);
     const isMale = a.species === "green";
     const touch = {};
     a.age++;
@@ -426,6 +444,7 @@ export class World {
       let speed = adrenaline ? 2.1 + 1.0 * g.speed : sprinting ? 1.5 + 1.0 * g.speed : 1.2 + 0.2 * g.speed;
       speed *= adrenaline ? 0.85 : 0.6 + 0.4 * (a.strength / 100);
       speed *= 1 - 0.4 * starving; // голодный медленнее
+      speed *= ph.speed;            // молодой быстрее, старый медленнее
       if (a.mode === "rest") speed = 0.5;
       if (a.mode === "hide") speed = 0.15;
       if (bored) speed *= 0.8;
@@ -479,7 +498,7 @@ export class World {
     // ---- здоровье ----
     // Лечение — только при достаточной еде (голод ниже порога) и воле к жизни. Оно быстро вызывает голод:
     // каждый восстановленный пункт здоровья — около 2 пунктов голода
-    if (a.health < 100 && a.hunger < RULES.healBelowHunger && a.emotions >= 15) { a.health += 0.03; a.hunger += 0.06; a.healing = true; }
+    if (a.health < 100 && a.hunger < RULES.healBelowHunger && a.emotions >= 15) { a.health += 0.03 * ph.heal; a.hunger += 0.06 * ph.heal; a.healing = true; }
     else a.healing = false;
     if (a.emotions < 15) a.health -= 0.01;                  // тоска
     if (a.hunger > RULES.hungerStarve) a.health -= 0.015;   // голод
@@ -518,7 +537,7 @@ export class World {
         for (const h of helpers) p.hp -= 1.5 * (0.5 + h.strength / 50);
         const aggr = this.aggroLevel(a);
         p.hp -= 2 * (aggr / 100) * (0.5 + a.strength / 50);
-        const chance = (a.strength / 300) * (1 + 1.5 * (aggr / 100)) * (1 + 0.4 * helpers.length) * (1 - 0.5 * starving) * (1 + 0.5 * a.courage / 100);
+        const chance = (a.strength / 300) * (1 + 1.5 * (aggr / 100)) * (1 + 0.4 * helpers.length) * (1 - 0.5 * starving) * (1 + 0.5 * a.courage / 100) * ph.fight;
         if (Math.random() < chance) {
           p.stunned = 80; p.hp -= (8 + a.strength / 8) * (1 + aggr / 100);
           a.strength -= 3; a.courage += 10;
@@ -529,7 +548,7 @@ export class World {
       }
     }
 
-    a.strength = clamp(a.strength); a.health = clamp(a.health); a.emotions = clamp(a.emotions);
+    a.strength = clamp(a.strength, 0, ph.cap); a.health = clamp(a.health); a.emotions = clamp(a.emotions);
     a.boredom = clamp(a.boredom); a.rage = clamp(a.rage); a.hunger = clamp(a.hunger);
     this.balanceFearCourage(a, fear0, courage0);
 
@@ -545,7 +564,7 @@ export class World {
 
   // Соперничество: самцы рядом с самкой толкаются. Побеждает тот, у кого больше силы с учётом агрессии.
   stepRivalry() {
-    const males = this.agents.filter((a) => a.species === "green" && a.sleep <= 0 && a.strength > 15);
+    const males = this.agents.filter((a) => a.species === "green" && a.sleep <= 0 && a.strength > 15 && this.phase(a).id === "mature");
     if (males.length < 2) return;
     const females = this.agents.filter((a) => a.species === "red");
     for (const f of females)
@@ -572,7 +591,7 @@ export class World {
   tryBreed() {
     if (this.tick - this.lastBirth < RULES.birthCooldown || this.agents.length >= RULES.maxAgents) return;
     const need = (a) => RULES.breedStrength - (a.species === "green" ? 20 * a.genes.breed : 0); // инстинкт самца снижает порог
-    const ready = this.agents.filter((a) => a.strength >= need(a) && a.emotions >= 40 && a.age > RULES.minBreedAge && a.sleep <= 0 && a.boredom < 80 && (a.fear ?? 0) < 85 && a.hunger < RULES.healBelowHunger);
+    const ready = this.agents.filter((a) => a.strength >= need(a) && a.emotions >= 40 && this.phase(a).id === "mature" && a.sleep <= 0 && a.boredom < 80 && (a.fear ?? 0) < 85 && a.hunger < RULES.healBelowHunger);
     for (const a of ready.filter((x) => x.species === "green"))
       for (const b of ready.filter((x) => x.species === "red")) {
         if (dist(a, b) > 30) continue;
@@ -622,6 +641,7 @@ export class World {
     st.recent.push(a.age); if (st.recent.length > 20) st.recent.shift();
     st.best = Math.max(st.best, a.age);
     if (cause === "predator") st.eaten++;
+    if (cause === "old") st.oldAge = (st.oldAge ?? 0) + 1;
     const hof = this.hof[a.species];
     for (const h of hof) h.fitness *= 0.97;
     hof.push({ fitness: a.age, name: a.name, gen: a.gen, genes: a.genes, brain: a.brain.toJSON() });
@@ -630,7 +650,7 @@ export class World {
     this.agents.splice(this.agents.indexOf(a), 1);
     // гибель сородича на глазах пугает тех, кто рядом
     if (cause === "predator") for (const o of this.agents) if (dist(o, a) < 150) { const f0 = o.fear, c0 = o.courage; o.fear += 12; this.balanceFearCourage(o, f0, c0); }
-    const why = cause === "predator" ? "погиб от хищника" : cause === "hunger" ? "умер от голода" : "угас от тоски";
+    const why = { predator: "погиб от хищника", hunger: "умер от голода", old: "умер от старости", sorrow: "угас от тоски" }[cause];
     this.note(`${a.name} ${why}, прожив ${a.age} тиков.`);
     if (cause === "predator") {
       const p = this.predators.find((p) => dist(p, a) < 20 && !p.leaving);
@@ -644,6 +664,7 @@ export class World {
     this.stepPredators();
     for (const a of [...this.agents]) {
       this.stepAgent(a);
+      if (a.age >= (a.lifespan ?? Infinity)) { this.die(a, "old"); continue; }
       if (a.health <= 0) {
         const byPredator = this.predators.some((p) => !p.leaving && dist(p, a) < 20);
         this.die(a, byPredator ? "predator" : a.hunger > RULES.hungerStarve ? "hunger" : "sorrow");
@@ -714,6 +735,7 @@ export class World {
       })),
       agents: this.agents.map((a) => ({
         id: a.id, name: a.name, species: a.species, gen: a.gen, parents: a.parents,
+        phase: this.phase(a).id, lifespan: a.lifespan,
         x: r1(a.x), y: r1(a.y), a: +a.a.toFixed(3), age: a.age, mode: a.mode,
         genes: Object.fromEntries(GENES.map((g) => [g.id, +a.genes[g.id].toFixed(2)])),
         strength: Math.round(a.strength), health: Math.round(a.health), emotions: Math.round(a.emotions),
@@ -730,7 +752,7 @@ export class World {
       const r = st.recent;
       species[sp] = {
         alive: this.agents.filter((a) => a.species === sp).length,
-        births: st.births, deaths: st.deaths, eaten: st.eaten,
+        births: st.births, deaths: st.deaths, eaten: st.eaten, oldAge: st.oldAge ?? 0,
         best: Math.max(st.best, ...this.agents.filter((a) => a.species === sp).map((a) => a.age), 0),
         avgLife: r.length ? Math.round(r.reduce((x, y) => x + y, 0) / r.length) : null,
       };

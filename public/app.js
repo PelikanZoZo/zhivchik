@@ -138,7 +138,7 @@ function draw() {
   const HALO = { flee: "rgba(255,80,80,.18)", survive: "rgba(255,60,60,.32)", fight: "rgba(255,160,40,.24)", help: "rgba(90,210,230,.22)", forage: "rgba(110,170,250,.16)", court: "rgba(255,150,190,.18)" };
   for (const c of agents) {
     const col = SPECIES[c.species].color;
-    const r = 9 + c.health / 25, pulse = c.mode === "sleep" ? 1 : 1 + Math.sin(t * 4 + c.id) * 0.05;
+    const r = (9 + c.health / 25) * (c.phase === "young" ? 0.7 : 1), pulse = c.mode === "sleep" ? 1 : 1 + Math.sin(t * 4 + c.id) * 0.05;
     const g = c.genes || {};
     if (HALO[c.mode]) { ctx.fillStyle = HALO[c.mode]; ctx.beginPath(); ctx.arc(c.x, c.y, r * 2.2, 0, Math.PI * 2); ctx.fill(); }
     // скорость — светлые «струи» позади
@@ -164,6 +164,8 @@ function draw() {
     const dim = c.mode === "sleep" ? 0.45 : c.mode === "rest" ? 0.7 : c.mode === "hide" ? 0.35 : 1;
     ctx.globalAlpha = dim * (1 - 0.5 * (g.cunning ?? 0));
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(c.x, c.y, r * pulse, 0, Math.PI * 2); ctx.fill();
+    // старость — седина: светлая серая шапка поверх
+    if (c.phase === "old") { ctx.fillStyle = "rgba(225,228,226,.45)"; ctx.beginPath(); ctx.arc(c.x, c.y, r * pulse, Math.PI, 2 * Math.PI); ctx.fill(); }
     ctx.globalAlpha = 1;
     ctx.fillStyle = "#0b140f"; ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText(SPECIES[c.species].sex, c.x, c.y + 1); ctx.textAlign = "start"; ctx.textBaseline = "alphabetic";
@@ -217,10 +219,10 @@ function renderTop() {
       <div class="sp-nums">
         <div><b>${members.length}</b><small>живых</small></div>
         <div><b>${st.births ?? 0}</b><small>родилось</small></div>
-        <div><b>${st.deaths ?? 0}</b><small>погибло, из них хищн. ${st.eaten ?? 0}</small></div>
+        <div><b>${st.deaths ?? 0}</b><small>погибло: хищн. ${st.eaten ?? 0}, старость ${st.oldAge ?? 0}</small></div>
         <div><b>${kticks(st.avgLife)}</b><small>средняя жизнь, тиков</small></div>
       </div>
-      <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)} ${SPECIES[c.species].sex}<span class="mini"><i style="width:${c.strength}%;background:${scaleColor(c.strength)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
+      <div class="members">${members.length ? members.map((c) => `<button type="button" data-id="${c.id}" aria-pressed="${c.id === selected}">${esc(c.name)} ${SPECIES[c.species].sex}${PHASE_MARK[c.phase] ?? ""}<span class="mini"><i style="width:${c.strength}%;background:${scaleColor(c.strength)}"></i><i style="width:${c.health}%;background:${scaleColor(c.health)}"></i></span></button>`).join("") : `<span class="empty">никого не осталось</span>`}</div>
     </article>`;
   }).join("");
 
@@ -237,6 +239,18 @@ function renderTop() {
     $("pred-info").innerHTML = `<div class="timers"><div><dt>Поколение хищников</dt><dd>${pd.gen || "—"}</dd></div><div><dt>Поймали агентов / погибло хищников</dt><dd>${pd.kills} / ${pd.died}</dd></div></div>` + (genes ? `<div class="pgenes">${genes}</div>` : "");
   }
   $("t-pred").textContent = `${view.predatorsInWindow} из ${RULES.predatorMax}` + (view.predators.length ? ` · сейчас в мире: ${view.predators.length}` : "");
+}
+
+const PHASE_NAME = { young: "молодой — быстрый, ещё не размножается", mature: "зрелый — сильный, может размножаться", old: "старый — медленнее и слабее, без потомства" };
+const PHASE_MARK = { young: " ·мол", old: " ·стар" };
+
+// Шкала жизни: три фазы разными оттенками и отметка «сейчас»
+function lifeRow(c) {
+  const L = c.lifespan || RULES.lifespan[1];
+  const y = (RULES.youthEnd / L) * 100, o = (RULES.oldStart / L) * 100, now = Math.min(100, (c.age / L) * 100);
+  return `<div class="scale" title="молодость до ${ticks(RULES.youthEnd)}, зрелость до ${ticks(RULES.oldStart)}, срок ${ticks(L)} тиков"><span>Жизнь</span>
+    <div class="track life"><i style="width:${y}%;background:var(--life-young)"></i><i style="width:${o - y}%;background:var(--life-mature)"></i><i style="width:${100 - o}%;background:var(--life-old)"></i><b style="left:${now}%"></b></div>
+    <code>${Math.round(now)}%</code></div>`;
 }
 
 function scaleRow(name, v, color) {
@@ -261,6 +275,7 @@ function renderAgent() {
   const sp = SPECIES[c.species];
   $("who").innerHTML = `<span style="color:${sp.color}">${esc(c.name)} ${sp.sex}</span>`;
   $("scales").innerHTML =
+    lifeRow(c) +
     scaleRow("Сила", c.strength, scaleColor(c.strength)) +
     scaleRow("Здоровье", c.health, scaleColor(c.health)) +
     scaleRow("Эмоции", c.emotions, scaleColor(c.emotions)) +
@@ -285,7 +300,7 @@ function renderAgent() {
   const character = (c.courage ?? 0) >= 60 ? "смелый характер" : (c.fear ?? 0) >= 60 ? "пугливый характер" : "";
   if (character) state = state ? `${state}, ${character}` : character;
   state = state ? state + " · " : "";
-  $("agent-meta").textContent = `${state}возраст ${ticks(c.age)} тиков · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
+  $("agent-meta").textContent = `${state}${PHASE_NAME[c.phase] ?? ""} · возраст ${ticks(c.age)} из ${ticks(c.lifespan ?? 0)} тиков · поколение ${c.gen}` + (c.parents?.length ? ` · родители: ${c.parents.join(" и ")}` : "");
 
   const b = details?.brains?.[c.id];
   if (!b) { $("prefs").innerHTML = ""; return; }
