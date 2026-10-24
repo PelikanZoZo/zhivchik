@@ -121,6 +121,19 @@ await say("что у нас по миссии с гендиректором?");
   if (m) console.log("люди миссии:", (await svc0.nodes.linksOf(m.id)).map((l) => `${l.title} — ${l.role}`).join("; "));
 }
 
+// --- планировщик ---
+await say("распланируй проект «Пилот с Альфа-Строй» со 2 ноября: подготовка, выход на ЛПР, пилот, договор. К каждому этапу — веха, риски этапов тоже отметь");
+await say("что будет, если выход на ЛПР затянется на неделю?");
+{
+  const svc1 = await app.services();
+  const pr = (await svc1.nodes.list({ kind: "project", query: "Пилот с Альфа-Строй", limit: 5 }))[0];
+  if (pr) {
+    const plan = await svc1.planner.getPlan(pr.id);
+    console.log(`\n=== График «${pr.title}»: строк ${plan.rows.length}, связей ${plan.links.length}, без дат ${plan.undated.length}`);
+    for (const r of plan.rows) console.log(`${r.type === "project" ? "▸" : r.type === "milestone" ? "◆" : " "} ${r.text} — ${r.start}…${r.finish}${r.preds?.length ? ` после ${r.preds.map((p) => p.id).join(",")}` : ""}${r.risks ? ` ⚠ ${r.risks.map((x) => x.title).join("; ")}` : ""}`);
+  }
+}
+
 // --- задания Киры ---
 await say("напомни мне завтра в 9 утра позвонить в банк");
 await say("напомни через 5 минут проверить стендовый сервер");

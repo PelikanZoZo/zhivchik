@@ -76,6 +76,13 @@ Telegram ⇄ Cloudflare Worker (worker/) ⇄ сайт на Masterhost (app.js, s
 - Хостинг принимает запросы до ~8 МБ, поэтому файлы передаются кусками по 4 МБ (`/api/bridge/upload`,
   `/api/storage/upload`). Telegram отдаёт боту файлы до 20 МБ.
 
+Планировщик (миграция 10, `src/plan/`, `public/js/plan.js`): диаграмма Ганта как в MS Project — DHTMLX Gantt 10
+Community (MIT, лежит в `public/vendor/dhtmlx-gantt`). Строки: треки и проекты (сводные), этапы (сводные по своим
+задачам), задачи, миссии, цели — вехи; риски показываются у своего этапа. Связи FS/SS/FF/SF с задержкой
+(`plan_links`), автосдвиг последователей вперёд считается на сервере (`src/plan/schedule.js`), базовые планы —
+`plan_baselines`. Кира строит план (`build_plan`), двигает даты с проверкой «что уедет» (`set_dates` dry_run),
+связывает задачи, фиксирует базовый план. Дни — календарные.
+
 Поиск в интернете для Киры (`src/ai/web.js`, инструменты `web_search` и `read_page`) — по любому из ключей,
 в таком порядке: `YANDEX_SEARCH_API_KEY` + `YANDEX_FOLDER_ID` (Яндекс Search API), `TAVILY_API_KEY`,
 `BRAVE_API_KEY`, `SERPER_API_KEY`. Без ключей — запасной поиск по выдаче Bing и DuckDuckGo (хрупко).

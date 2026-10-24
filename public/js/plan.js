@@ -82,9 +82,31 @@ export async function planView(main, r) {
   main.append(below);
 
   setup(g);
+  applyColumns(g);
   setZoom(g);
   g.init(box);
   paint(g, data, info, below);
+  // открылась карточка справа или поменялось окно — подогнать размеры
+  if (window.ResizeObserver) {
+    let t;
+    new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (box.isConnected) g.setSizes(); }, 60); }).observe(box);
+  }
+}
+
+// Колонки таблицы: на телефоне — только название и длительность
+function applyColumns(g) {
+  const narrow = window.innerWidth < 720;
+  const all = [
+    { name: "wbs", label: "№", width: 58, align: "left", template: (t) => `<span class="wbs">${esc(t.wbs || "")}</span>` },
+    { name: "text", label: "Название", tree: true, width: 210, template: (t) => `<span class="k-${t.kind}">${t.kind === "goal" ? "◆ " : ""}${esc(t.text)}</span>${t.risks?.length ? ` <span class="risk-dot ${riskClass(t.risks)}" title="Риски: ${esc(t.risks.map((r) => r.title).join("; "))}">⚠${t.risks.length}</span>` : ""}` },
+    { name: "start", label: "Начало", width: 72, align: "center", template: (t) => fmtYmd(t.start) },
+    { name: "finish", label: "Оконч.", width: 72, align: "center", template: (t) => fmtYmd(t.finish) },
+    { name: "days", label: "Длит.", width: 46, align: "center", template: (t) => (t.type === "milestone" ? "веха" : `${t.days} д`) },
+    { name: "pct", label: "%", width: 38, align: "center", template: (t) => (t.type === "milestone" ? "" : Math.round((t.progress || 0) * 100)) },
+    { name: "preds", label: "Предш.", width: 58, align: "center", template: (t) => esc(predText(t)) },
+    { name: "variance", label: "Откл.", width: 46, align: "center", template: (t) => (t.variance ? `<span class="${t.variance > 0 ? "late" : "early"}">${t.variance > 0 ? "+" : ""}${t.variance}</span>` : "") },
+  ];  g.config.columns = narrow ? all.filter((c) => ["text", "days"].includes(c.name)).map((c) => (c.name === "text" ? { ...c, width: 150 } : c)) : all;
+  g.config.grid_width = narrow ? 190 : 610;
 }
 
 function setup(g) {
@@ -99,18 +121,10 @@ function setup(g) {
     show_errors: false, open_tree_initially: true, fit_tasks: true,
     grid_width: 610, min_column_width: 34, auto_types: false,
     show_unscheduled: false,
+    duration_unit: "day", round_dnd_dates: false, time_step: 24 * 60, // перетаскивание — с шагом в день
   });
   g.plugins({ tooltip: true });
-  g.config.columns = [
-    { name: "wbs", label: "№", width: 58, align: "left", template: (t) => `<span class="wbs">${esc(t.wbs || "")}</span>` },
-    { name: "text", label: "Название", tree: true, width: 210, template: (t) => `<span class="k-${t.kind}">${t.kind === "goal" ? "◆ " : ""}${esc(t.text)}</span>${t.risks?.length ? ` <span class="risk-dot ${riskClass(t.risks)}" title="Риски: ${esc(t.risks.map((r) => r.title).join("; "))}">⚠${t.risks.length}</span>` : ""}` },
-    { name: "start", label: "Начало", width: 72, align: "center", template: (t) => fmtYmd(t.start) },
-    { name: "finish", label: "Оконч.", width: 72, align: "center", template: (t) => fmtYmd(t.finish) },
-    { name: "days", label: "Длит.", width: 46, align: "center", template: (t) => (t.type === "milestone" ? "веха" : `${t.days} д`) },
-    { name: "pct", label: "%", width: 38, align: "center", template: (t) => (t.type === "milestone" ? "" : Math.round((t.progress || 0) * 100)) },
-    { name: "preds", label: "Предш.", width: 58, align: "center", template: (t) => esc(predText(t)) },
-    { name: "variance", label: "Откл.", width: 46, align: "center", template: (t) => (t.variance ? `<span class="${t.variance > 0 ? "late" : "early"}">${t.variance > 0 ? "+" : ""}${t.variance}</span>` : "") },
-  ];
+
   g.templates.task_class = (s, e, t) => [
     `k-${t.kind}`, t.closed ? "is-closed" : "", t.goal_type === "final" ? "final" : "",
     t.type !== "milestone" && t.type !== "project" && !t.closed && (t.progress || 0) < 1 && t.finish < (current.data?.today || "") ? "is-late" : "",

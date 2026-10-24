@@ -514,3 +514,5 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 @media (max-width: 720px) { .gantt-box { height: 70vh; } .undated { columns: 1; } }
 .baseline-layer { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .plan-tools .check { white-space: nowrap; }
+.plan-head > div:first-child { flex: 1 1 420px; min-width: 0; }
+.plan-tools { min-width: 0; justify-content: flex-end; }
