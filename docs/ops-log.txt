@@ -1,15 +1,9 @@
-Запуск: 2026-10-24 09:49 UTC
-https://api.telegram.org/ -> HTTP 000 за 7.703298с
-https://149.154.167.220/ -> HTTP 302 за 0.140068с
-https://core.telegram.org -> HTTP 000 за 7.724938с
-https://github.com -> HTTP 200 за 0.397320с
-https://workers.cloudflare.com -> HTTP 301 за 0.084510с
-https://example.workers.dev -> HTTP 000 за 0.752760с
-https://www.google.com -> HTTP 200 за 0.132911с
-https://api.openai.com -> HTTP 403 за 0.894476с
-https://vercel.com -> HTTP 200 за 0.231425с
-https://deno.com -> HTTP 200 за 0.980469с
-=== прокси в окружении
+Запуск: 2026-10-24 09:50 UTC
+=== DNS api.telegram.org
+2001:67c:4e8:f004::9 api.telegram.org
+api.telegram.org через 149.154.167.220 -> HTTP 302 за 0.146365с
+api.telegram.org через 149.154.166.110 -> HTTP 000 за 15.000639с
+IP без имени, getMe-подобный путь -> HTTP 302
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 200 -> 
