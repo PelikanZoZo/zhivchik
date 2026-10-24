@@ -66,10 +66,6 @@ jobs:
           SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
         run: |
           npm ci --omit=dev --omit=optional
-          # pdf.js: нужна только legacy-сборка для Node (чтение PDF), остальное — 90 МБ лишнего
-          P=node_modules/pdfjs-dist
-          rm -rf $P/build $P/web $P/image_decoders $P/types $P/legacy/web $P/legacy/image_decoders $P/cmaps
-          find $P -name "*.map" -delete; rm -f $P/legacy/build/*.min.mjs $P/legacy/build/pdf.sandbox*
           mkdir -p dist/tmp
           cp -r app.js package.json package-lock.json src public node_modules dist/
           {
