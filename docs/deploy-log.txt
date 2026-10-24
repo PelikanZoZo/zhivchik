@@ -14,10 +14,10 @@ Transferring file `ai/deepseek.js'
 Transferring file `jobs/model.js'
 Transferring file `pm/files.js'
 Transferring file `ai/tools.js'
-Transferring file `pm/network-ai.js'
 Transferring file `pm/risk-ai.js'
-Transferring file `jobs/runner.js'
 Transferring file `pm/schema.js'
+Transferring file `jobs/runner.js'
+Removing old file `pm/network-ai.js'
 Transferring file `app.js'
 Transferring file `icon.svg'
 Transferring file `index.html'
@@ -25,9 +25,9 @@ Transferring file `style.css'
 Transferring file `js/core.js'
 Transferring file `js/item.js'
 Transferring file `js/jobs.js'
-Transferring file `js/network.js'
 Transferring file `js/object.js'
 Transferring file `js/views.js'
+Removing old file `js/network.js'
 mkdir: Access failed: 550 www/tmp: File exists
 mkdir: Access failed: 550 tmp: File exists
 www/app.js
@@ -38,7 +38,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 17:54 UTC
+--- проверка 2026-10-24 18:43 UTC
 health: {"ok":true,"db":true,"version":"0.1.0"}
 главная (http): 200 -> 
 сертификат: 1 (0 — в порядке)
