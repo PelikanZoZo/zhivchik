@@ -27,6 +27,17 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === "/health") return new Response("ok");
+    // Самопроверка распознавания (для выкладки): POST аудио, ключ моста в заголовке
+    if (url.pathname === "/selftest/whisper" && request.method === "POST") {
+      if (!env.BRIDGE_SECRET || request.headers.get("X-Bridge-Secret") !== env.BRIDGE_SECRET) return new Response("Forbidden", { status: 403 });
+      const started = Date.now();
+      try {
+        const text = await transcribe(env, new Uint8Array(await request.arrayBuffer()));
+        return Response.json({ ok: true, text, ms: Date.now() - started });
+      } catch (e) {
+        return Response.json({ ok: false, error: String(e.message || e), ms: Date.now() - started });
+      }
+    }
     if (url.pathname !== "/telegram" || request.method !== "POST") return new Response("Not found", { status: 404 });
     if (!env.TG_WEBHOOK_SECRET || request.headers.get("X-Telegram-Bot-Api-Secret-Token") !== env.TG_WEBHOOK_SECRET) {
       return new Response("Forbidden", { status: 403 });

@@ -72,13 +72,16 @@ jobs:
           sudo apt-get install -y -qq espeak-ng ffmpeg > /dev/null 2>&1
           espeak-ng -v ru -s 150 "Привет, Кира. Напомни завтра в десять утра позвонить юристу по договору с Альфа-Строй." -w /tmp/v.wav
           ffmpeg -loglevel error -y -i /tmp/v.wav -c:a libopus -b:a 24k /tmp/v.ogg
-          jq -n --arg a "$(base64 -w0 /tmp/v.ogg)" '{audio:$a}' > /tmp/req.json
+          SUB=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain')
+          echo "::add-mask::$SUB"
+          sleep 5
           {
             echo
-            echo "Проверка Whisper (синтезированное голосовое, $(stat -c%s /tmp/v.ogg) байт, ogg/opus):"
-            curl -s --max-time 90 -X POST -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
-              --data @/tmp/req.json "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/ai/run/@cf/openai/whisper-large-v3-turbo" \
-              | jq -c '{success, errors, text: .result.text, lang: .result.transcription_info.language}'
+            echo "Проверка распознавания в Worker'е (синтезированное голосовое, $(stat -c%s /tmp/v.ogg) байт, ogg/opus):"
+            curl -s --max-time 120 -X POST -H "X-Bridge-Secret: $BRIDGE_SECRET" -H "Content-Type: audio/ogg" \
+              --data-binary @/tmp/v.ogg "https://kira-bridge.$SUB.workers.dev/selftest/whisper"
+            echo
           } >> ../docs/worker-log.txt
           tail -3 ../docs/worker-log.txt
 
