@@ -1,8 +1,14 @@
-Запуск: 2026-10-24 20:51 UTC
-[кира 20:51:01 130521] база готова, схема v6
+Запуск: 2026-10-24 20:52 UTC
 [кира 20:51:13 130878] база готова, схема v6
+[кира 20:51:54 131278] база готова, схема v6
+3:PROJECT_PATH="$1"
+4:NODE_VER="$2"
+7:export NVM_DIR="/usr/nvm"
+8:[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+10:if ! nvm use "$NODE_VER"; then
+11:        echo "Node version $NODE_VER is not available. Exiting." 1>&2
+15:cd "$PROJECT_PATH"
 node: 
-21:NODE_NO_WARNINGS=1 node --loader unit-http/loader.mjs --require unit-http/loader "$APP_JS"
 bash: line 13: : command not found
 9.6M	/home/h551249/devalby.ru/www/node_modules
 --- снаружи, через интернет:
