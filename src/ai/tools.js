@@ -17,7 +17,7 @@ const itemFields = {
   due: { type: ["string", "null"], description: "Срок/дедлайн, местное время: ГГГГ-ММ-ДД или ГГГГ-ММ-ДД ЧЧ:ММ. null — без срока" },
   event_at: { type: "string", description: "Для действия — когда сделано; для блокера — с какого числа мешает. ГГГГ-ММ-ДД ЧЧ:ММ" },
   tags: { type: "array", items: { type: "string" }, description: "Метки без #" },
-  fields: { type: "object", description: "Поля конкретного вида: risk {probability, impact, mitigation} (оценка владельца 1–5, ставь её только со слов владельца); goal {goal_type: milestone|final, unit, baseline, target, current}; action {result}; blocker {waiting_for}; mission {outcome}; attachment {url}; person {company, position, phone, email, telegram, loyalty (1–5, моя оценка лояльности — только со слов владельца), relation (комментарий владельца об отношениях с человеком: кто, откуда знаем, как относится, с кем связан — по нему строится модель сети)}" },
+  fields: { type: "object", description: "Поля конкретного вида: risk {probability, impact, mitigation} (оценка владельца 1–5, ставь её только со слов владельца); goal {goal_type: milestone|final, unit, baseline, target, current}; action {result}; blocker {waiting_for}; mission {outcome}; attachment {url}; person {company, position, phone, email, telegram}" },
 };
 
 function fn(name, description, properties, required = []) {
@@ -66,13 +66,6 @@ export const TOOL_DEFS = [
     company: { type: "string" },
     position: { type: "string" },
   }, ["item_id", "role"]),
-  fn("link_people", "Связать двух людей: тип связи (коллега, руководитель, друг, партнёр, рекомендовал, конфликт…). Используй, когда владелец прямо говорит, кто с кем связан.", {
-    a_id: { type: "integer" }, b_id: { type: "integer" }, type: { type: "string" }, note: { type: "string" },
-  }, ["a_id", "b_id", "type"]),
-  fn("network_path", "Как выйти на человека через мою сеть: цепочки знакомств от лояльных ко мне людей.", {
-    person_id: { type: "integer" }, name: { type: "string", description: "Если id неизвестен" },
-  }),
-  fn("rebuild_network", "Пересобрать модель связей человека по его комментарию прямо сейчас (обычно это происходит само).", { person_id: { type: "integer" } }, ["person_id"]),
   fn("link_items", "Связать два объекта: role=blocks — первый (блокер) блокирует второй; role=related — просто связаны.", {
     a_id: { type: "integer" }, b_id: { type: "integer" }, role: { type: "string" },
   }, ["a_id", "b_id"]),
@@ -231,30 +224,6 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       if (!person || person.kind !== "person") return { error: "Человек не найден — укажи person_id или name" };
       const r = await nodes.link(+item_id, person.id, role, source);
       return { linked: `${person.title} — ${role}`, person_id: person.id, link_id: r.id, existed: !!r.existed };
-    },
-
-    async link_people({ a_id, b_id, type, note }) {
-      const [a, b] = [await nodes.get(+a_id), await nodes.get(+b_id)];
-      if (a?.kind !== "person" || b?.kind !== "person") return { error: "Оба должны быть людьми" };
-      const r = await nodes.link(a.id, b.id, type, source, note || null);
-      return { linked: `${a.title} — ${type} — ${b.title}`, link_id: r.id };
-    },
-
-    async network_path({ person_id, name }) {
-      if (!deps.networkAi) return { error: "Сеть недоступна" };
-      let id = person_id;
-      if (!id && name) {
-        const found = (await nodes.list({ kind: "person", query: name, limit: 10 }));
-        if (!found.length) return { error: `Нет человека «${name}»` };
-        id = found[0].id;
-      }
-      return await deps.networkAi.paths(+id);
-    },
-
-    async rebuild_network({ person_id }) {
-      if (!deps.networkAi) return { error: "Сеть недоступна" };
-      const r = await deps.networkAi.assess(+person_id);
-      return { summary: r.person.fields.ai_summary, influence: r.person.fields.ai_influence, approach: r.person.fields.ai_approach, relations: r.relations };
     },
 
     async link_items({ a_id, b_id, role = "related" }) {

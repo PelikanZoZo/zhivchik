@@ -248,6 +248,22 @@ test("миграция: старые заметки стали памяткам�
   assert.equal(memo.length, 1);
 });
 
+test("миграция: данные удалённой контактной книжки стёрты, в том числе из истории", { skip: !haveDb }, async () => {
+  const meta = JSON.stringify({ company: "Альфа", loyalty: 5, relation: "Старый друг", ai_summary: "друг", ai_influence: 4 });
+  const r = await db.query("INSERT INTO nodes (kind, title, status, meta, created_at, updated_at) VALUES ('person', 'Контакт', 'active', ?, NOW(3), NOW(3))", [meta]);
+  await db.query("INSERT INTO node_history (node_id, version, action, source, changed_at, diff, snapshot) VALUES (?, 1, 'update', 'web', NOW(3), ?, ?)",
+    [r.insertId, JSON.stringify({ "fields.relation": [null, "Старый друг"], "fields.company": [null, "Альфа"] }), JSON.stringify({ id: r.insertId, meta })]);
+  await db.query("INSERT INTO node_links (a_id, b_id, role, origin, created_at) VALUES (?, ?, 'друг', 'ai', NOW(3))", [r.insertId, mission.id]);
+  await db.query("UPDATE schema_version SET version = 4");
+  await db.migrate();
+  const [n] = await db.query("SELECT meta FROM nodes WHERE id = ?", [r.insertId]);
+  assert.deepEqual(JSON.parse(n.meta), { company: "Альфа" });
+  const [h] = await db.query("SELECT diff, snapshot FROM node_history WHERE node_id = ?", [r.insertId]);
+  assert.ok(!/Старый друг|loyalty/.test(h.diff + h.snapshot));
+  assert.match(h.diff, /fields.company/);
+  assert.equal((await db.query("SELECT COUNT(*) AS c FROM node_links WHERE origin = 'ai'"))[0].c, 0);
+});
+
 test("схема для интерфейса", { skip: !haveDb }, async () => {
   const s = (await call("GET", "/api/schema")).data;
   assert.deepEqual(s.core, ["track", "project", "mission"]);

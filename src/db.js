@@ -162,11 +162,56 @@ const MIGRATIONS = [
       INDEX (node_id, id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ],
-  // 4. Сеть контактов: откуда связь — поставил владелец или построил ИИ по его комментарию
+  // 4. (была контактная книжка) поле «откуда связь» — оставлено, чтобы схема совпадала с уже обновлёнными базами
   [
     "ALTER TABLE node_links ADD COLUMN origin VARCHAR(10) NOT NULL DEFAULT 'owner' AFTER note",
   ],
+  // 5. Контактная книжка удалена: стираем лояльность, комментарии об отношениях и модели ИИ —
+  //    и в текущих записях, и в истории изменений; связи между людьми, построенные ИИ, удаляем совсем
+  [
+    "DELETE FROM node_links WHERE origin = 'ai'",
+    purgeContactBook,
+  ],
 ];
+
+const CONTACT_KEYS = ["loyalty", "relation", "ai_summary", "ai_influence", "ai_approach", "ai_assessed_at", "ai_for_version"];
+
+async function purgeContactBook(conn) {
+  const clean = (metaStr) => {
+    if (!metaStr) return metaStr;
+    let m;
+    try { m = typeof metaStr === "string" ? JSON.parse(metaStr) : metaStr; } catch { return metaStr; }
+    if (!m || typeof m !== "object") return metaStr;
+    for (const k of CONTACT_KEYS) delete m[k];
+    return JSON.stringify(m);
+  };
+  const [people] = await conn.query("SELECT id, meta FROM nodes WHERE kind = 'person'");
+  for (const p of people) {
+    const meta = clean(p.meta);
+    if (meta !== p.meta) await conn.query("UPDATE nodes SET meta = ? WHERE id = ?", [meta, p.id]);
+  }
+  const ids = people.map((p) => p.id);
+  if (!ids.length) return;
+  const [hist] = await conn.query(`SELECT id, diff, snapshot FROM node_history WHERE node_id IN (${ids.map(() => "?").join(",")})`, ids);
+  for (const h of hist) {
+    let snap = h.snapshot;
+    try {
+      const s = JSON.parse(h.snapshot);
+      s.meta = clean(s.meta);
+      snap = JSON.stringify(s);
+    } catch {}
+    let diff = h.diff;
+    if (diff) {
+      try {
+        const d = JSON.parse(diff);
+        for (const k of Object.keys(d)) if (CONTACT_KEYS.some((c) => k === `fields.${c}`)) delete d[k];
+        if (d.meta) d.meta = d.meta.map(clean);
+        diff = Object.keys(d).length ? JSON.stringify(d) : null;
+      } catch {}
+    }
+    if (snap !== h.snapshot || diff !== h.diff) await conn.query("UPDATE node_history SET snapshot = ?, diff = ? WHERE id = ?", [snap, diff, h.id]);
+  }
+}
 
 export async function openDb(cfg) {
   if (!cfg.database || !cfg.user) throw new Error("Не заданы параметры базы (DBNAME/DBUSER)");
@@ -225,7 +270,10 @@ export class Db {
       const [rows] = await conn.query("SELECT version FROM schema_version WHERE id = 1");
       let v = rows.length ? rows[0].version : 0;
       for (let i = v; i < MIGRATIONS.length; i++) {
-        for (const sql of MIGRATIONS[i]) await conn.query(sql);
+        for (const step of MIGRATIONS[i]) {
+          if (typeof step === "function") await step(conn);
+          else await conn.query(step);
+        }
         v = i + 1;
         await conn.query(
           "INSERT INTO schema_version (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)", [v],

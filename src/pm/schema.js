@@ -115,7 +115,7 @@ export const TYPES = {
   },
   person: {
     label: "Человек", plural: "Люди",
-    about: "контактная книжка; с объектами связывается ролью, с другими людьми — типом связи; loyalty — моя оценка лояльности 1–5, relation — мой комментарий об отношениях (по нему ИИ строит модель связей)",
+    about: "общий справочник людей; с объектами связывается ролью",
     statuses: { active: "Актуален", archived: "В архиве" },
     initial: "active", closed: ["archived"],
     parents: [],
@@ -125,13 +125,6 @@ export const TYPES = {
       phone: { type: "string", label: "Телефон" },
       email: { type: "string", label: "Почта" },
       telegram: { type: "string", label: "Telegram" },
-      loyalty: { type: "scale", label: "Лояльность" },
-      relation: { type: "text", label: "Мои отношения" },
-      ai_summary: { type: "text", label: "Кто это (ИИ)", system: true },
-      ai_influence: { type: "scale", label: "Влиятельность (ИИ)", system: true },
-      ai_approach: { type: "text", label: "Как выстраивать отношения (ИИ)", system: true },
-      ai_assessed_at: { type: "string", label: "Модель обновлена", system: true },
-      ai_for_version: { type: "number", label: "Версия, которую разобрал ИИ", system: true },
     },
   },
 };
@@ -142,10 +135,6 @@ export const SECTIONS = ["stage", "goal", "mission", "project", "task", "blocker
 
 // Роли людей в объектах (свободный текст тоже можно)
 export const PERSON_ROLES = ["ЛПР", "контакт", "ответственный", "участник", "ждём от него", "эксперт"];
-// Лояльность (моя оценка человека)
-export const LOYALTY = { 1: "Враждебен", 2: "Холоден", 3: "Нейтрален", 4: "Лоялен", 5: "Союзник" };
-// Типы связей между людьми
-export const PERSON_LINKS = ["коллега", "руководитель", "подчинённый", "партнёр", "друг", "знакомый", "родственник", "клиент", "конкурент", "рекомендовал", "конфликт"];
 // Особые связи между объектами
 export const LINK_ROLES = { blocks: "блокирует", related: "связано", participant: "участник" };
 

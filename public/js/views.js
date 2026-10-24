@@ -1,7 +1,6 @@
 // Разделы: сегодня, входящие, задачи, треки/проекты/миссии, люди, история, ассистент, настройки.
 import { $, el, api, toast, attempt, refresh, navigate, state, hooks, humanDue, humanDate, isoToLocal, SOURCE, T, isCore } from "./core.js";
 import { row, list, describeHistory } from "./item.js";
-import { networkGraph } from "./network.js";
 
 function group(title, items, opts = {}) {
   if (!items.length && !opts.always) return "";
@@ -142,39 +141,24 @@ export function card(it) {
 }
 
 export async function people(main) {
-  const mode = new URLSearchParams(location.search).get("view") === "list" ? "list" : "net";
   const title = el("input", { type: "text", placeholder: "Имя", "aria-label": "Имя" });
   const company = el("input", { type: "text", placeholder: "Компания", "aria-label": "Компания" });
   const position = el("input", { type: "text", placeholder: "Должность", "aria-label": "Должность" });
   main.append(
-    el("h1", { class: "view-title" }, "Контакты"),
-    el("p", { class: "view-sub" }, "Моя контактная книжка и сеть связей. Ставь лояльность и пиши о своих отношениях с человеком — Кира по этому строит модель связей: кто он, с кем связан, как на него выйти."),
-    el("div", { class: "jobs-bar" },
-      el("div", { class: "tabs", role: "tablist" },
-        el("a", { href: "/people", class: "tab" + (mode === "net" ? " on" : ""), role: "tab", "aria-selected": mode === "net" }, "Сеть"),
-        el("a", { href: "/people?view=list", class: "tab" + (mode === "list" ? " on" : ""), role: "tab", "aria-selected": mode === "list" }, "Список"))),
+    el("h1", { class: "view-title" }, "Люди"),
+    el("p", { class: "view-sub" }, "Общий справочник. В треках, проектах и миссиях у человека своя роль: ЛПР, контакт, ответственный…"),
     el("form", { class: "quick with-extra", onsubmit: (e) => {
       e.preventDefault();
       if (!title.value.trim()) return;
       attempt(async () => {
-        const { item } = await api("POST", "/api/items", { kind: "person", title: title.value.trim(), fields: { company: company.value.trim() || null, position: position.value.trim() || null } });
+        await api("POST", "/api/items", { kind: "person", title: title.value.trim(), fields: { company: company.value.trim() || null, position: position.value.trim() || null } });
         title.value = company.value = position.value = "";
         refresh();
-        hooks.openItem(item.id);
       });
     } }, title, company, position, el("button", { class: "btn primary", type: "submit" }, "Добавить")),
   );
-  if (mode === "net") {
-    const data = await api("GET", "/api/network");
-    if (!data.people.length) { main.append(el("p", { class: "empty" }, "Пока никого. Добавь человека или расскажи о нём Кире.")); return; }
-    main.append(networkGraph(data));
-    const cold = data.people.filter((p) => !p.fields.loyalty);
-    if (cold.length) main.append(el("p", { class: "sub" }, `Без оценки лояльности: ${cold.length}. Открой человека и поставь оценку — так сеть точнее.`));
-    return;
-  }
-  const { items } = await api("GET", "/api/items?kind=person&order=title&limit=2000");
-  const active = items.filter((p) => !p.closed).sort((a, b) => (b.fields.loyalty || 0) - (a.fields.loyalty || 0) || a.title.localeCompare(b.title));
-  main.append(group("Контакты", active, { always: true, empty: "Пока никого. Кира заводит людей сама, когда ты о них рассказываешь." }));
+  const { items } = await api("GET", "/api/items?kind=person&order=title&limit=1000");
+  main.append(group("Справочник", items.filter((p) => !p.closed), { always: true, empty: "Пока никого. Кира заводит людей сама, когда ты о них рассказываешь." }));
 }
 
 export async function changes(main) {

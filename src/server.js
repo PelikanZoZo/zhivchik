@@ -23,9 +23,8 @@ import { createBot } from "./bot.js";
 import { JobsModel } from "./jobs/model.js";
 import { createRunner, ensureSystemJobs, getMorningTime, setMorningTime } from "./jobs/runner.js";
 import { createOutbox } from "./outbox.js";
-import { TYPES, CORE, SECTIONS, PERSON_ROLES, LOYALTY, PERSON_LINKS } from "./pm/schema.js";
+import { TYPES, CORE, SECTIONS, PERSON_ROLES } from "./pm/schema.js";
 import { createRiskAssessor } from "./pm/risk-ai.js";
-import { createNetworkAssessor } from "./pm/network-ai.js";
 import { createFiles } from "./pm/files.js";
 
 export const VERSION = "0.1.0";
@@ -62,10 +61,8 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         const bot = createBot({ db, agent, nodes, jobs, runner, cfg, log });
         const riskAi = createRiskAssessor({ db, nodes, llm, tz: cfg.tz, log });
         deps.riskAi = riskAi;
-        const networkAi = createNetworkAssessor({ nodes, llm, tz: cfg.tz, log });
-        deps.networkAi = networkAi;
         const files = createFiles(cfg.filesDir || path.join(ROOT, "..", "files"));
-        return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, networkAi, files };
+        return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, files };
       })().catch((e) => {
         ready = null; // следующая попытка — при следующем запросе
         throw e;
@@ -141,7 +138,7 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     return { items: await nodes.overview({ kinds: query.kinds ? query.kinds.split(",") : undefined, open }) };
   });
 
-  route("GET", "/api/schema", async () => ({ types: TYPES, core: CORE, sections: SECTIONS, person_roles: PERSON_ROLES, loyalty: LOYALTY, person_links: PERSON_LINKS }));
+  route("GET", "/api/schema", async () => ({ types: TYPES, core: CORE, sections: SECTIONS, person_roles: PERSON_ROLES }));
 
   route("GET", "/api/items/:id", async ({ params }) => {
     const { nodes } = await services();
@@ -204,22 +201,6 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     });
     await new Promise((resolve, reject) => fsSync.createReadStream(file).on("error", reject).on("end", resolve).pipe(res));
     return undefined;
-  });
-
-  // Сеть контактов
-  route("GET", "/api/network", async () => {
-    const { nodes } = await services();
-    return await nodes.network();
-  });
-
-  route("POST", "/api/items/:id/network", async ({ params }) => {
-    const { networkAi } = await services();
-    return await networkAi.assess(+params.id);
-  });
-
-  route("GET", "/api/items/:id/paths", async ({ params }) => {
-    const { networkAi } = await services();
-    return await networkAi.paths(+params.id);
   });
 
   route("POST", "/api/items/:id/assess", async ({ params }) => {
@@ -331,11 +312,6 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
       await riskAi.runPending();
     } catch (e) {
       log("оценка рисков:", e.message);
-    }
-    try {
-      await (await services()).networkAi.runPending();
-    } catch (e) {
-      log("сеть контактов:", e.message);
     }
     return { items: await outbox.pending() };
   }, "bridge");
