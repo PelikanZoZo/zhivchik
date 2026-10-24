@@ -453,3 +453,5 @@ table.files .snip { font-style: italic; }
 @media (max-width: 720px) { .store-bar { grid-template-columns: 1fr 1fr; } .store-bar input[type=search] { grid-column: 1 / -1; } }
 .bubble.user .bubble-meta { color: color-mix(in srgb, var(--surface) 75%, transparent); }
 .bubble.user a { color: inherit; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+.file-text.spoken { font: inherit; font-size: 14px; line-height: 1.55; }

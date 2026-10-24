@@ -125,7 +125,7 @@ export async function openFile(id) {
         toast("Удалено");
       }) }, "Удалить")),
     f.total_chars ? [el("h3", {}, f.kind === "voice" || f.kind === "audio" || f.kind === "video" ? "Расшифровка" : `Текст${f.more ? ` (начало, всего ${f.total_chars.toLocaleString("ru-RU")} знаков)` : ""}`),
-      el("pre", { class: "file-text" }, f.text)] : "",
+      el("pre", { class: "file-text" + (["voice", "audio", "video"].includes(f.kind) ? " spoken" : "") }, f.text)] : "",
     messages.length ? [el("h3", {}, "В переписке"), el("ul", { class: "timeline" }, messages.map((m) => el("li", {},
       el("div", { class: "when" }, `${humanDue(m.at)} · ${m.author === "owner" ? "ты" : "Кира"}`),
       el("div", { class: "what" }, String(m.text || "").slice(0, 400)))))] : "",
