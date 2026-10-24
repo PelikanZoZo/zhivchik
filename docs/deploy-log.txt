@@ -1,3 +1,4 @@
+Transferring file `config.js'
 Transferring file `cron.js'
 Transferring file `db.js'
 Transferring file `dwh.js'
@@ -8,10 +9,9 @@ Transferring file `server.js'
 Transferring file `storage.js'
 Transferring file `telegram.js'
 Transferring file `time.js'
-Making directory `docs'
 Transferring file `ai/agent.js'
-Transferring file `jobs/model.js'
 Transferring file `docs/extract.js'
+Transferring file `jobs/model.js'
 Transferring file `pm/files.js'
 Transferring file `ai/deepseek.js'
 Transferring file `jobs/runner.js'
@@ -39,7 +39,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 20:51 UTC
+--- проверка 2026-10-24 21:39 UTC
 health: {"ok":true,"db":true,"version":"0.1.0"}
 главная (http): 200 -> 
 сертификат: 1 (0 — в порядке)
