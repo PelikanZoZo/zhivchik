@@ -109,8 +109,8 @@ jobs:
           {
             echo "--- проверка $(date -u '+%Y-%m-%d %H:%M UTC')"
             for i in 1 2 3 4 5 6; do
-              out=$(curl -sk --max-time 40 https://devalby.ru/api/health || true)
-              echo "health (https): ${out:-нет ответа}"
+              out=$(curl -s --max-time 40 http://devalby.ru/api/health || true)
+              echo "health: ${out:-нет ответа}"
               echo "$out" | grep -q '"db":true' && break
               sleep 15
             done

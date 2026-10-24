@@ -5,7 +5,8 @@ compatibility_date = "2026-10-01"
 workers_dev = true
 
 [vars]
-SITE_URL = "https://devalby.ru"
+# Пока у devalby.ru нет настоящего сертификата — по HTTP. Когда Let's Encrypt выпустится, вернуть https.
+SITE_URL = "http://devalby.ru"
 
 # Раз в минуту — забрать с сайта сообщения, которые бот должен отправить сам (утренний план и т.п.)
 [triggers]
