@@ -16,6 +16,7 @@ Transferring file `icon.svg'
 Transferring file `index.html'
 Transferring file `style.css'
 mkdir: Access failed: 550 www/tmp: File exists
+mkdir: Access failed: 550 tmp: File exists
 www/app.js
 www/node_modules/
 www/package-lock.json
@@ -24,12 +25,12 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 16:08 UTC
-health (https): Hello, World!
-health (https): Hello, World!
+--- проверка 2026-10-24 16:13 UTC
 health (https): нет ответа
 health (https): нет ответа
 health (https): нет ответа
 health (https): нет ответа
-главная (http): 200 -> 
+health (https): нет ответа
+health (https): нет ответа
+главная (http): 503 -> 
 сертификат: 1 (0 — в порядке)
