@@ -1,11 +1,62 @@
-Запуск: 2026-10-24 10:33 UTC
-=== процессы
-   1831 Sat Oct 24 12:23:09 2026 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
-   2171 Sat Oct 24 12:23:10 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-   2184 Sat Oct 24 12:23:10 2026 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
-   2524 Sat Oct 24 12:23:12 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-=== журнал (последние 30 строк про Киру и ошибки)
-=== переменные базы у процесса (только имена)
+Запуск: 2026-10-24 10:34 UTC
+=== ~/
+total 16
+drwxr-xr-x 1 h551249 h551249   88 Oct 24 12:21 .
+drwxr-xr-x 1 root    root      22 Oct 24 12:10 ..
+-rw-r--r-- 1 h551249 h551249 5288 Mar  6  2024 .bashrc
+drwxr-xr-x 1 h551249 h551249   16 Oct 24 12:21 .cache
+drwxr-xr-x 1 h551249 h551249   12 Oct 24 12:21 devalby.ru
+drwxr-xr-x 1 h551249 h551249  102 Oct 24 12:21 log
+drwxr-xr-x 1 h551249 h551249   84 Oct 24 12:21 .npm
+-rw-r--r-- 1 h551249 h551249    5 Mar  6  2024 .nvmrc
+-rw-r--r-- 1 h551249 h551249  814 Mar  6  2024 .profile
+=== ~/devalby.ru
+total 0
+drwxr-xr-x 1 h551249 h551249  12 Oct 24 12:21 .
+drwxr-xr-x 1 h551249 h551249  88 Oct 24 12:21 ..
+drwxr-xr-x 1 h551249 h551249   0 Oct 24 12:21 tmp
+drwxr-xr-x 1 h551249 h551249 126 Oct 24 13:30 www
+=== www
+total 20
+drwxr-xr-x 1 h551249 h551249  126 Oct 24 13:30 .
+drwxr-xr-x 1 h551249 h551249   12 Oct 24 12:21 ..
+-rwxr-xr-x 1 h551249 h551249  520 Oct 24 13:27 app.js
+-rw------- 1 h551249 h551249  149 Oct 24 13:27 .env
+drwxr-xr-x 1 h551249 h551249  314 Oct 24 13:28 node_modules
+-rw-r--r-- 1 h551249 h551249  444 Oct 24 13:27 package.json
+-rw-r--r-- 1 h551249 h551249 5252 Oct 24 13:27 package-lock.json
+drwxr-xr-x 1 h551249 h551249   66 Oct 24 13:30 public
+drwxr-xr-x 1 h551249 h551249  166 Oct 24 13:30 src
+drwxr-xr-x 1 h551249 h551249   22 Oct 24 13:30 tmp
+=== .htaccess и конфиги
+=== журналы
+total 24
+drwxr-xr-x 1 h551249 h551249  102 Oct 24 12:21 .
+drwxr-xr-x 1 h551249 h551249   88 Oct 24 12:21 ..
+-rw-rw---- 1 h551249 h551249  497 Oct 24 13:30 access.log
+-rw-r--r-- 1 h551249 h551249 5288 Mar  6  2024 .bashrc
+-rw-r--r-- 1 h551249 h551249  696 Oct 24 13:30 devalby.ru.error.log
+-rw-r--r-- 1 h551249 h551249    5 Mar  6  2024 .nvmrc
+-rw-r--r-- 1 h551249 h551249  814 Mar  6  2024 .profile
+--- error.log, конец
+2026/10/24 12:21:03 [info] 376#376 "devalby_ru" application started
+2026/10/24 12:21:09 [info] 770#770 "devalby_ru" application started
+2026/10/24 12:23:07 [info] 1124#1124 "devalby_ru" application started
+2026/10/24 12:23:08 [info] 1477#1477 "devalby_ru" application started
+2026/10/24 12:23:10 [info] 1831#1831 "devalby_ru" application started
+2026/10/24 12:23:11 [info] 2184#2184 "devalby_ru" application started
+2026/10/24 12:49:21 [info] 2936#2936 "devalby_ru" application started
+2026/10/24 12:50:23 [info] 3329#3329 "devalby_ru" application started
+2026/10/24 12:51:09 [info] 3697#3697 "devalby_ru" application started
+2026/10/24 13:30:07 [info] 4430#4430 "devalby_ru" application started
+--- access.log, конец
+access.log
+134.33.67.118 devalby.ru - - [24/Oct/2026:12:49:21 +0300] "GET / HTTP/1.1" 200 25 "-" "curl/8.18.0"
+52.162.9.243 devalby.ru - - [24/Oct/2026:12:50:23 +0300] "GET / HTTP/1.1" 200 25 "-" "curl/8.18.0"
+145.132.103.17 devalby.ru - - [24/Oct/2026:12:51:09 +0300] "GET / HTTP/1.1" 200 25 "-" "curl/8.18.0"
+185.12.124.78 www.devalby.ru - - [24/Oct/2026:13:30:07 +0300] "GET / HTTP/1.1" 200 25 "DEVALBY.RU" "Mozilla/5.0 (compatible; BackupLand/1.0; https://go.backupland.com/; Domain check for viruses;)"
+=== изнутри
+http://devalby.ru/api/health -> 301 http://www.devalby.ru/health
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 0 | Moved Permanently
 https://devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 18 | Moved Permanently
