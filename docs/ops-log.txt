@@ -1,33 +1,34 @@
-Запуск: 2026-10-24 16:11 UTC
+Запуск: 2026-10-24 16:20 UTC
 === до
-   2171 Sat Oct 24 12:23:10 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-   2524 Sat Oct 24 12:23:12 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-   5804 Sat Oct 24 14:35:15 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-остановлен 2171
-остановлен 2524
-остановлен 5804
-=== после
    9128 Sat Oct 24 19:11:44 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-=== ответы
-<!DOCTYPE html><title>Error 503</title><p>Error 503.
-
-<!DOCTYPE html><title>Error 503</title><p>Error 503.
-
-<!DOCTYPE html><title>Error 503</title><p>Error 503.
-
-<!DOCTYPE html><title>Error 503</title><p>Error 503.
-
+  13087 Sat Oct 24 19:18:50 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  13445 Sat Oct 24 19:18:52 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+остановлен 9128
+остановлен 13087
+остановлен 13445
+health: {"ok":true,"db":true,"version":"0.1.0"}
+health: {"ok":true,"db":true,"version":"0.1.0"}
+health: {"ok":true,"db":true,"version":"0.1.0"}
+health: {"ok":true,"db":true,"version":"0.1.0"}
+=== после
+  13851 Sat Oct 24 19:20:09 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  14551 Sat Oct 24 19:20:15 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+  14560 Sat Oct 24 19:20:15 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
 === журнал
-  code: 'EADDRINUSE',
-  errno: -98,
-  syscall: 'listen',
-  address: '::',
-  port: 3000
-}
-
-Node.js v21.5.0
+Terminated
+Terminated
+Terminated
+2026/10/24 19:20:08 [info] 13511#13511 "devalby_ru" application started
+[кира 16:20:10 13851] работаю через NGINX Unit, версия 0.1.0
+[кира 16:20:10 13851] база готова, схема v1
+2026/10/24 19:20:14 [info] 13870#13870 "devalby_ru" application started
+2026/10/24 19:20:14 [info] 13871#13871 "devalby_ru" application started
+[кира 16:20:16 14551] работаю через NGINX Unit, версия 0.1.0
+[кира 16:20:16 14560] работаю через NGINX Unit, версия 0.1.0
+[кира 16:20:16 14551] база готова, схема v1
+[кира 16:20:16 14560] база готова, схема v1
 --- снаружи, через интернет:
-http://devalby.ru/api/health -> HTTP 503 ->  | серт 0 | <!DOCTYPE html><title>Error 503</title><p>Error 503. 
-https://devalby.ru/api/health -> HTTP 000 ->  | серт 1 | <!DOCTYPE html><title>Error 503</title><p>Error 503. 
-http://www.devalby.ru/api/health -> HTTP 503 ->  | серт 0 | <!DOCTYPE html><title>Error 503</title><p>Error 503. 
-https://www.devalby.ru/api/health -> HTTP 000 ->  | серт 1 | <!DOCTYPE html><title>Error 503</title><p>Error 503. 
+http://devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
+https://devalby.ru/api/health -> HTTP 404 ->  | серт 18 | 404 page not found 
+http://www.devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
+https://www.devalby.ru/api/health -> HTTP 404 ->  | серт 18 | 404 page not found 
