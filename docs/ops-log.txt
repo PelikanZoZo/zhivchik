@@ -1,10 +1,15 @@
-Запуск: 2026-10-24 09:56 UTC
+Запуск: 2026-10-24 09:59 UTC
 изнутри: HTTP 000, сертификат: 0 (0 = в порядке)
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 301 -> https://devalby.ru/
 Moved Permanently
 >> https://devalby.ru/
-curl: (35) TLS connect error: error:0A000438:SSL routines::tlsv1 alert internal error
+curl: (60) SSL certificate OpenSSL verify result: self-signed certificate (18)
+More details here: https://curl.se/docs/sslcerts.html
+
+curl failed to verify the legitimacy of the server and therefore could not
+establish a secure connection to it. To learn more about this situation and
+how to fix it, please visit the webpage mentioned above.
 HTTP 000 -> 
 Moved Permanently
