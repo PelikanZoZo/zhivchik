@@ -26,8 +26,8 @@ Transferring file `js/object.js'
 Transferring file `vendor/dhtmlx-gantt/LICENSE.md'
 Transferring file `js/plan.js'
 Transferring file `js/storage.js'
-Transferring file `js/views.js'
 Transferring file `vendor/dhtmlx-gantt/dhtmlxgantt.css'
+Transferring file `js/views.js'
 Transferring file `vendor/dhtmlx-gantt/dhtmlxgantt.js'
 mkdir: Access failed: 550 www/tmp: File exists
 mkdir: Access failed: 550 tmp: File exists
@@ -39,7 +39,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 22:47 UTC
+--- проверка 2026-10-24 22:52 UTC
 health: {"ok":true,"db":true,"version":"0.1.0"}
 главная (http): 200 -> 
 сертификат: 1 (0 — в порядке)
