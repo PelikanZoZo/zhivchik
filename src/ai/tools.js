@@ -14,7 +14,8 @@ const itemFields = {
   stage_id: { type: ["integer", "null"], description: "id стадии проекта/трека, к которой относится" },
   status: { type: "string", description: "Статус — из списка статусов этого вида (см. модель в системном сообщении)" },
   priority: { type: "integer", minimum: 0, maximum: 3, description: "0 — нет, 1 — низкий, 2 — средний, 3 — высокий" },
-  due: { type: ["string", "null"], description: "Срок/дедлайн, местное время: ГГГГ-ММ-ДД или ГГГГ-ММ-ДД ЧЧ:ММ. null — без срока" },
+  due: { type: ["string", "null"], description: "Срок/дедлайн (на графике — окончание), местное время: ГГГГ-ММ-ДД или ГГГГ-ММ-ДД ЧЧ:ММ. null — без срока" },
+  start: { type: ["string", "null"], description: "Дата начала (для графика), ГГГГ-ММ-ДД" },
   event_at: { type: "string", description: "Для действия — когда сделано; для блокера — с какого числа мешает. ГГГГ-ММ-ДД ЧЧ:ММ" },
   tags: { type: "array", items: { type: "string" }, description: "Метки без #" },
   fields: { type: "object", description: "Поля конкретного вида: risk {probability, impact, mitigation} (оценка владельца 1–5, ставь её только со слов владельца); goal {goal_type: milestone|final, unit, baseline, target, current}; action {result}; blocker {waiting_for}; mission {outcome}; attachment {url}; person {company, position, phone, email, telegram}" },
@@ -122,6 +123,49 @@ export const WEB_TOOL_DEFS = [
 ];
 const WEB_LIMITS = { searches: 6, pages: 6 };
 
+// Планировщик (диаграмма Ганта): этапы, задачи с датами и связями, вехи-цели, риски этапов, базовый план
+export const PLAN_TOOL_DEFS = [
+  fn("get_plan", "График проекта/трека/миссии как в MS Project: строки (этапы, задачи, вехи) с началом, окончанием, длительностью, %, предшественниками, отклонением от базового плана, рисками этапов; плюс что без дат.", {
+    root_id: { type: "integer", description: "id проекта, трека или миссии" },
+  }, ["root_id"]),
+  fn("build_plan", "Построить план проекта: этапы по порядку, в них задачи с длительностью в днях и зависимостями, вехи (цели) этапов, риски этапов, финальная цель. Задачи без зависимостей начинаются с начала этапа; первая задача этапа автоматически идёт после последних задач предыдущего. Вехи этапа без даты ставятся на конец этапа и связываются с его задачами. Дни — календарные.", {
+    root_id: { type: "integer" },
+    start: { type: "string", description: "Дата начала плана, ГГГГ-ММ-ДД" },
+    stages: { type: "array", items: { type: "object", properties: {
+      title: { type: "string" },
+      start: { type: "string", description: "Необязательно: явная дата начала этапа" },
+      days: { type: "integer", description: "Длительность этапа, если задач нет" },
+      tasks: { type: "array", items: { type: "object", properties: {
+        key: { type: "string", description: "Короткий ключ для ссылок в after" },
+        title: { type: "string" }, days: { type: "integer" },
+        start: { type: "string", description: "Явная дата начала (если нужна)" },
+        after: { type: "array", items: { type: "string" }, description: "Ключи задач (или id существующих), после окончания которых начинается" },
+      }, required: ["title", "days"] } },
+      goals: { type: "array", items: { type: "object", properties: { title: { type: "string" }, date: { type: "string" } }, required: ["title"] } },
+      risks: { type: "array", items: { type: "object", properties: { title: { type: "string" }, probability: { type: "integer" }, impact: { type: "integer" }, mitigation: { type: "string" } }, required: ["title"] } },
+    }, required: ["title"] } },
+    final_goal: { type: "object", properties: { title: { type: "string" }, date: { type: "string" } } },
+  }, ["root_id", "stages"]),
+  fn("set_dates", "Поставить или изменить даты задачи, этапа, вехи (перенос этапа переносит всё в нём). Последователи по связям сдвигаются автоматически. dry_run=true — только посчитать, что уедет, ничего не меняя.", {
+    id: { type: "integer" },
+    start: { type: "string", description: "Новое начало, ГГГГ-ММ-ДД" },
+    finish: { type: "string", description: "Новое окончание (для вехи — её дата), ГГГГ-ММ-ДД" },
+    days: { type: "integer", description: "Длительность в днях (вместо окончания)" },
+    progress: { type: "integer", description: "Выполнено, % (0–100)" },
+    dry_run: { type: "boolean" },
+  }, ["id"]),
+  fn("link_tasks", "Связать задачи: последователь начинается после предшественника (как в MS Project). Последователь сдвинется, если стоит раньше допустимого.", {
+    pred_id: { type: "integer", description: "Предшественник" },
+    succ_id: { type: "integer", description: "Последователь" },
+    type: { type: "string", enum: ["FS", "SS", "FF", "SF"], description: "FS — после окончания (по умолчанию); SS — вместе с началом; FF — закончить вместе; SF — закончить к началу" },
+    lag: { type: "integer", description: "Задержка в днях (отрицательная — опережение)" },
+  }, ["pred_id", "succ_id"]),
+  fn("unlink_tasks", "Убрать связь между задачами.", { pred_id: { type: "integer" }, succ_id: { type: "integer" } }, ["pred_id", "succ_id"]),
+  fn("save_baseline", "Зафиксировать базовый план проекта/трека — потом видно отклонение факта от него.", {
+    root_id: { type: "integer" }, name: { type: "string" },
+  }, ["root_id"]),
+];
+
 // Хранилище файлов и архив переписки
 export const FILE_TOOL_DEFS = [
   fn("find_files", "Найти файлы в хранилище: документы, голосовые, аудио, фото, видео. Документы ищутся только по названию и описанию (их содержимое ты не читаешь); голосовые и аудио — ещё и по расшифровке.", {
@@ -176,8 +220,8 @@ const SEND_DEF = fn("send_message", "Отправить сообщение вл�
 // Набор инструментов: в разговоре с владельцем (chat) и при самостоятельном выполнении задания (job)
 export function toolDefs(mode = "chat") {
   return mode === "job"
-    ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, ...FILE_TOOL_DEFS, SEND_DEF]
-    : [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, ...FILE_TOOL_DEFS, RUN_NOW_DEF, FORGET_DEF];
+    ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, ...FILE_TOOL_DEFS, ...PLAN_TOOL_DEFS, SEND_DEF]
+    : [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, ...FILE_TOOL_DEFS, ...PLAN_TOOL_DEFS, RUN_NOW_DEF, FORGET_DEF];
 }
 
 function briefJob(j) {
@@ -483,6 +527,50 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
           text: String(m.text || "").slice(0, 600), ...(m.file_id ? { file_id: m.file_id } : {}),
         })),
       };
+    },
+
+    async get_plan({ root_id }) {
+      if (!deps.planner) return { error: "Планировщик недоступен" };
+      const p = await deps.planner.getPlan(+root_id);
+      return {
+        root: p.root, today: p.today, baseline: p.baseline?.name || null,
+        rows: p.rows.map((r) => ({
+          id: r.id, kind: r.kind, title: r.text, ...(r.parent ? { in: r.parent } : {}),
+          start: r.start, finish: r.finish, ...(r.type === "milestone" ? { milestone: true } : { days: r.days }),
+          ...(r.progress ? { progress: Math.round(r.progress * 100) } : {}), ...(r.closed ? { closed: true } : {}),
+          ...(r.preds?.length ? { after: r.preds.map((x) => `${x.id}${x.type !== "FS" ? x.type : ""}${x.lag ? (x.lag > 0 ? "+" : "") + x.lag : ""}`) } : {}),
+          ...(r.variance ? { variance_days: r.variance } : {}), ...(r.risks ? { risks: r.risks.map((x) => `${x.title} (${x.level || "без оценки"})`) } : {}),
+        })),
+        undated: p.undated, ...(p.violations.length ? { violated_links: p.violations.length } : {}),
+      };
+    },
+
+    async build_plan(args) {
+      if (!deps.planner) return { error: "Планировщик недоступен" };
+      try { return await deps.planner.buildPlan(+args.root_id, args, { source }); } catch (e) { return { error: e.message }; }
+    },
+
+    async set_dates({ id, start, finish, days, progress, dry_run }) {
+      if (!deps.planner) return { error: "Планировщик недоступен" };
+      try {
+        const r = await deps.planner.move(+id, { start, finish, days, progress }, { dryRun: !!dry_run, source });
+        return { dry_run: r.dry_run, changed: r.changed.map((c) => ({ id: c.id, title: c.title, from: c.from, to: c.to, shifted_days: c.shifted_days })) };
+      } catch (e) { return { error: e.message }; }
+    },
+
+    async link_tasks({ pred_id, succ_id, type, lag }) {
+      if (!deps.planner) return { error: "Планировщик недоступен" };
+      try { return await deps.planner.addLink({ pred_id, succ_id, type, lag }, { source }); } catch (e) { return { error: e.message }; }
+    },
+
+    async unlink_tasks({ pred_id, succ_id }) {
+      if (!deps.planner) return { error: "Планировщик недоступен" };
+      return deps.planner.removeLink({ pred_id, succ_id });
+    },
+
+    async save_baseline({ root_id, name }) {
+      if (!deps.planner) return { error: "Планировщик недоступен" };
+      try { return await deps.planner.saveBaseline(+root_id, name, { source }); } catch (e) { return { error: e.message }; }
     },
 
     async send_message({ text }) {

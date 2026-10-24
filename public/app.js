@@ -5,6 +5,7 @@ import { objectView } from "./js/object.js";
 import { today, inbox, tasks, coreList, people, changes, assistant, settings } from "./js/views.js";
 import { jobsView, openJobDrawer } from "./js/jobs.js";
 import { storageView, archiveView, catalogView } from "./js/storage.js";
+import { planView } from "./js/plan.js";
 
 hooks.openItem = openItem;
 hooks.openJob = openJobDrawer;
@@ -56,6 +57,8 @@ function route() {
   const p = location.pathname;
   const m = p.match(/^\/o\/(\d+)/);
   if (m) return { view: "object", id: +m[1] };
+  const pl = p.match(/^\/plan(?:\/(\d+))?\/?$/);
+  if (pl) return { view: "plan", id: pl[1] ? +pl[1] : null };
   const v = p.replace(/^\/|\/$/g, "") || "today";
   return { view: ROUTES[v] ? v : "today" };
 }
@@ -71,7 +74,9 @@ async function render() {
   const main = $("#main");
   main.replaceChildren();
   try {
+    main.classList.remove("plan-main");
     if (r.view === "object") await objectView(main, r);
+    else if (r.view === "plan") await planView(main, r);
     else await ROUTES[r.view](main, r);
   } catch (e) {
     if (e.message !== "Нужно войти") main.append(el("p", { class: "empty" }, e.message));

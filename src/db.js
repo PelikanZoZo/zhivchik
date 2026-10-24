@@ -254,6 +254,40 @@ const MIGRATIONS = [
       if (!cols.length) await conn.query("ALTER TABLE jobs ADD COLUMN message VARCHAR(1000) NULL AFTER instruction");
     },
   ],
+  // 10. Планировщик (диаграмма Ганта): дата начала у объектов, связи «предшественник → последователь»
+  //     (FS/SS/FF/SF и задержка в днях), базовые планы — снимки дат для сравнения план/факт.
+  [
+    async (conn) => {
+      const [cols] = await conn.query("SHOW COLUMNS FROM nodes LIKE 'start_at'");
+      if (!cols.length) await conn.query("ALTER TABLE nodes ADD COLUMN start_at DATETIME(3) NULL AFTER due_has_time, ADD INDEX (start_at)");
+    },
+    `CREATE TABLE IF NOT EXISTS plan_links (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      pred_id BIGINT NOT NULL,
+      succ_id BIGINT NOT NULL,
+      type CHAR(2) NOT NULL DEFAULT 'FS',
+      lag_days INT NOT NULL DEFAULT 0,
+      created_at DATETIME(3) NOT NULL,
+      created_by VARCHAR(20) NOT NULL DEFAULT 'web',
+      removed_at DATETIME(3) NULL,
+      INDEX (pred_id), INDEX (succ_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS plan_baselines (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      root_id BIGINT NOT NULL,
+      name VARCHAR(200) NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      created_by VARCHAR(20) NOT NULL DEFAULT 'web',
+      INDEX (root_id, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS plan_baseline_items (
+      baseline_id BIGINT NOT NULL,
+      node_id BIGINT NOT NULL,
+      start_date DATE NULL,
+      finish_date DATE NULL,
+      PRIMARY KEY (baseline_id, node_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ],
 ];
 
 // Файлы, приложенные к объектам до появления каталога, — в реестр (сам файл не копируется)

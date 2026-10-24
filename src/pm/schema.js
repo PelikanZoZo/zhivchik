@@ -27,7 +27,7 @@ export const TYPES = {
     statuses: { preparing: "Подготовка", active: "В работе", done: "Выполнена", failed: "Провалена", cancelled: "Отменена" },
     initial: "preparing", closed: ["done", "failed", "cancelled"],
     parents: ["project", "track"],
-    fields: { outcome: { type: "text", label: "Итог" } },
+    fields: { outcome: { type: "text", label: "Итог" }, progress: { type: "number", label: "Выполнено, %" } },
   },
   stage: {
     label: "Стадия", plural: "Стадии",
@@ -35,6 +35,7 @@ export const TYPES = {
     statuses: { planned: "Впереди", active: "Текущая", done: "Пройдена" },
     initial: "planned", closed: ["done"],
     parents: ["project", "track"], parentRequired: true,
+    fields: { progress: { type: "number", label: "Выполнено, %" } },
   },
   goal: {
     label: "Цель", plural: "Цели",
@@ -56,6 +57,7 @@ export const TYPES = {
     statuses: { todo: "К выполнению", doing: "В работе", waiting: "Ждёт", done: "Сделано", cancelled: "Отменено" },
     initial: "todo", closed: ["done", "cancelled"],
     parents: ["project", "track", "mission", "task"],
+    fields: { progress: { type: "number", label: "Выполнено, %" } },
   },
   action: {
     label: "Действие", plural: "Действия",

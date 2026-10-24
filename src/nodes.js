@@ -7,7 +7,7 @@ import { TYPES, CORE, isClosed, closedStatuses, riskScore, riskLevel } from "./p
 export { isClosed };
 export const KINDS = TYPES;
 
-const FIELDS = ["kind", "parent_id", "stage_id", "title", "body", "status", "priority", "due_at", "due_has_time", "event_at", "tags", "meta", "position"];
+const FIELDS = ["kind", "parent_id", "stage_id", "title", "body", "status", "priority", "due_at", "due_has_time", "start_at", "event_at", "tags", "meta", "position"];
 
 export class ValidationError extends Error {}
 
@@ -461,6 +461,15 @@ export class Nodes {
         out.due_at = d.utc; out.due_has_time = d.hasTime ? 1 : 0;
       }
     }
+    // Начало (для графика) — дата без времени
+    if (input.start !== undefined) {
+      if (input.start === null || input.start === "") out.start_at = null;
+      else {
+        const d = parseLocal(`${String(input.start).slice(0, 10)} 12:00`, this.tz);
+        if (!d) throw new ValidationError(`Не понял дату начала «${input.start}». Формат: ГГГГ-ММ-ДД`);
+        out.start_at = d.utc;
+      }
+    }
     if (input.event_at !== undefined) {
       if (!input.event_at) out.event_at = null;
       else {
@@ -539,6 +548,7 @@ export class Nodes {
       status_label: t.statuses[r.status] || r.status,
       priority: r.priority,
       due: r.due_at ? formatLocal(r.due_at, this.tz, !!r.due_has_time) : null,
+      start: r.start_at ? formatLocal(r.start_at, this.tz, false) : null,
       overdue: !!(r.due_at && !closed && !r.deleted_at && new Date(r.due_at).getTime() < Date.now()),
       event_at: r.event_at ? formatLocal(r.event_at, this.tz) : null,
       tags: r.tags ? r.tags.split(",") : [],
@@ -563,7 +573,7 @@ export class Nodes {
 // ---------- помощники ----------
 
 function defaults() {
-  return { parent_id: null, stage_id: null, body: null, priority: 0, due_at: null, due_has_time: 0, event_at: null, tags: "", meta: null, position: 0 };
+  return { parent_id: null, stage_id: null, body: null, priority: 0, due_at: null, due_has_time: 0, start_at: null, event_at: null, tags: "", meta: null, position: 0 };
 }
 
 function defaultFields(kind) {
@@ -583,7 +593,7 @@ function cleanFields(kind, input) {
     if (d.type === "number") {
       const n = +String(v).replace(",", ".");
       if (!Number.isFinite(n)) throw new ValidationError(`«${d.label}» — число`);
-      out[k] = n;
+      out[k] = k === "progress" ? Math.max(0, Math.min(100, Math.round(n))) : n;
     } else if (d.type === "scale") {
       const n = Math.round(+v);
       if (!(n >= 1 && n <= 5)) throw new ValidationError(`«${d.label}» — от 1 до 5`);

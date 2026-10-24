@@ -27,6 +27,7 @@ export async function objectView(main, { id }) {
         item.due ? el("span", { class: item.overdue ? "late" : "" }, `срок ${humanDue(item.due)}`) : "",
         item.priority ? el("span", {}, `приоритет: ${PRIORITY[item.priority].toLowerCase()}`) : "",
         item.stage ? el("span", {}, `стадия: ${item.stage}`) : "",
+        el("a", { class: "btn small", href: `/plan/${id}` }, "График"),
         el("button", { class: "btn ghost small", onclick: () => hooks.openItem(id) }, "Карточка и история"))),
     item.body ? el("p", { class: "obj-body" }, item.body) : "",
     item.kind === "mission" && item.fields.outcome ? el("p", { class: "obj-outcome" }, el("b", {}, "Итог: "), item.fields.outcome) : "",

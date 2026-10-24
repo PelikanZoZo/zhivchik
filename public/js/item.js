@@ -129,6 +129,12 @@ export async function openItem(id, { keepScroll = false } = {}) {
     d1.addEventListener("change", saveEv); d2.addEventListener("change", saveEv);
     fieldRow(t.eventLabel, el("div", { class: "due-pair" }, d1, d2), "f-event");
   }
+  // начало — для графика (задачи, этапы, миссии)
+  if (["task", "stage", "mission"].includes(item.kind)) {
+    const s1 = el("input", { type: "date", id: "f-start", value: item.start || "" });
+    s1.addEventListener("change", () => save({ start: s1.value || null }));
+    fieldRow("Начало", s1, "f-start");
+  }
   if (DUE_KINDS.includes(item.kind)) {
     const [dd, dt] = item.due ? item.due.split(" ") : ["", ""];
     const d1 = el("input", { type: "date", id: "f-due", value: dd });
@@ -161,7 +167,7 @@ export async function openItem(id, { keepScroll = false } = {}) {
     const home = [...item.path].reverse().find((p) => p.kind === "project" || p.kind === "track");
     if (home) {
       const stSel = el("select", { id: "f-stage" }, el("option", { value: "" }, "— без стадии —"));
-      fieldRow("Стадия", stSel, "f-stage");
+      fieldRow("Этап", stSel, "f-stage");
       api("GET", `/api/items?kind=stage&parent_id=${home.id}&order=position`).then(({ items }) => {
         if (!items.length) { stSel.disabled = true; stSel.firstChild.textContent = `у «${home.title}» нет стадий`; return; }
         stSel.append(...items.map((s) => el("option", { value: s.id, selected: s.id === item.stage_id }, s.title)));

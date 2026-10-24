@@ -29,6 +29,7 @@ import { createRiskAssessor } from "./pm/risk-ai.js";
 import { createFiles } from "./pm/files.js";
 import { createStorage, FILE_KINDS } from "./storage.js";
 import { createDwh } from "./dwh.js";
+import { createPlanner } from "./plan/plan.js";
 
 export const VERSION = "0.1.0";
 
@@ -59,7 +60,8 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         const outbox = createOutbox({ db, dwh });
         const files = createFiles(cfg.filesDir || path.join(ROOT, "..", "files"));
         const storage = createStorage({ db, files, llm, tz: cfg.tz, log });
-        const deps = { web: createWeb(cfg.web || {}, { log }), storage, dwh };
+        const planner = createPlanner({ db, nodes, tz: cfg.tz });
+        const deps = { web: createWeb(cfg.web || {}, { log }), storage, dwh, planner };
         const agent = createAgent({ db, nodes, jobs, outbox, dwh, deps, llm, tz: cfg.tz, name: cfg.assistantName, log });
         const runner = createRunner({ jobs, agent, outbox, log });
         deps.runner = runner;
@@ -67,7 +69,7 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         const bot = createBot({ db, agent, nodes, jobs, runner, cfg, storage, dwh, log });
         const riskAi = createRiskAssessor({ db, nodes, llm, tz: cfg.tz, log });
         deps.riskAi = riskAi;
-        return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, files, storage, dwh };
+        return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, files, storage, dwh, planner };
       })().catch((e) => {
         ready = null; // следующая попытка — при следующем запросе
         throw e;
@@ -447,6 +449,33 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
   route("GET", "/api/dwh/messages", async ({ query }) => {
     const { dwh } = await services();
     return { messages: await dwh.list({ query: query.q, from: query.from, to: query.to, channel: query.channel, before: query.before, limit: +query.limit || 100 }), stats: await dwh.stats() };
+  });
+
+  // --- планировщик (диаграмма Ганта) ---
+  route("GET", "/api/plan", async ({ query }) => {
+    const { planner } = await services();
+    return planner.getPlan(query.root ? +query.root : null);
+  });
+
+  route("PATCH", "/api/plan/items/:id", async ({ params, body }) => {
+    const { planner } = await services();
+    return planner.move(+params.id, { start: body.start, finish: body.finish, days: body.days, progress: body.progress }, { dryRun: !!body.dry_run, source: "web" });
+  });
+
+  route("POST", "/api/plan/links", async ({ body }) => {
+    const { planner } = await services();
+    return planner.addLink({ pred_id: +body.pred_id, succ_id: +body.succ_id, type: body.type, lag: body.lag }, { source: "web" });
+  });
+
+  route("DELETE", "/api/plan/links/:id", async ({ params }) => {
+    const { planner } = await services();
+    return planner.removeLink({ id: +params.id });
+  });
+
+  route("POST", "/api/plan/baseline", async ({ body }) => {
+    const { planner } = await services();
+    if (!body.root_id) throw httpError(400, "Базовый план фиксируется для проекта или трека");
+    return planner.saveBaseline(+body.root_id, body.name, { source: "web" });
   });
 
   // --- задания Киры ---
