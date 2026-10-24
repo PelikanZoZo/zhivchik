@@ -70,6 +70,12 @@ export function createNetworkAssessor({ nodes, llm, tz, log = () => {} }) {
       }
       if (other.id === person.id) continue;
       const type = String(r.type || "знакомый").trim().slice(0, 40) || "знакомый";
+      // не дублировать: такая же связь уже есть (поставлена мной или найдена с другой стороны)
+      const existing = await nodes.db.query(
+        `SELECT role, origin, a_id FROM node_links WHERE removed_at IS NULL AND ((a_id = ? AND b_id = ?) OR (a_id = ? AND b_id = ?))`,
+        [person.id, other.id, other.id, person.id],
+      );
+      if (existing.some((e) => e.role.toLowerCase() === type.toLowerCase() || (e.origin === "ai" && e.a_id === other.id))) { made.push(`${other.title} — ${type} (уже есть)`); continue; }
       await nodes.link(person.id, other.id, type, "kira", r.note ? String(r.note).slice(0, 400) : null, { origin: "ai", quiet: true });
       made.push(`${other.title} — ${type}`);
     }

@@ -20,7 +20,9 @@ export function networkGraph({ people, edges }, { height = 560 } = {}) {
   const links = [
     // моя связь — с каждым, кому я поставил лояльность
     ...people.filter((p) => p.fields.loyalty).map((p) => ({ a: ME, b: p.id, me: true, loyalty: p.fields.loyalty })),
-    ...edges.filter((e) => byId.has(e.a) && byId.has(e.b)),
+    ...edges.filter((e, i, all) => byId.has(e.a) && byId.has(e.b)
+      // одна линия на пару людей и тип связи
+      && all.findIndex((x) => ((x.a === e.a && x.b === e.b) || (x.a === e.b && x.b === e.a)) && x.role.toLowerCase() === e.role.toLowerCase()) === i),
   ];
   // силовая раскладка: отталкивание всех, притяжение по связям, центр
   const meNode = byId.get(ME);
