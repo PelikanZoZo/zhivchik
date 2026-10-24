@@ -1,19 +1,10 @@
-Запуск: 2026-10-24 09:50 UTC
-=== DNS api.telegram.org
-2001:67c:4e8:f004::9 api.telegram.org
-api.telegram.org через 149.154.167.220 -> HTTP 302 за 0.146365с
-api.telegram.org через 149.154.166.110 -> HTTP 000 за 15.000639с
-IP без имени, getMe-подобный путь -> HTTP 302
+Запуск: 2026-10-24 09:56 UTC
+изнутри: HTTP 000, сертификат: 0 (0 = в порядке)
 --- снаружи, через интернет:
 >> http://devalby.ru/
-HTTP 200 -> 
-Hello, World!
+HTTP 301 -> https://devalby.ru/
+Moved Permanently
 >> https://devalby.ru/
-curl: (60) SSL: no alternative certificate subject name matches target hostname 'devalby.ru'
-More details here: https://curl.se/docs/sslcerts.html
-
-curl failed to verify the legitimacy of the server and therefore could not
-establish a secure connection to it. To learn more about this situation and
-how to fix it, please visit the webpage mentioned above.
+curl: (35) TLS connect error: error:0A000438:SSL routines::tlsv1 alert internal error
 HTTP 000 -> 
-Hello, World!
+Moved Permanently
