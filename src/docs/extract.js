@@ -8,15 +8,6 @@ import { htmlToText, decodeEntities } from "../ai/web.js";
 
 export const MAX_TEXT = 1_000_000; // больше — не храним (MEDIUMTEXT и здравый смысл)
 
-// pdf.js ждёт Promise.withResolvers (есть с Node 22)
-if (!Promise.withResolvers) {
-  Promise.withResolvers = function withResolvers() {
-    let resolve, reject;
-    const promise = new this((a, b) => { resolve = a; reject = b; });
-    return { promise, resolve, reject };
-  };
-}
-
 const TEXT_EXT = new Set([".txt", ".md", ".csv", ".tsv", ".json", ".xml", ".log", ".yml", ".yaml", ".ini", ".sql", ".js", ".py", ".srt", ".vtt", ".eml"]);
 
 export function docType(name = "", mime = "") {
@@ -61,11 +52,30 @@ export async function extractText(buf, { name = "", mime = "" } = {}) {
 }
 
 async function fromPdf(buf) {
-  const { getDocumentProxy, extractText: pdfText } = await import("unpdf");
-  const pdf = await getDocumentProxy(new Uint8Array(buf));
-  const { totalPages, text } = await pdfText(pdf, { mergePages: false });
-  const parts = (Array.isArray(text) ? text : [text]).map((t, i) => (t.trim() ? `[стр. ${i + 1}]\n${t.trim()}` : "")).filter(Boolean);
-  return { text: parts.join("\n\n"), pages: totalPages };
+  // «legacy»-сборка pdf.js работает и на Node 18/20 (обычная требует Node 22)
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: false, disableFontFace: true, isEvalSupported: false, verbosity: 0 }).promise;
+  const parts = [];
+  try {
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i);
+      const tc = await page.getTextContent();
+      let line = "";
+      const lines = [];
+      for (const it of tc.items) {
+        if (!("str" in it)) continue;
+        line += it.str;
+        if (it.hasEOL) { lines.push(line); line = ""; }
+      }
+      if (line) lines.push(line);
+      const t = lines.map((l) => l.replace(/\s+/g, " ").trim()).filter(Boolean).join("\n");
+      if (t) parts.push(`[стр. ${i}]\n${t}`);
+      page.cleanup();
+    }
+    return { text: parts.join("\n\n"), pages: doc.numPages };
+  } finally {
+    await doc.destroy().catch(() => {});
+  }
 }
 
 function unzip(buf, filter) {
