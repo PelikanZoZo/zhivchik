@@ -1,24 +1,15 @@
-Запуск: 2026-10-24 09:48 UTC
-=== время
-09:48:58
-=== доступные версии Node
-v18.19.0
-v20.10.0
-v21.5.0
-=== выход наружу с хостинга
-https://api.telegram.org -> HTTP 000 за 10.203433с
-https://api.deepseek.com -> HTTP 401 за 0.368611с
-https://news.google.com/rss -> HTTP 000 за 10.864723с
-https://lenta.ru/rss -> HTTP 200 за 0.025288с
-=== HTTPS у devalby.ru (изнутри)
-HTTP 000, сертификат проверен: 18
-=== cron
-crontab: есть, заданий нет
-=== MySQL-клиент
-mysql: есть
-=== переменные базы, которые даёт панель (только имена)
-=== место на диске
-56M
+Запуск: 2026-10-24 09:49 UTC
+https://api.telegram.org/ -> HTTP 000 за 7.703298с
+https://149.154.167.220/ -> HTTP 302 за 0.140068с
+https://core.telegram.org -> HTTP 000 за 7.724938с
+https://github.com -> HTTP 200 за 0.397320с
+https://workers.cloudflare.com -> HTTP 301 за 0.084510с
+https://example.workers.dev -> HTTP 000 за 0.752760с
+https://www.google.com -> HTTP 200 за 0.132911с
+https://api.openai.com -> HTTP 403 за 0.894476с
+https://vercel.com -> HTTP 200 за 0.231425с
+https://deno.com -> HTTP 200 за 0.980469с
+=== прокси в окружении
 --- снаружи, через интернет:
 >> http://devalby.ru/
 HTTP 200 -> 
