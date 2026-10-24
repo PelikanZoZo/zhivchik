@@ -23,6 +23,9 @@ import { createBot } from "./bot.js";
 import { JobsModel } from "./jobs/model.js";
 import { createRunner, ensureSystemJobs, getMorningTime, setMorningTime } from "./jobs/runner.js";
 import { createOutbox } from "./outbox.js";
+import { TYPES, CORE, SECTIONS, PERSON_ROLES } from "./pm/schema.js";
+import { createRiskAssessor } from "./pm/risk-ai.js";
+import { createFiles } from "./pm/files.js";
 
 export const VERSION = "0.1.0";
 
@@ -30,7 +33,7 @@ export const VERSION = "0.1.0";
 const log = (...args) => console.error(`[кира ${new Date().toISOString().slice(11, 19)} ${process.pid}]`, ...args);
 
 const PUBLIC = path.join(ROOT, "public");
-const TYPES = {
+const MIME = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".json": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json",
@@ -56,7 +59,10 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         deps.runner = runner;
         await ensureSystemJobs({ jobs, db, cfg });
         const bot = createBot({ db, agent, nodes, jobs, runner, cfg, log });
-        return { db, nodes, jobs, outbox, runner, agent, bot };
+        const riskAi = createRiskAssessor({ db, nodes, llm, tz: cfg.tz, log });
+        deps.riskAi = riskAi;
+        const files = createFiles(cfg.filesDir || path.join(ROOT, "..", "files"));
+        return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, files };
       })().catch((e) => {
         ready = null; // следующая попытка — при следующем запросе
         throw e;
@@ -67,10 +73,10 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
 
   // ---------- маршруты ----------
   const routes = [];
-  const route = (method, pattern, handler, access = "user") => {
+  const route = (method, pattern, handler, access = "user", opts = {}) => {
     const keys = [];
     const re = new RegExp("^" + pattern.replace(/:(\w+)/g, (_, k) => (keys.push(k), "([^/]+)")) + "$");
-    routes.push({ method, re, keys, handler, access });
+    routes.push({ method, re, keys, handler, access, opts });
   };
 
   route("GET", "/api/health", async () => {
@@ -113,6 +119,7 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
       kinds: query.kinds ? query.kinds.split(",") : undefined,
       status: query.status ? query.status.split(",") : undefined,
       parent_id: query.parent_id ? +query.parent_id : undefined,
+      stage_id: query.stage_id ? +query.stage_id : undefined,
       root: query.root === "1",
       query: query.q || undefined,
       tag: query.tag || undefined,
@@ -125,11 +132,74 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     return { items: await nodes.list(f) };
   });
 
+  route("GET", "/api/schema", async () => ({ types: TYPES, core: CORE, sections: SECTIONS, person_roles: PERSON_ROLES }));
+
   route("GET", "/api/items/:id", async ({ params }) => {
     const { nodes } = await services();
-    const item = await nodes.get(+params.id, { withChildren: true, withPath: true });
+    const item = await nodes.get(+params.id, { full: true });
     if (!item) throw httpError(404, "Нет такой записи");
+    await nodes.withHomes([item]);
     return { item };
+  });
+
+  // Связи: человек с ролью, блокер → что блокирует, «связано»
+  route("POST", "/api/items/:id/links", async ({ params, body }) => {
+    const { nodes } = await services();
+    return await nodes.link(+params.id, +body.other_id, body.role, "web", body.note || null);
+  });
+
+  route("DELETE", "/api/links/:id", async ({ params }) => {
+    const { nodes } = await services();
+    return await nodes.unlink(+params.id, "web");
+  });
+
+  route("POST", "/api/items/:id/comments", async ({ params, body }) => {
+    const { nodes } = await services();
+    return await nodes.addComment(+params.id, body.text, "owner");
+  });
+
+  route("DELETE", "/api/comments/:id", async ({ params }) => {
+    const { nodes } = await services();
+    return await nodes.removeComment(+params.id);
+  });
+
+  // Загрузка файла: тело запроса — сам файл, имя — в заголовке X-File-Name (в кодировке URI)
+  route("POST", "/api/items/:id/upload", async ({ params, req }) => {
+    const { nodes, files } = await services();
+    const parent = await nodes.get(+params.id);
+    if (!parent) throw httpError(404, "Нет такой записи");
+    const name = decodeURIComponent(String(req.headers["x-file-name"] || "файл")).slice(0, 200);
+    const saved = await files.save(req, name);
+    const item = await nodes.create({
+      kind: "attachment", title: name, parent_id: parent.id,
+      fields: { file_name: name, file_size: saved.size, file_type: String(req.headers["content-type"] || "").slice(0, 100), file_key: saved.key },
+      allowSystemFields: true,
+    }, "web");
+    return { item };
+  }, "user", { raw: true });
+
+  route("GET", "/api/files/:id", async ({ params, res, query }) => {
+    const { nodes, files } = await services();
+    const item = await nodes.get(+params.id);
+    if (!item || item.kind !== "attachment" || !item.fields.file_key) throw httpError(404, "Нет такого файла");
+    const file = files.resolve(item.fields.file_key);
+    if (!file) throw httpError(404, "Файл не найден на диске");
+    const type = item.fields.file_type || "application/octet-stream";
+    const inline = query.inline === "1" && /^(image\/|application\/pdf|text\/plain)/.test(type);
+    res.writeHead(200, {
+      "Content-Type": type,
+      "Content-Length": item.fields.file_size,
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(item.fields.file_name || "file")}`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, max-age=3600",
+    });
+    await new Promise((resolve, reject) => fsSync.createReadStream(file).on("error", reject).on("end", resolve).pipe(res));
+    return undefined;
+  });
+
+  route("POST", "/api/items/:id/assess", async ({ params }) => {
+    const { riskAi } = await services();
+    return { item: await riskAi.assess(+params.id) };
   });
 
   route("POST", "/api/items", async ({ body }) => {
@@ -165,7 +235,7 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
   route("GET", "/api/changes", async ({ query }) => {
     const { nodes } = await services();
     const days = Math.min(+query.days || 7, 90);
-    return { changes: await nodes.changes({ since: new Date(Date.now() - days * 86400e3), limit: 300 }) };
+    return { changes: await nodes.changes({ since: new Date(Date.now() - days * 86400e3), limit: 300, root: query.root ? +query.root : undefined }) };
   });
 
   // --- ассистент на сайте ---
@@ -226,10 +296,16 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
   // Раз в минуту: выполнить задания, которым подошло время, и отдать сообщения для отправки
   route("GET", "/api/bridge/outbox", async () => {
     const { runner, outbox } = await services();
+    const { riskAi } = await services();
     try {
-      await runner.runDue({ budgetMs: 50000 });
+      await runner.runDue({ budgetMs: 45000 });
     } catch (e) {
       log("планировщик:", e.message);
+    }
+    try {
+      await riskAi.runPending();
+    } catch (e) {
+      log("оценка рисков:", e.message);
     }
     return { items: await outbox.pending() };
   }, "bridge");
@@ -296,11 +372,11 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
           if (!cfg.bridgeSecret || !safeEqual(key, cfg.bridgeSecret)) throw httpError(403, "Нет доступа");
         }
         if (r.access === "user" && req.method !== "GET" && !sameOrigin(req)) throw httpError(403, "Запрос с чужого сайта");
-        const body = ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) ? await readJson(req) : {};
+        const body = !r.opts.raw && ["POST", "PATCH", "PUT", "DELETE"].includes(req.method) ? await readJson(req) : {};
         const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
         const secure = req.headers["x-forwarded-proto"] === "https" || !!req.socket.encrypted;
         const out = await r.handler({ req, res, params, query: Object.fromEntries(url.searchParams), body, user, ip, secure });
-        send(res, 200, out);
+        if (out !== undefined) send(res, 200, out);
         if (r.access === "bridge") log(`${req.method} ${url.pathname} ${Date.now() - started} мс`);
         return;
       }
@@ -373,7 +449,7 @@ async function serveStatic(pathname, res) {
   }
   const ext = path.extname(target);
   res.writeHead(200, {
-    "Content-Type": TYPES[ext] || "application/octet-stream",
+    "Content-Type": MIME[ext] || "application/octet-stream",
     "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=300",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "same-origin",

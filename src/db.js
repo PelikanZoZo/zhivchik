@@ -134,6 +134,34 @@ const MIGRATIONS = [
       INDEX (job_id, version)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ],
+  // 3. Система управления: стадии, дата события (действия, блокеры), связи с ролями, комментарии
+  [
+    "ALTER TABLE nodes ADD COLUMN stage_id BIGINT NULL AFTER parent_id, ADD COLUMN event_at DATETIME(3) NULL AFTER due_has_time, ADD INDEX (stage_id), ADD INDEX (event_at)",
+    "UPDATE nodes SET kind = 'memo' WHERE kind = 'note'",
+    "UPDATE nodes SET status = 'open' WHERE kind = 'goal' AND status = 'active'",
+    "UPDATE nodes SET status = 'dropped' WHERE kind = 'goal' AND status NOT IN ('open', 'achieved', 'missed', 'dropped')",
+    "UPDATE nodes SET meta = '{\"goal_type\":\"milestone\"}' WHERE kind = 'goal' AND (meta IS NULL OR meta = '')",
+    // Связи между объектами: «объект — роль — человек», «блокер — блокирует — задача», «связано»
+    `CREATE TABLE node_links (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      a_id BIGINT NOT NULL,
+      b_id BIGINT NOT NULL,
+      role VARCHAR(60) NOT NULL,
+      note VARCHAR(500) NULL,
+      created_at DATETIME(3) NOT NULL,
+      removed_at DATETIME(3) NULL,
+      INDEX (a_id), INDEX (b_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE node_comments (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      node_id BIGINT NOT NULL,
+      author VARCHAR(20) NOT NULL,
+      text MEDIUMTEXT NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      deleted_at DATETIME(3) NULL,
+      INDEX (node_id, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ],
 ];
 
 export async function openDb(cfg) {

@@ -1,20 +1,23 @@
-// Инструменты ассистента: через них он читает и меняет задачи, проекты, цели, заметки и свои задания.
+// Инструменты Киры: через них она читает и меняет треки, проекты, миссии и всё, что в них живёт,
+// ведёт журнал действий, связывает людей, комментирует, оценивает риски и управляет своими заданиями.
 // Каждый инструмент — описание для модели (JSON Schema) и функция, которая его выполняет.
 
-import { KINDS } from "../nodes.js";
+import { TYPES } from "../pm/schema.js";
 import { parseLocal, localNow, addDays } from "../time.js";
 
-const KIND_ENUM = Object.keys(KINDS);
-const ALL_STATUSES = [...new Set(Object.values(KINDS).flatMap((k) => k.statuses))];
+const KIND_ENUM = Object.keys(TYPES);
 
 const itemFields = {
-  title: { type: "string", description: "Короткое название" },
-  body: { type: "string", description: "Описание, подробности, заметки" },
-  parent_id: { type: ["integer", "null"], description: "id родителя: проекта, цели или задачи (для подзадач). null — без родителя" },
-  status: { type: "string", enum: ALL_STATUSES, description: "Статус. Задача: todo, doing, waiting, done, cancelled. Проект: active, paused, done, archived. Цель: active, achieved, dropped. Заметка: active, archived" },
+  title: { type: "string", description: "Короткое название. У действия — что сделано" },
+  body: { type: "string", description: "Описание, подробности" },
+  parent_id: { type: ["integer", "null"], description: "id дома: трека, проекта, миссии (для подзадачи — задачи). null — без дома" },
+  stage_id: { type: ["integer", "null"], description: "id стадии проекта/трека, к которой относится" },
+  status: { type: "string", description: "Статус — из списка статусов этого вида (см. модель в системном сообщении)" },
   priority: { type: "integer", minimum: 0, maximum: 3, description: "0 — нет, 1 — низкий, 2 — средний, 3 — высокий" },
-  due: { type: ["string", "null"], description: "Срок по местному времени: ГГГГ-ММ-ДД или ГГГГ-ММ-ДД ЧЧ:ММ. null — убрать срок" },
+  due: { type: ["string", "null"], description: "Срок/дедлайн, местное время: ГГГГ-ММ-ДД или ГГГГ-ММ-ДД ЧЧ:ММ. null — без срока" },
+  event_at: { type: "string", description: "Для действия — когда сделано; для блокера — с какого числа мешает. ГГГГ-ММ-ДД ЧЧ:ММ" },
   tags: { type: "array", items: { type: "string" }, description: "Метки без #" },
+  fields: { type: "object", description: "Поля конкретного вида: risk {probability, impact, mitigation} (оценка владельца 1–5, ставь её только со слов владельца); goal {goal_type: milestone|final, unit, baseline, target, current}; action {result}; blocker {waiting_for}; mission {outcome}; attachment {url}; person {company, position, phone, email, telegram}" },
 };
 
 function fn(name, description, properties, required = []) {
@@ -22,38 +25,59 @@ function fn(name, description, properties, required = []) {
 }
 
 export const TOOL_DEFS = [
-  fn("get_agenda", "Сводка дел: просроченные, на сегодня, на ближайшие дни, важные без срока и задачи в работе. Используй для плана на день и вопросов «что у меня».", {
+  fn("get_agenda", "Сводка: просроченное, на сегодня, ближайшие дни, важное без срока, в работе, вехи со сроком, активные блокеры, высокие риски, миссии в работе. Для плана на день и вопросов «что у меня».", {
     days: { type: "integer", description: "На сколько дней вперёд смотреть (по умолчанию 3)" },
   }),
-  fn("list_items", "Найти записи по фильтрам. Без фильтра по статусу показывает только открытые.", {
-    kind: { type: "string", enum: KIND_ENUM, description: "project, task, goal, note" },
-    parent_id: { type: "integer", description: "Только дочерние записи этого родителя (например, задачи проекта)" },
-    query: { type: "string", description: "Поиск по словам в названии, описании, метках" },
-    tag: { type: "string" },
-    status: { type: "string", enum: ALL_STATUSES },
-    include_closed: { type: "boolean", description: "Показать и закрытые (выполненные, отменённые, архив)" },
-    due_until: { type: "string", description: "Срок не позже этой даты (ГГГГ-ММ-ДД)" },
-    limit: { type: "integer", description: "Сколько максимум (по умолчанию 50)" },
+  fn("find", "Найти объекты по фильтрам. Без фильтра по статусу — только открытые.", {
+    kind: { type: "string", enum: KIND_ENUM },
+    parent_id: { type: "integer", description: "Только внутри этого объекта (прямые потомки)" },
+    stage_id: { type: "integer" },
+    query: { type: "string", description: "Слова из названия, описания, полей" },
+    status: { type: "string" },
+    include_closed: { type: "boolean", description: "Показать и закрытые" },
+    due_until: { type: "string", description: "Срок не позже (ГГГГ-ММ-ДД)" },
+    limit: { type: "integer", description: "По умолчанию 50" },
   }),
-  fn("get_item", "Полная информация о записи: описание, путь (в каком проекте), дочерние записи.", {
+  fn("get_item", "Полная карточка объекта: описание, поля, где живёт, стадия, всё внутри (по разделам), люди и связи, комментарии, что его блокирует.", {
     id: { type: "integer" },
   }, ["id"]),
-  fn("create_item", "Создать запись: задачу, проект, цель или заметку. Для задачи внутри проекта укажи parent_id проекта.", {
+  fn("create_item", "Создать объект любого вида. Задачи, риски, блокеры, памятки, вложения, действия — внутри трека/проекта/миссии (parent_id). Стадии и цели — только внутри проекта или трека.", {
     kind: { type: "string", enum: KIND_ENUM },
     ...itemFields,
   }, ["kind", "title"]),
-  fn("update_item", "Изменить запись. Передавай только то, что меняется. Выполнить задачу — status=done.", {
+  fn("update_item", "Изменить объект. Передавай только то, что меняется (поля вида — в fields, частично). Закрыть задачу — status=done; снять блокер — status=resolved; сделать стадию текущей — status=active.", {
     id: { type: "integer" },
-    kind: { type: "string", enum: KIND_ENUM, description: "Сменить вид (например, задачу превратить в проект)" },
+    kind: { type: "string", enum: KIND_ENUM, description: "Сменить вид" },
     ...itemFields,
   }, ["id"]),
-  fn("delete_item", "Удалить запись (вместе с вложенными). Удаление обратимо, история сохраняется. Удаляй только по явной просьбе.", {
-    id: { type: "integer" },
-  }, ["id"]),
-  fn("restore_item", "Вернуть удалённую запись.", { id: { type: "integer" } }, ["id"]),
-  fn("get_history", "История изменений записи: когда и что менялось.", { id: { type: "integer" } }, ["id"]),
-  fn("recent_changes", "Что менялось за последние дни во всей системе (создано, выполнено, перенесено).", {
-    days: { type: "integer", description: "За сколько дней (по умолчанию 1)" },
+  fn("log_action", "Записать в журнал действие владельца: что сделал, когда, какой результат, с кем. Используй, когда владелец рассказывает о сделанном («позвонил…», «встретился…», «отправил…»).", {
+    parent_id: { type: "integer", description: "К чему относится: задача, миссия, проект или трек" },
+    title: { type: "string", description: "Что сделано" },
+    result: { type: "string", description: "Какой результат" },
+    event_at: { type: "string", description: "Когда (по умолчанию — сейчас), ГГГГ-ММ-ДД ЧЧ:ММ" },
+    people: { type: "array", items: { type: "string" }, description: "С кем — имена людей" },
+    close_task: { type: "boolean", description: "Если parent — задача и этим действием она сделана" },
+  }, ["title"]),
+  fn("link_person", "Связать человека с объектом и указать роль (ЛПР, контакт, ответственный, участник, ждём от него, эксперт или своя). Если такого человека в справочнике нет — создаётся.", {
+    item_id: { type: "integer" },
+    person_id: { type: "integer", description: "Если человек уже есть" },
+    name: { type: "string", description: "Имя, если person_id неизвестен" },
+    role: { type: "string" },
+    company: { type: "string" },
+    position: { type: "string" },
+  }, ["item_id", "role"]),
+  fn("link_items", "Связать два объекта: role=blocks — первый (блокер) блокирует второй; role=related — просто связаны.", {
+    a_id: { type: "integer" }, b_id: { type: "integer" }, role: { type: "string" },
+  }, ["a_id", "b_id"]),
+  fn("unlink", "Убрать связь (link_id из карточки объекта).", { link_id: { type: "integer" } }, ["link_id"]),
+  fn("add_comment", "Добавить комментарий к объекту от своего имени.", { id: { type: "integer" }, text: { type: "string" } }, ["id", "text"]),
+  fn("assess_risk", "Оценить риск своей оценкой (вероятность, влияние, комментарий) прямо сейчас. Новые и изменённые риски оцениваются и автоматически.", { id: { type: "integer" } }, ["id"]),
+  fn("delete_item", "Удалить объект (вместе с вложенными). Обратимо. Только по явной просьбе.", { id: { type: "integer" } }, ["id"]),
+  fn("restore_item", "Вернуть удалённый объект.", { id: { type: "integer" } }, ["id"]),
+  fn("get_history", "История изменений объекта.", { id: { type: "integer" } }, ["id"]),
+  fn("recent_changes", "Что менялось за последние дни — во всей системе или внутри одного объекта.", {
+    days: { type: "integer", description: "По умолчанию 1" },
+    root_id: { type: "integer", description: "Только внутри этого трека/проекта/миссии" },
   }),
 ];
 
@@ -105,28 +129,27 @@ function briefJob(j) {
   return o;
 }
 
-// Компактный вид записи для модели
-function brief(item, parents = {}) {
+// Компактный вид объекта для модели
+function brief(item) {
   const o = { id: item.id, kind: item.kind, title: item.title, status: item.status };
   if (item.priority) o.priority = item.priority;
   if (item.due) o.due = item.due;
   if (item.overdue) o.overdue = true;
+  if (item.event_at) o.event_at = item.event_at;
   if (item.tags?.length) o.tags = item.tags;
-  if (item.parent_id) {
-    o.parent_id = item.parent_id;
-    if (parents[item.parent_id]) o.parent = parents[item.parent_id];
-  }
+  if (item.stage_id) o.stage_id = item.stage_id;
+  const f = { ...item.fields };
+  for (const k of ["file_key", "ai_for_version"]) delete f[k];
+  if (Object.keys(f).length) o.fields = f;
+  if (item.risk) o.risk_score = { mine: item.risk.mine, ai: item.risk.ai };
+  if (item.parent_id) o.parent_id = item.parent_id;
+  if (item.home) o.home = `${item.home.title} (#${item.home.id})`;
   return o;
 }
 
-async function withParents(nodes, items) {
-  const ids = [...new Set(items.map((i) => i.parent_id).filter(Boolean))];
-  const parents = {};
-  for (const id of ids) {
-    const p = await nodes.getRow(id);
-    if (p) parents[id] = p.title;
-  }
-  return items.map((i) => brief(i, parents));
+async function briefs(nodes, items) {
+  await nodes.withHomes(items);
+  return items.map(brief);
 }
 
 export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = "ai", mode = "chat", onForget }) {
@@ -136,14 +159,12 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
     async get_agenda({ days = 3 } = {}) {
       const a = await nodes.agenda({ days: Math.min(Math.max(+days || 3, 1), 30) });
       const out = { today: a.today };
-      for (const k of ["overdue", "today_tasks", "upcoming", "important_no_date", "in_progress"]) {
-        out[k] = await withParents(nodes, a[k]);
-      }
+      for (const [k, v] of Object.entries(a)) if (Array.isArray(v)) out[k] = v.map(brief);
       return out;
     },
 
-    async list_items({ kind, parent_id, query, tag, status, include_closed, due_until, limit = 50 } = {}) {
-      const f = { kind, parent_id, query, tag, limit: Math.min(+limit || 50, 200) };
+    async find({ kind, parent_id, stage_id, query, status, include_closed, due_until, limit = 50 } = {}) {
+      const f = { kind, parent_id, stage_id, query, limit: Math.min(+limit || 50, 200) };
       if (status) f.status = status;
       else if (!include_closed) f.open = true;
       if (due_until) {
@@ -151,17 +172,24 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
         if (d) f.due_before = d.utc;
       }
       const items = await nodes.list(f);
-      return { count: items.length, items: await withParents(nodes, items) };
+      return { count: items.length, items: await briefs(nodes, items) };
     },
 
     async get_item({ id }) {
-      const item = await nodes.get(+id, { withChildren: true, withPath: true });
+      const item = await nodes.get(+id, { full: true });
       if (!item) return { error: `Нет записи #${id}` };
       const o = { ...brief(item), body: item.body, created: item.created, updated: item.updated };
       if (item.completed) o.completed = item.completed;
       if (item.deleted) o.deleted = true;
       o.path = item.path.map((p) => `${p.title} (#${p.id})`).join(" → ");
-      o.children = item.children.map((c) => brief(c));
+      if (item.stage) o.stage = item.stage;
+      const groups = {};
+      for (const c of item.children) (groups[c.kind] ||= []).push(brief(c));
+      o.inside = groups;
+      o.people = item.links.filter((l) => l.kind === "person").map((l) => ({ link_id: l.link_id, id: l.id, name: l.title, role: l.role, ...(l.fields?.company ? { company: l.fields.company } : {}) }));
+      o.links = item.links.filter((l) => l.kind !== "person").map((l) => ({ link_id: l.link_id, id: l.id, kind: l.kind, title: l.title, role: l.role, direction: l.direction, closed: l.closed }));
+      if (item.blocked_by.length) o.blocked_by = item.blocked_by.map((b) => `${b.title} (#${b.id})`);
+      o.comments = item.comments.slice(-10).map((c) => `${c.at} ${c.author === "kira" ? "Кира" : "владелец"}: ${c.text}`);
       return o;
     },
 
@@ -173,6 +201,48 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
     async update_item({ id, ...patch }) {
       const item = await nodes.update(+id, patch, source);
       return { updated: brief(item) };
+    },
+
+    async log_action({ parent_id, title, result, event_at, people = [], close_task }) {
+      const item = await nodes.create({ kind: "action", title, parent_id: parent_id || null, event_at: event_at || undefined, fields: { result: result || null } }, source);
+      const linked = [];
+      for (const name of people) {
+        const p = await findOrCreatePerson(nodes, { name }, source);
+        await nodes.link(item.id, p.id, "участник", source);
+        linked.push(p.title);
+      }
+      let closed = null;
+      if (close_task && parent_id) {
+        const parent = await nodes.get(+parent_id);
+        if (parent?.kind === "task" && !parent.closed) { await nodes.update(parent.id, { status: "done" }, source); closed = parent.title; }
+      }
+      return { logged: brief(item), people: linked, closed_task: closed };
+    },
+
+    async link_person({ item_id, person_id, name, role, company, position }) {
+      const person = person_id ? await nodes.get(+person_id) : await findOrCreatePerson(nodes, { name, company, position }, source);
+      if (!person || person.kind !== "person") return { error: "Человек не найден — укажи person_id или name" };
+      const r = await nodes.link(+item_id, person.id, role, source);
+      return { linked: `${person.title} — ${role}`, person_id: person.id, link_id: r.id, existed: !!r.existed };
+    },
+
+    async link_items({ a_id, b_id, role = "related" }) {
+      const r = await nodes.link(+a_id, +b_id, role, source);
+      return { link_id: r.id, existed: !!r.existed };
+    },
+
+    async unlink({ link_id }) {
+      return await nodes.unlink(+link_id, source);
+    },
+
+    async add_comment({ id, text }) {
+      return await nodes.addComment(+id, text, "kira");
+    },
+
+    async assess_risk({ id }) {
+      if (!deps.riskAi) return { error: "Оценка рисков недоступна" };
+      const r = await deps.riskAi.assess(+id);
+      return { assessed: brief(r), comment: r.fields.ai_comment };
     },
 
     async delete_item({ id }) {
@@ -190,10 +260,10 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       return { history: await nodes.history(+id, 30) };
     },
 
-    async recent_changes({ days = 1 } = {}) {
+    async recent_changes({ days = 1, root_id } = {}) {
       const today = localNow(tz).date;
       const since = parseLocal(`${addDays(today, -Math.min(Math.max(+days || 1, 1), 60) + 1)} 00:00`, tz).utc;
-      return { changes: await nodes.changes({ since, limit: 150 }) };
+      return { changes: await nodes.changes({ since, limit: 150, root: root_id ? +root_id : undefined }) };
     },
 
     // ---------- задания Киры ----------
@@ -255,4 +325,16 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       return { error: e.message };
     }
   };
+}
+
+// Человек по имени: найти в справочнике (без учёта регистра) или завести
+export async function findOrCreatePerson(nodes, { name, company, position }, source) {
+  const n = String(name || "").trim();
+  if (!n) throw new Error("Нужно имя человека");
+  const found = (await nodes.list({ kind: "person", query: n, limit: 20 })).find((p) => p.title.toLowerCase() === n.toLowerCase());
+  if (found) return found;
+  const fields = {};
+  if (company) fields.company = company;
+  if (position) fields.position = position;
+  return nodes.create({ kind: "person", title: n, fields }, source);
 }

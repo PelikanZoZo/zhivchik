@@ -4,7 +4,7 @@ export function createDeepSeek({ key, url, model, smartModel }) {
   return {
     model,
     smartModel: smartModel || model,
-    async chat({ messages, tools, model: m, temperature = 0.3, maxTokens = 2000, timeoutMs = 60000 }) {
+    async chat({ messages, tools, model: m, temperature = 0.3, maxTokens = 2000, timeoutMs = 60000, json = false }) {
       if (!key) throw new Error("Не задан DEEPSEEK_API_KEY");
       const body = {
         model: m || model,
@@ -13,6 +13,7 @@ export function createDeepSeek({ key, url, model, smartModel }) {
         max_tokens: maxTokens,
       };
       if (tools?.length) { body.tools = tools; body.tool_choice = "auto"; }
+      if (json) body.response_format = { type: "json_object" };
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), timeoutMs);
       let res;

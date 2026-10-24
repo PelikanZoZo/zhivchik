@@ -1,15 +1,13 @@
-// Узлы: проекты, задачи, цели, заметки. Создание, изменение, удаление — всегда с записью в историю.
+// Объекты системы управления: треки, проекты, миссии и всё, что в них живёт (см. pm/schema.js).
+// Создание, изменение, удаление, связи — всегда с записью в историю: всё хранится во времени.
 
 import { parseLocal, formatLocal, localNow, localDayBounds, addDays } from "./time.js";
+import { TYPES, CORE, isClosed, closedStatuses, riskScore, riskLevel } from "./pm/schema.js";
 
-export const KINDS = {
-  project: { statuses: ["active", "paused", "done", "archived"], initial: "active", closed: ["done", "archived"] },
-  task: { statuses: ["todo", "doing", "waiting", "done", "cancelled"], initial: "todo", closed: ["done", "cancelled"] },
-  goal: { statuses: ["active", "achieved", "dropped"], initial: "active", closed: ["achieved", "dropped"] },
-  note: { statuses: ["active", "archived"], initial: "active", closed: ["archived"] },
-};
+export { isClosed };
+export const KINDS = TYPES;
 
-const FIELDS = ["kind", "parent_id", "title", "body", "status", "priority", "due_at", "due_has_time", "tags", "meta", "position"];
+const FIELDS = ["kind", "parent_id", "stage_id", "title", "body", "status", "priority", "due_at", "due_has_time", "event_at", "tags", "meta", "position"];
 
 export class ValidationError extends Error {}
 
@@ -26,17 +24,24 @@ export class Nodes {
     return rows[0] || null;
   }
 
-  async get(id, { withChildren = false, withPath = false } = {}) {
+  async get(id, { withChildren = false, withPath = false, full = false } = {}) {
     const row = await this.getRow(id);
     if (!row) return null;
     const item = this.toApi(row);
-    if (withChildren) {
+    if (withChildren || full) {
       const kids = await this.db.query(
         "SELECT * FROM nodes WHERE parent_id = ? AND deleted_at IS NULL ORDER BY position, id", [id],
       );
       item.children = kids.map((r) => this.toApi(r));
     }
-    if (withPath) item.path = await this.path(row.parent_id);
+    if (withPath || full) item.path = await this.path(row.parent_id);
+    if (full) {
+      item.links = await this.linksOf(id);
+      item.comments = await this.comments(id);
+      if (row.stage_id) item.stage = (await this.get(row.stage_id))?.title || null;
+      // у подзадач и задач — их подзадачи уже в children; блокеры, которые мешают этому объекту
+      item.blocked_by = item.links.filter((l) => l.role === "blocks" && l.direction === "in" && !l.closed);
+    }
     return item;
   }
 
@@ -56,7 +61,7 @@ export class Nodes {
 
   // Список с фильтрами. Удалённые не показываются, если не попросить.
   async list({
-    kind, kinds, status, open, parent_id, root, query, tag, due_before, due_after, has_due,
+    kind, kinds, status, open, parent_id, root, stage_id, query, tag, due_before, due_after, has_due,
     include_deleted = false, limit = 200, order = "smart",
   } = {}) {
     const where = [];
@@ -68,14 +73,16 @@ export class Nodes {
       const ss = Array.isArray(status) ? status : [status];
       where.push(`status IN (${ss.map(() => "?").join(",")})`); params.push(...ss);
     }
-    if (open === true) where.push(`status NOT IN (${closedList()})`);
-    if (open === false) where.push(`status IN (${closedList()})`);
+    const closed = closedStatuses().map((s) => `'${s}'`).join(",");
+    if (open === true) where.push(`status NOT IN (${closed})`);
+    if (open === false) where.push(`status IN (${closed})`);
     if (parent_id !== undefined && parent_id !== null) { where.push("parent_id = ?"); params.push(parent_id); }
     if (root) where.push("parent_id IS NULL");
+    if (stage_id) { where.push("stage_id = ?"); params.push(stage_id); }
     if (query) {
-      where.push("(title LIKE ? OR body LIKE ? OR tags LIKE ?)");
+      where.push("(title LIKE ? OR body LIKE ? OR tags LIKE ? OR meta LIKE ?)");
       const like = `%${String(query).replace(/[%_]/g, (c) => "\\" + c)}%`;
-      params.push(like, like, like);
+      params.push(like, like, like, like);
     }
     if (tag) { where.push("CONCAT(',', tags, ',') LIKE ?"); params.push(`%,${tag},%`); }
     if (due_before) { where.push("due_at IS NOT NULL AND due_at <= ?"); params.push(due_before); }
@@ -87,6 +94,8 @@ export class Nodes {
       recent: "updated_at DESC",
       created: "id",
       position: "position, id",
+      event: "event_at DESC, id DESC",
+      title: "title",
     }[order] || "id";
     const rows = await this.db.query(
       `SELECT * FROM nodes ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY ${orderBy} LIMIT ?`,
@@ -95,25 +104,48 @@ export class Nodes {
     return rows.map((r) => this.toApi(r));
   }
 
-  // Сводка на день: просроченное, сегодня, ближайшие дни, важное без срока, в работе
+  // Сводка: просроченное, сегодня, ближайшие дни, вехи, блокеры, высокие риски, миссии в работе
   async agenda({ days = 3 } = {}) {
     const today = localNow(this.tz).date;
     const { start, end } = localDayBounds(this.tz, today);
     const horizon = localDayBounds(this.tz, addDays(today, days)).end;
     const open = { kind: "task", open: true };
-    const [overdue, todayList, upcoming, important, doing] = await Promise.all([
+    const [overdue, todayList, upcoming, important, doing, goals, blockers, risks, missions] = await Promise.all([
       this.list({ ...open, due_before: new Date(start.getTime() - 1), limit: 100 }),
       this.list({ ...open, due_after: start, due_before: end, limit: 100 }),
       this.list({ ...open, due_after: new Date(end.getTime() + 1), due_before: horizon, limit: 100 }),
-      this.list({ ...open, has_due: false, limit: 30 }).then((l) => l.filter((t) => t.priority >= 3)),
+      this.list({ ...open, has_due: false, limit: 50 }).then((l) => l.filter((t) => t.priority >= 3)),
       this.list({ kind: "task", status: "doing", limit: 30 }),
+      this.list({ kind: "goal", open: true, due_before: horizon, limit: 50 }),
+      this.list({ kind: "blocker", open: true, limit: 50 }),
+      this.list({ kind: "risk", status: ["open", "watching"], limit: 100 }).then((l) => l.filter((r) => r.risk.level === "high")),
+      this.list({ kind: "mission", status: ["preparing", "active"], limit: 30 }),
     ]);
-    return { today, overdue, today_tasks: todayList, upcoming, important_no_date: important, in_progress: doing };
+    await this.withHomes([...overdue, ...todayList, ...upcoming, ...important, ...doing, ...goals, ...blockers, ...risks, ...missions]);
+    return {
+      today, overdue, today_tasks: todayList, upcoming, important_no_date: important, in_progress: doing,
+      goals_due: goals, blockers, high_risks: risks, missions,
+    };
+  }
+
+  // Добавляет к объектам «дом» — ближайший основной объект (трек, проект, миссия), в котором они живут
+  async withHomes(items) {
+    const cache = new Map();
+    for (const it of items) {
+      if (!it.parent_id) { it.home = null; continue; }
+      if (!cache.has(it.parent_id)) {
+        const path = await this.path(it.parent_id);
+        const home = [...path].reverse().find((p) => CORE.includes(p.kind)) || null;
+        cache.set(it.parent_id, home);
+      }
+      it.home = cache.get(it.parent_id);
+    }
+    return items;
   }
 
   async history(id, limit = 50) {
     const rows = await this.db.query(
-      "SELECT version, action, source, changed_at, diff FROM node_history WHERE node_id = ? ORDER BY version DESC LIMIT ?",
+      "SELECT version, action, source, changed_at, diff FROM node_history WHERE node_id = ? ORDER BY id DESC LIMIT ?",
       [id, limit],
     );
     return rows.map((r) => ({
@@ -123,22 +155,25 @@ export class Nodes {
     }));
   }
 
-  // Каким узел был в заданный момент (по истории)
+  // Каким объект был в заданный момент (по истории)
   async asOf(id, when) {
     const rows = await this.db.query(
-      "SELECT snapshot FROM node_history WHERE node_id = ? AND changed_at <= ? ORDER BY version DESC LIMIT 1",
+      "SELECT snapshot FROM node_history WHERE node_id = ? AND changed_at <= ? ORDER BY id DESC LIMIT 1",
       [id, when],
     );
     return rows.length ? JSON.parse(rows[0].snapshot) : null;
   }
 
   // Лента изменений за период — «что происходило»
-  async changes({ since, until = new Date(), limit = 100 } = {}) {
+  async changes({ since, until = new Date(), limit = 100, root } = {}) {
+    let ids = null;
+    if (root) ids = await this.subtreeIds(root, this.db.query.bind(this.db));
     const rows = await this.db.query(
       `SELECT h.node_id, h.version, h.action, h.source, h.changed_at, h.diff, n.kind, n.title
        FROM node_history h JOIN nodes n ON n.id = h.node_id
-       WHERE h.changed_at >= ? AND h.changed_at <= ? ORDER BY h.changed_at DESC LIMIT ?`,
-      [since, until, limit],
+       WHERE h.changed_at >= ? AND h.changed_at <= ? ${ids ? `AND h.node_id IN (${ids.map(() => "?").join(",")})` : ""}
+       ORDER BY h.id DESC LIMIT ?`,
+      [since, until, ...(ids || []), limit],
     );
     return rows.map((r) => ({
       id: r.node_id, kind: r.kind, title: r.title, action: r.action, source: r.source,
@@ -150,9 +185,13 @@ export class Nodes {
 
   async create(input, source = "web") {
     const data = await this.normalize(input, null);
-    if (!data.kind) throw new ValidationError("Не указан вид (kind)");
+    if (!data.kind) throw new ValidationError("Не указан вид объекта (kind)");
+    const t = TYPES[data.kind];
     if (!data.title) throw new ValidationError("Нужно название");
-    data.status = data.status || KINDS[data.kind].initial;
+    if (t.parentRequired && !data.parent_id) throw new ValidationError(`«${t.label}» должна быть внутри: ${t.parents.map((k) => TYPES[k].label).join(" или ")}`);
+    data.status = data.status || t.initial;
+    if (!data.meta) data.meta = JSON.stringify(defaultFields(data.kind));
+    if (["action", "blocker"].includes(data.kind) && !data.event_at) data.event_at = new Date();
     return this.db.tx(async (q) => {
       const now = new Date();
       const row = { ...defaults(), ...data };
@@ -163,6 +202,7 @@ export class Nodes {
       );
       const created = await this.getRow(res.insertId, q);
       await this.record(q, created, "create", source, null);
+      if (created.kind === "stage" && created.status === "active") await this.onlyOneActiveStage(q, created, source);
       return this.toApi(created);
     });
   }
@@ -190,12 +230,25 @@ export class Nodes {
         [...vals, completed, new Date(), id],
       );
       const fresh = await this.getRow(id, q);
-      await this.record(q, fresh, "update", source, diff);
+      await this.record(q, fresh, "update", source, readableDiff(diff));
+      if (fresh.kind === "stage" && diff.status && fresh.status === "active") await this.onlyOneActiveStage(q, fresh, source);
       return this.toApi(fresh);
     });
   }
 
-  // Удаление мягкое: запись помечается удалённой, история остаётся. Вместе с потомками.
+  // У проекта или трека текущая стадия одна: при включении новой предыдущие текущие — пройдены
+  async onlyOneActiveStage(q, stage, source) {
+    const others = await q(
+      "SELECT * FROM nodes WHERE kind = 'stage' AND parent_id = ? AND status = 'active' AND id <> ? AND deleted_at IS NULL",
+      [stage.parent_id, stage.id],
+    );
+    for (const o of others) {
+      await q("UPDATE nodes SET status = 'done', completed_at = ?, version = version + 1, updated_at = ? WHERE id = ?", [new Date(), new Date(), o.id]);
+      await this.record(q, await this.getRow(o.id, q), "update", source, { status: ["active", "done"] });
+    }
+  }
+
+  // Удаление мягкое: запись помечается удалённой, история остаётся. Вместе с вложенными.
   async remove(id, source = "web") {
     return this.db.tx(async (q) => {
       const ids = await this.subtreeIds(id, q);
@@ -244,27 +297,109 @@ export class Nodes {
     );
   }
 
-  // Приводит входные поля к виду базы и проверяет их
+  // ---------- связи (человек ↔ объект с ролью, блокер → что блокирует, «связано») ----------
+
+  async link(aId, bId, role = "related", source = "web", note = null) {
+    if (+aId === +bId) throw new ValidationError("Нельзя связать объект сам с собой");
+    const [a, b] = [await this.getRow(+aId), await this.getRow(+bId)];
+    if (!a || a.deleted_at) throw new ValidationError(`Нет записи #${aId}`);
+    if (!b || b.deleted_at) throw new ValidationError(`Нет записи #${bId}`);
+    // человек всегда справа: «объект — роль — человек»
+    let [x, y] = [a, b];
+    if (x.kind === "person" && y.kind !== "person") [x, y] = [y, x];
+    role = String(role || "related").trim().slice(0, 60) || "related";
+    const exists = await this.db.query(
+      "SELECT id FROM node_links WHERE a_id = ? AND b_id = ? AND role = ? AND removed_at IS NULL", [x.id, y.id, role],
+    );
+    if (exists.length) return { id: exists[0].id, existed: true };
+    const r = await this.db.query(
+      "INSERT INTO node_links (a_id, b_id, role, note, created_at) VALUES (?, ?, ?, ?, NOW(3))", [x.id, y.id, role, note],
+    );
+    await this.touch(x.id, "link", source, { link: [null, `${role}: ${y.title} (#${y.id})`] });
+    return { id: r.insertId };
+  }
+
+  async unlink(linkId, source = "web") {
+    const [l] = await this.db.query("SELECT * FROM node_links WHERE id = ? AND removed_at IS NULL", [linkId]);
+    if (!l) throw new ValidationError(`Нет связи #${linkId}`);
+    await this.db.query("UPDATE node_links SET removed_at = NOW(3) WHERE id = ?", [linkId]);
+    const b = await this.getRow(l.b_id);
+    await this.touch(l.a_id, "unlink", source, { link: [`${l.role}: ${b?.title} (#${l.b_id})`, null] });
+    return { removed: true };
+  }
+
+  // Все связи объекта в обе стороны
+  async linksOf(id) {
+    const rows = await this.db.query(
+      `SELECT l.id, l.a_id, l.b_id, l.role, l.note, l.created_at, n.id AS nid, n.kind, n.title, n.status, n.meta, n.deleted_at
+       FROM node_links l JOIN nodes n ON n.id = IF(l.a_id = ?, l.b_id, l.a_id)
+       WHERE (l.a_id = ? OR l.b_id = ?) AND l.removed_at IS NULL ORDER BY l.id`,
+      [id, id, id],
+    );
+    return rows.filter((r) => !r.deleted_at).map((r) => ({
+      link_id: r.id, role: r.role, note: r.note, direction: r.a_id === +id ? "out" : "in",
+      id: r.nid, kind: r.kind, title: r.title, status: r.status, closed: isClosed(r.kind, r.status),
+      fields: r.kind === "person" ? safeJson(r.meta) || {} : undefined,
+    }));
+  }
+
+  // Изменение без смены полей (связь, комментарий) — тоже в историю
+  async touch(id, action, source, diff) {
+    await this.db.tx(async (q) => {
+      await q("UPDATE nodes SET version = version + 1, updated_at = NOW(3) WHERE id = ?", [id]);
+      await this.record(q, await this.getRow(id, q), action, source, diff);
+    });
+  }
+
+  // ---------- комментарии ----------
+
+  async addComment(id, text, author = "owner") {
+    const row = await this.getRow(+id);
+    if (!row || row.deleted_at) throw new ValidationError(`Нет записи #${id}`);
+    const t = String(text || "").trim();
+    if (!t) throw new ValidationError("Пустой комментарий");
+    const r = await this.db.query(
+      "INSERT INTO node_comments (node_id, author, text, created_at) VALUES (?, ?, ?, NOW(3))", [+id, author, t],
+    );
+    await this.touch(+id, "comment", author === "kira" ? "kira" : "web", { comment: [null, t.slice(0, 200)] });
+    return { id: r.insertId };
+  }
+
+  async comments(id) {
+    const rows = await this.db.query(
+      "SELECT id, author, text, created_at FROM node_comments WHERE node_id = ? AND deleted_at IS NULL ORDER BY id", [id],
+    );
+    return rows.map((r) => ({ id: r.id, author: r.author, text: r.text, at: formatLocal(r.created_at, this.tz) }));
+  }
+
+  async removeComment(commentId) {
+    await this.db.query("UPDATE node_comments SET deleted_at = NOW(3) WHERE id = ?", [commentId]);
+    return { removed: true };
+  }
+
+  // ---------- проверка входных данных ----------
+
   async normalize(input, old, q = this.db.query.bind(this.db)) {
     const out = {};
     if (input.kind !== undefined) {
-      if (!KINDS[input.kind]) throw new ValidationError(`Неизвестный вид: ${input.kind}`);
+      if (!TYPES[input.kind]) throw new ValidationError(`Неизвестный вид: ${input.kind}. Есть: ${Object.keys(TYPES).join(", ")}`);
       out.kind = input.kind;
     }
     const kind = out.kind || old?.kind;
+    const t = TYPES[kind];
     if (input.title !== undefined) {
-      const t = String(input.title).trim().slice(0, 500);
-      if (!t) throw new ValidationError("Название не может быть пустым");
-      out.title = t;
+      const s = String(input.title).trim().slice(0, 500);
+      if (!s) throw new ValidationError("Название не может быть пустым");
+      out.title = s;
     }
     if (input.body !== undefined) out.body = input.body === null ? null : String(input.body);
     if (input.status !== undefined) {
-      if (!KINDS[kind].statuses.includes(input.status)) {
-        throw new ValidationError(`Статус «${input.status}» не подходит для ${kind}: ${KINDS[kind].statuses.join(", ")}`);
+      if (!t.statuses[input.status]) {
+        throw new ValidationError(`Статус «${input.status}» не подходит для «${t.label}»: ${Object.keys(t.statuses).join(", ")}`);
       }
       out.status = input.status;
-    } else if (old && out.kind && out.kind !== old.kind && !KINDS[out.kind].statuses.includes(old.status)) {
-      out.status = KINDS[out.kind].initial;
+    } else if (old && out.kind && out.kind !== old.kind && !t.statuses[old.status]) {
+      out.status = t.initial;
     }
     if (input.priority !== undefined) {
       const p = Math.round(+input.priority);
@@ -279,47 +414,88 @@ export class Nodes {
         out.due_at = d.utc; out.due_has_time = d.hasTime ? 1 : 0;
       }
     }
+    if (input.event_at !== undefined) {
+      if (!input.event_at) out.event_at = null;
+      else {
+        const d = parseLocal(String(input.event_at).length <= 10 ? `${input.event_at} 12:00` : input.event_at, this.tz);
+        if (!d) throw new ValidationError(`Не понял дату «${input.event_at}»`);
+        out.event_at = d.utc;
+      }
+    }
     if (input.tags !== undefined) {
       const list = (Array.isArray(input.tags) ? input.tags : String(input.tags || "").split(","))
-        .map((t) => String(t).trim().replace(/^#/, "").replace(/,/g, "")).filter(Boolean);
+        .map((x) => String(x).trim().replace(/^#/, "").replace(/,/g, "")).filter(Boolean);
       out.tags = [...new Set(list)].join(",").slice(0, 500);
     }
-    if (input.meta !== undefined) out.meta = input.meta === null ? null : JSON.stringify(input.meta);
+    // Поля конкретного вида (вероятность риска, результат действия, телефон человека…) — в meta
+    if (input.fields !== undefined || input.meta !== undefined || (old && out.kind && out.kind !== old.kind)) {
+      const base = old?.meta ? safeJson(old.meta) || {} : defaultFields(kind);
+      const defs = TYPES[kind]?.fields || {};
+      const incoming = { ...(input.meta || {}), ...(input.fields || {}) };
+      // системные поля (оценка ИИ, данные файла) обычной правкой не меняются — только изнутри системы
+      if (!input.allowSystemFields) for (const k of Object.keys(incoming)) if (defs[k]?.system) delete incoming[k];
+      out.meta = JSON.stringify(cleanFields(kind, { ...base, ...incoming }));
+    }
     if (input.position !== undefined) out.position = Math.round(+input.position) || 0;
-    if (input.parent_id !== undefined) {
-      const pid = input.parent_id === null || input.parent_id === "" ? null : +input.parent_id;
+    if (input.parent_id !== undefined || (old && out.kind && out.kind !== old.kind)) {
+      const pid = input.parent_id === undefined ? old.parent_id : input.parent_id === null || input.parent_id === "" ? null : +input.parent_id;
       if (pid !== null) {
-        const p = (await q("SELECT id, deleted_at, parent_id FROM nodes WHERE id = ?", [pid]))[0];
+        const p = (await q("SELECT id, kind, deleted_at, parent_id FROM nodes WHERE id = ?", [pid]))[0];
         if (!p || p.deleted_at) throw new ValidationError(`Нет родителя #${pid}`);
+        if (!t.parents.includes(p.kind)) {
+          throw new ValidationError(`«${t.label}» нельзя положить в «${TYPES[p.kind].label}». Можно в: ${t.parents.map((k) => TYPES[k].label).join(", ") || "никуда — это самостоятельный объект"}`);
+        }
+        if (kind === "task" && p.kind === "task") {
+          const pp = p.parent_id ? (await q("SELECT kind FROM nodes WHERE id = ?", [p.parent_id]))[0] : null;
+          if (pp?.kind === "task") throw new ValidationError("Подзадачи — только один уровень");
+        }
         if (old) {
-          // нельзя сделать узел потомком самого себя
           let cur = p;
           for (let i = 0; cur && i < 50; i++) {
             if (cur.id === old.id) throw new ValidationError("Нельзя вложить запись саму в себя");
             cur = cur.parent_id ? (await q("SELECT id, parent_id FROM nodes WHERE id = ?", [cur.parent_id]))[0] : null;
           }
         }
+      } else if (t.parentRequired) {
+        throw new ValidationError(`«${t.label}» должна быть внутри: ${t.parents.map((k) => TYPES[k].label).join(" или ")}`);
       }
       out.parent_id = pid;
+    }
+    if (input.stage_id !== undefined) {
+      const sid = input.stage_id ? +input.stage_id : null;
+      if (sid) {
+        const s = (await q("SELECT id, kind, parent_id, deleted_at FROM nodes WHERE id = ?", [sid]))[0];
+        if (!s || s.deleted_at || s.kind !== "stage") throw new ValidationError(`Нет стадии #${sid}`);
+        // стадия должна принадлежать тому же проекту или треку, где живёт объект
+        const pid = out.parent_id !== undefined ? out.parent_id : old?.parent_id;
+        const chain = pid ? (await this.path(pid)).map((p) => p.id) : [];
+        if (!chain.includes(s.parent_id)) throw new ValidationError("Стадия из другого проекта или трека");
+      }
+      out.stage_id = sid;
     }
     return out;
   }
 
   toApi(r) {
+    const t = TYPES[r.kind] || { label: r.kind, statuses: {}, closed: [] };
     const closed = isClosed(r.kind, r.status);
-    const now = Date.now();
-    return {
+    const fields = r.meta ? safeJson(r.meta) || {} : {};
+    const item = {
       id: r.id,
       kind: r.kind,
+      kind_label: t.label,
       parent_id: r.parent_id,
+      stage_id: r.stage_id || null,
       title: r.title,
       body: r.body,
       status: r.status,
+      status_label: t.statuses[r.status] || r.status,
       priority: r.priority,
       due: r.due_at ? formatLocal(r.due_at, this.tz, !!r.due_has_time) : null,
-      overdue: !!(r.due_at && !closed && !r.deleted_at && new Date(r.due_at).getTime() < now),
+      overdue: !!(r.due_at && !closed && !r.deleted_at && new Date(r.due_at).getTime() < Date.now()),
+      event_at: r.event_at ? formatLocal(r.event_at, this.tz) : null,
       tags: r.tags ? r.tags.split(",") : [],
-      meta: r.meta ? safeJson(r.meta) : null,
+      fields,
       position: r.position,
       version: r.version,
       closed,
@@ -328,20 +504,63 @@ export class Nodes {
       completed: r.completed_at ? formatLocal(r.completed_at, this.tz) : null,
       deleted: !!r.deleted_at,
     };
+    if (r.kind === "risk") {
+      const mine = riskScore(fields.probability, fields.impact);
+      const ai = riskScore(fields.ai_probability, fields.ai_impact);
+      item.risk = { mine, ai, level: riskLevel(Math.max(mine || 0, ai || 0)) };
+    }
+    return item;
   }
 }
 
+// ---------- помощники ----------
+
 function defaults() {
-  return { parent_id: null, body: null, priority: 0, due_at: null, due_has_time: 0, tags: "", meta: null, position: 0 };
+  return { parent_id: null, stage_id: null, body: null, priority: 0, due_at: null, due_has_time: 0, event_at: null, tags: "", meta: null, position: 0 };
 }
 
-function closedList() {
-  const all = new Set(Object.values(KINDS).flatMap((k) => k.closed));
-  return [...all].map((s) => `'${s}'`).join(",");
+function defaultFields(kind) {
+  const out = {};
+  for (const [k, d] of Object.entries(TYPES[kind]?.fields || {})) if (d.default !== undefined) out[k] = d.default;
+  return out;
 }
 
-export function isClosed(kind, status) {
-  return !!KINDS[kind]?.closed.includes(status);
+// Оставляет только известные поля вида и приводит значения к нужному типу
+function cleanFields(kind, input) {
+  const defs = TYPES[kind]?.fields || {};
+  const out = {};
+  for (const [k, v] of Object.entries(input)) {
+    const d = defs[k];
+    if (!d) continue;
+    if (v === null || v === "") { out[k] = null; continue; }
+    if (d.type === "number") {
+      const n = +String(v).replace(",", ".");
+      if (!Number.isFinite(n)) throw new ValidationError(`«${d.label}» — число`);
+      out[k] = n;
+    } else if (d.type === "scale") {
+      const n = Math.round(+v);
+      if (!(n >= 1 && n <= 5)) throw new ValidationError(`«${d.label}» — от 1 до 5`);
+      out[k] = n;
+    } else if (d.type === "enum") {
+      if (!d.values[v]) throw new ValidationError(`«${d.label}»: ${Object.keys(d.values).join(" или ")}`);
+      out[k] = v;
+    } else {
+      out[k] = String(v).slice(0, d.type === "text" ? 20000 : 500);
+    }
+  }
+  return out;
+}
+
+// Для истории: поле meta раскладываем на понятные изменения полей
+function readableDiff(diff) {
+  if (!diff.meta) return diff;
+  const out = { ...diff };
+  delete out.meta;
+  const [a, b] = diff.meta.map((x) => (x ? safeJson(x) || {} : {}));
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (JSON.stringify(a[k] ?? null) !== JSON.stringify(b[k] ?? null)) out[`fields.${k}`] = [a[k] ?? null, b[k] ?? null];
+  }
+  return out;
 }
 
 function plain(v) {
@@ -359,6 +578,6 @@ function snapshot(row) {
   return s;
 }
 
-function safeJson(s) {
+export function safeJson(s) {
   try { return JSON.parse(s); } catch { return null; }
 }

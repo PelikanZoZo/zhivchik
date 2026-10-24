@@ -37,5 +37,6 @@ export function readConfig(env = process.env) {
     tz: env.APP_TZ || "Europe/Moscow",
     morningTime: env.MORNING_TIME || "08:30",
     assistantName: env.ASSISTANT_NAME || "Кира",
+    filesDir: env.FILES_DIR || "",
   };
 }
