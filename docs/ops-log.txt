@@ -1,7 +1,44 @@
-Запуск: 2026-10-24 18:44 UTC
-[кира 18:43:25 76783] база готова, схема v5
-[кира 18:43:26 76820] база готова, схема v5
-[кира 18:43:29 77177] база готова, схема v5
+Запуск: 2026-10-24 19:47 UTC
+https://html.duckduckgo.com/html/?q=%D0%93%D0%BB%D0%BE%D1%83%D0%B1%D0%B0%D0%B9%D1%82+%D0%A2%D0%91%D0%B0%D0%BD%D0%BA
+   -> HTTP 202, 14270 байт, 2.969324s
+<!-- <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"> --> <!DOCTYPE html> <html lang="en"> <head> <link rel="canonical" href="https://duckduc
+
+https://lite.duckduckgo.com/lite/?q=globyte
+   -> HTTP 202, 14236 байт, 1.505143s
+<!-- <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"> --> <!DOCTYPE html> <html lang="en"> <head> <link rel="canonical" href="https://duckduc
+
+https://www.bing.com/search?q=globyte&setlang=ru
+   -> HTTP 200, 110615 байт, 0.229346s
+<!DOCTYPE html><html dir="ltr" lang="ru" xml:lang="ru" xmlns="http://www.w3.org/1999/xhtml" xmlns:Web="http://schemas.live.com/Web/"><script type="text/javascript" nonce="vq3ZXkQSGetaZm6d1ECaepEqzLDc9
+
+https://yandex.ru/search/?text=globyte
+   -> HTTP 302, 0 байт, 0.026307s
+
+https://searchapi.api.cloud.yandex.net/v2/web/search
+   -> HTTP 501, 43 байт, 0.787388s
+{"code":12, "message":"Method Not Allowed"}
+
+https://api.tavily.com/search
+   -> HTTP 401, 87 байт, 1.281718s
+{ "detail": { "error": "Unauthorized: missing or invalid API key." } } 
+
+https://api.search.brave.com/res/v1/web/search?q=test
+   -> HTTP 422, 233 байт, 2.783409s
+{"error":{"code":"VALIDATION","detail":"Unable to validate request parameter(s)","meta":{"errors":[{"input":null,"loc":["header","x-subscription-token"],"msg":"Field required","type":"missing"}]},"sta
+
+https://google.serper.dev/search
+   -> HTTP 403, 72 байт, 3.366700s
+{"message":"Unauthorized. Sign up for a free account.","statusCode":403}
+
+https://ru.wikipedia.org/w/api.php?action=opensearch&search=test
+   -> HTTP 200, 900 байт, 0.266197s
+["test",["Test","Test Drive Unlimited","Testament","Test Drive Unlimited 2","Test IT","Test Drive (\u0441\u0435\u0440\u0438\u044f \u0438\u0433\u0440)","Testimony of the Ancients","Test of Chinese as a
+
+https://www.tbank.ru/
+   -> HTTP 000, 0 байт, 0.026102s
+["test",["Test","Test Drive Unlimited","Testament","Test Drive Unlimited 2","Test IT","Test Drive (\u0441\u0435\u0440\u0438\u044f \u0438\u0433\u0440)","Testimony of the Ancients","Test of Chinese as a
+
+0
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
 https://devalby.ru/api/health -> HTTP 404 ->  | серт 18 | 404 page not found 
