@@ -1,16 +1,17 @@
-Выкладка: 2026-10-24 17:02 UTC
+Выкладка: 2026-10-24 20:30 UTC
 
  ⛅️ wrangler 4.152.0
 ────────────────────
-Total Upload: 3.72 KiB / gzip: 1.52 KiB
-Worker Startup Time: 2 ms
+Total Upload: 9.97 KiB / gzip: 3.39 KiB
+Worker Startup Time: 1 ms
 Your Worker has access to the following bindings:
 Binding                                 Resource                  
+env.AI                                  AI                        
 env.SITE_URL ("http://devalby.ru")      Environment Variable      
 
-Deployed kira-bridge triggers (0.70 sec)
+Deployed kira-bridge triggers (0.89 sec)
   schedule: * * * * *
-Current Version ID: 6fb25173-ba46-4ed1-ad72-c157c341ce9c
+Current Version ID: db34e69a-4d26-4a82-980d-20e77073f978
 
 Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
 ✨ Successfully created secret for key: BRIDGE_SECRET
@@ -24,3 +25,6 @@ setWebhook: {"ok":true,"description":"Webhook is already set"}
 меню команд убрано: true
 кнопка меню: true
 состояние вебхука: {"pending_update_count":0,"last_error_message":"Wrong response from the webhook: 500 Internal Server Error","last_error_date":1792858795}
+
+Проверка Whisper (синтезированное голосовое, 16684 байт, ogg/opus):
+{"success":false,"errors":[{"code":10000,"message":"Authentication error"}],"text":null,"lang":null}
