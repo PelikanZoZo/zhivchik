@@ -6,6 +6,7 @@
 
 import { safeEqual } from "./auth.js";
 import { sendMessageActions } from "./telegram.js";
+import { localNow } from "./time.js";
 
 const HELP = [
   "Пиши как есть — дела, мысли, вопросы. Я разложу на задачи, отвечу, что горит, помогу спланировать.",
@@ -81,7 +82,8 @@ export function createBot({ db, agent, nodes, cfg, log = () => {} }) {
       const morning = text.match(/^\/morning(?:@\w+)?(?:\s+(\S+))?$/);
       if (morning) return say(chatId, await setMorning(morning[1]));
       if (/^\/plan(@\w+)?$/.test(text)) {
-        const r = await agent.ask("Составь мне план на сегодня.", { channel: "telegram", source: "bot", smart: true });
+        const d = localNow(cfg.tz);
+        const r = await agent.ask(`Составь мне план на сегодня (${d.date}, ${d.weekday}).`, { channel: "telegram", source: "bot", smart: true });
         return say(chatId, r.text);
       }
       const r = await agent.ask(text, { channel: "telegram", source: "bot" });

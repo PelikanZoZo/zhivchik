@@ -21,7 +21,7 @@ export function createJobs({ db, agent, cfg, log = () => {} }) {
     log("утренний план: готовлю");
     try {
       const r = await agent.ask(
-        "Доброе утро! Пришли мне план на сегодня: что просрочено, что на сегодня, с чего начать. Коротко.",
+        `Доброе утро! Сегодня ${now.date}, ${now.weekday}. Пришли мне план на сегодня: что просрочено, что на сегодня, с чего начать. Коротко.`,
         { channel: "telegram", source: "system", smart: true },
       );
       await enqueue(own.chat_id, r.text, "morning");
