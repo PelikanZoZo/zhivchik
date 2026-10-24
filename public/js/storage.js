@@ -179,3 +179,105 @@ export async function archiveView(main) {
   paint(data.messages, false);
   main.append(data.messages.length >= 100 ? more : "", box);
 }
+
+// ---------- каталог документов: реестр всех файлов системы ----------
+const ORIGINS = { chat: "Чат с Кирой", forward: "Пересылка", web: "Сайт", attachment: "Вложение объекта" };
+
+export async function catalogView(main) {
+  const params = new URLSearchParams(location.search);
+  const q = params.get("q") || "";
+  const kind = params.get("kind") || "";
+  const origin = params.get("origin") || "";
+  const data = await api("GET", `/api/catalog?q=${encodeURIComponent(q)}&kind=${kind}&origin=${origin}`);
+  main.append(
+    el("h1", { class: "view-title" }, "Каталог документов"),
+    el("p", { class: "view-sub" }, `Реестр всех файлов системы: что присылали и пересылали Кире, что загружено на сайте и прикреплено к объектам. ${data.total.files} документов. Поиск — по названию, описанию и отправителю.`),
+  );
+  const search = el("input", { type: "search", value: q, placeholder: "Название, описание, от кого…", "aria-label": "Поиск по каталогу" });
+  const kindSel = el("select", { "aria-label": "Вид" }, el("option", { value: "" }, "Все виды"),
+    Object.entries({ document: "Документы", voice: "Голосовые", audio: "Аудио", photo: "Фото", video: "Видео" }).map(([k, t]) => el("option", { value: k, selected: k === kind }, t)));
+  const originSel = el("select", { "aria-label": "Откуда" }, el("option", { value: "" }, "Откуда угодно"),
+    Object.entries(ORIGINS).map(([k, t]) => el("option", { value: k, selected: k === origin }, t)));
+  const go = () => {
+    const p = new URLSearchParams();
+    if (search.value.trim()) p.set("q", search.value.trim());
+    if (kindSel.value) p.set("kind", kindSel.value);
+    if (originSel.value) p.set("origin", originSel.value);
+    history.replaceState({}, "", "/catalog" + (p.toString() ? "?" + p : ""));
+    hooks.render();
+  };
+  kindSel.addEventListener("change", go);
+  originSel.addEventListener("change", go);
+  main.append(el("form", { class: "quick catalog-bar", onsubmit: (e) => { e.preventDefault(); go(); } },
+    search, kindSel, originSel, el("button", { class: "btn primary", type: "submit" }, "Найти")));
+
+  if (!data.documents.length) {
+    main.append(el("p", { class: "empty" }, q || kind || origin ? "Ничего не нашлось." : "Пока пусто. Перешли Кире документ или прикрепи файл к проекту — он появится здесь."));
+    return;
+  }
+  main.append(el("div", { class: "table-wrap" }, el("table", { class: "jobs files catalog" },
+    el("thead", {}, el("tr", {}, ["Документ", "Откуда", "Дата", "Размер", "Прикреплён к"].map((h) => el("th", { scope: "col" }, h)))),
+    el("tbody", {}, data.documents.map((d) => el("tr", { "data-id": d.id, tabindex: 0, onclick: () => openCatalogItem(d.id), onkeydown: (e) => { if (e.key === "Enter") openCatalogItem(d.id); } },
+      cell("Документ", "what",
+        el("div", { class: "jt" }, el("span", { class: "ficon", "aria-hidden": "true" }, KIND_ICON[d.kind] || "📎"), " ", d.name),
+        d.description ? el("div", { class: "sub clamp" }, d.description) : d.summary ? el("div", { class: "sub clamp" }, "Суть: " + d.summary) : ""),
+      cell("Откуда", null, el("div", { class: "sub" }, d.origin || "—")),
+      cell("Дата", null, humanDue(d.created), d.original && d.original !== d.created ? el("div", { class: "sub" }, `исходно ${humanDue(d.original)}`) : ""),
+      cell("Размер", "num", fileSize(d.size), d.duration ? el("div", { class: "sub" }, dur(d.duration)) : ""),
+      cell("Прикреплён к", null, d.attached_to.length ? d.attached_to.map((a) => el("div", { class: "sub" }, el("a", { href: `/o/${a.id}`, onclick: (e) => e.stopPropagation() }, a.title))) : el("span", { class: "sub" }, "—")),
+    ))),
+  )));
+}
+
+export async function openCatalogItem(id) {
+  const d = $("#drawer");
+  let doc, full;
+  try {
+    full = await api("GET", `/api/storage/${id}`);
+    doc = (await api("GET", `/api/catalog/${id}`)).document;
+  } catch (e) { toast(e.message, true); return; }
+  const f = full.file;
+  state.selected = null;
+  state.selectedJob = null;
+  document.querySelectorAll("table.files tr[data-id]").forEach((r) => r.classList.toggle("selected", +r.dataset.id === id));
+  $("#app").classList.add("with-drawer");
+  d.hidden = false;
+  const reopen = () => { hooks.render(); openCatalogItem(id); };
+  const name = el("textarea", { class: "title-input", rows: 1, "aria-label": "Название" }, doc.name);
+  name.addEventListener("change", () => name.value.trim() && attempt(async () => { await api("PATCH", `/api/storage/${id}`, { name: name.value.trim() }); toast("Переименовано"); reopen(); }));
+  const desc = el("textarea", { rows: 3, placeholder: "Описание документа", "aria-label": "Описание" }, doc.description || "");
+  desc.addEventListener("change", () => attempt(async () => { await api("PATCH", `/api/storage/${id}`, { description: desc.value }); toast("Описание сохранено"); hooks.render(); }));
+  const { items } = await api("GET", "/api/items?open=1&kinds=track,project,mission,task&order=title&limit=400");
+  const target = el("select", { "aria-label": "Куда прикрепить" }, el("option", { value: "" }, "Выбери трек, проект, миссию или задачу"),
+    items.map((i) => el("option", { value: i.id }, `${i.title}`)));
+  const src = `/api/storage/${id}/download`;
+  const spoken = ["voice", "audio", "video"].includes(doc.kind);
+  d.replaceChildren(...[
+    el("div", { class: "drawer-top" }, el("span", {}, `${doc.kind_text} №${doc.id} · каталог`),
+      el("button", { class: "icon-btn", "aria-label": "Закрыть", onclick: () => hooks.closeDrawer() }, "×")),
+    name,
+    spoken && doc.on_disk ? el("audio", { controls: true, preload: "none", src: src + "?inline=1", class: "file-audio" }) : "",
+    el("h3", {}, "Описание"), desc,
+    el("div", { class: "fields" },
+      el("label", {}, "Добавлен"), el("div", {}, humanDue(doc.created)),
+      doc.original ? [el("label", {}, "Исходная дата"), el("div", {}, humanDue(doc.original))] : "",
+      el("label", {}, "Откуда"), el("div", {}, doc.origin || "—"),
+      el("label", {}, "Размер"), el("div", {}, fileSize(doc.size), doc.duration ? ` · ${dur(doc.duration)}` : ""),
+      el("label", {}, "Прикреплён к"), el("div", {}, doc.attached_to.length ? doc.attached_to.map((a) => el("div", {}, el("a", { href: `/o/${a.id}` }, a.title))) : "—")),
+    spoken ? [el("h3", {}, "Суть"), el("p", { class: "result" }, doc.summary || (doc.transcribed ? "ещё готовится" : "запись не расшифрована"))] : "",
+    spoken && f.text ? [el("h3", {}, "Расшифровка"), el("pre", { class: "file-text spoken" }, f.text)] : "",
+    el("h3", {}, "Прикрепить"),
+    el("div", { class: "attach-row" }, target, el("button", { class: "btn", onclick: () => attempt(async () => {
+      if (!target.value) throw new Error("Выбери, куда прикрепить");
+      await api("POST", `/api/storage/${id}/attach`, { parent_id: +target.value });
+      toast("Прикреплено");
+      reopen();
+    }) }, "Прикрепить")),
+    el("div", { class: "drawer-actions" },
+      doc.on_disk ? el("a", { class: "btn primary", href: src }, "Скачать") : "",
+      el("button", { class: "btn", onclick: () => attempt(async () => { await api("POST", `/api/storage/${id}/send`); toast("Отправлю в Telegram в течение минуты"); }) }, "Прислать в Telegram"),
+      el("a", { class: "btn ghost", href: `/storage?q=${encodeURIComponent(doc.name)}` }, "В хранилище")),
+  ].flat(Infinity).filter(Boolean));
+  name.style.height = "auto";
+  name.style.height = name.scrollHeight + "px";
+}

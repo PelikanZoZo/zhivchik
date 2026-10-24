@@ -225,7 +225,42 @@ const MIGRATIONS = [
        FROM messages WHERE role IN ('user', 'assistant') ORDER BY id`,
     "ALTER TABLE outbox ADD COLUMN payload MEDIUMTEXT NULL AFTER text",
   ],
+  // 7. Каталог документов — общий реестр всех файлов системы (файлы хранилища и вложения объектов, без дублей).
+  //    У документа: описание (текст сообщения, с которым он пришёл; можно править), откуда он
+  //    (чат с Кирой, пересылка — от кого или из какого чата, сайт, вложение объекта), исходная дата пересылки.
+  [
+    `ALTER TABLE storage_files
+       ADD COLUMN description TEXT NULL AFTER name,
+       ADD COLUMN origin_type VARCHAR(20) NOT NULL DEFAULT 'chat' AFTER source,
+       ADD COLUMN origin VARCHAR(300) NULL AFTER origin_type,
+       ADD COLUMN original_at DATETIME NULL AFTER origin`,
+    "UPDATE storage_files SET description = caption WHERE caption IS NOT NULL AND caption <> ''",
+    "UPDATE storage_files SET origin_type = IF(source = 'web', 'web', 'chat'), origin = IF(source = 'web', 'Загружено на сайте', 'Чат с Кирой')",
+    attachmentsToCatalog,
+  ],
 ];
+
+// Файлы, приложенные к объектам до появления каталога, — в реестр (сам файл не копируется)
+async function attachmentsToCatalog(conn) {
+  const [rows] = await conn.query(
+    "SELECT n.id, n.title, n.parent_id, n.meta, n.created_at, p.title AS parent_title FROM nodes n LEFT JOIN nodes p ON p.id = n.parent_id WHERE n.kind = 'attachment'",
+  );
+  for (const r of rows) {
+    let m;
+    try { m = JSON.parse(r.meta || "{}"); } catch { continue; }
+    if (!m || !m.file_key || m.storage_id) continue;
+    const mime = String(m.file_type || "");
+    const kind = /^audio\//.test(mime) ? "audio" : /^image\//.test(mime) ? "photo" : /^video\//.test(mime) ? "video" : "document";
+    const [ins] = await conn.query(
+      `INSERT INTO storage_files (name, mime, kind, size, file_key, source, origin_type, origin, text_status, text_note, created_at)
+       VALUES (?, ?, ?, ?, ?, 'web', 'attachment', ?, 'pending', NULL, ?)`,
+      [String(m.file_name || r.title || "файл").slice(0, 255), mime.slice(0, 100), kind, +m.file_size || 0, m.file_key,
+        `Вложение: ${String(r.parent_title || "#" + r.parent_id).slice(0, 250)}`, r.created_at],
+    );
+    m.storage_id = ins.insertId;
+    await conn.query("UPDATE nodes SET meta = ? WHERE id = ?", [JSON.stringify(m), r.id]);
+  }
+}
 
 const CONTACT_KEYS = ["loyalty", "relation", "ai_summary", "ai_influence", "ai_approach", "ai_assessed_at", "ai_for_version"];
 

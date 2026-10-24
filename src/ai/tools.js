@@ -138,14 +138,26 @@ export const FILE_TOOL_DEFS = [
     id: { type: "integer" },
     caption: { type: "string", description: "Короткая подпись к файлу (необязательно)" },
   }, ["id"]),
-  fn("attach_file", "Приложить файл из хранилища к треку, проекту, миссии или задаче (как вложение).", {
+  fn("attach_file", "Прикрепить файл из хранилища к треку, проекту, миссии или задаче (как вложение). ТОЛЬКО по прямой просьбе владельца.", {
     id: { type: "integer", description: "id файла в хранилище" },
     parent_id: { type: "integer", description: "id объекта, куда приложить" },
   }, ["id", "parent_id"]),
-  fn("rename_file", "Переименовать файл в хранилище (понятное название вместо «IMG_2041.pdf»).", {
+  fn("rename_file", "Переименовать файл в хранилище. Только по просьбе владельца.", {
     id: { type: "integer" },
     name: { type: "string" },
   }, ["id", "name"]),
+  fn("catalog_find", "Каталог документов — реестр всех файлов системы. Поиск по названию, описанию документа и откуда он (от кого переслан, из какого чата, сайт, вложение объекта); у записей — и по сути. Возвращает дату, описание, источник и к чему прикреплён.", {
+    query: { type: "string", description: "Слова из названия, описания или имени отправителя. Пусто — последние документы" },
+    kind: { type: "string", enum: ["document", "voice", "audio", "photo", "video", "other"] },
+    origin: { type: "string", enum: ["chat", "forward", "web", "attachment"], description: "chat — прислан тебе в чат; forward — переслан; web — загружен на сайте; attachment — вложение объекта" },
+    from: { type: "string", description: "Добавлен не раньше (ГГГГ-ММ-ДД)" },
+    to: { type: "string", description: "Добавлен не позже (ГГГГ-ММ-ДД)" },
+    limit: { type: "integer", description: "По умолчанию 10" },
+  }),
+  fn("set_file_description", "Записать или поменять описание документа в каталоге. Только по просьбе владельца.", {
+    id: { type: "integer" },
+    description: { type: "string" },
+  }, ["id", "description"]),
   fn("search_chat_history", "Поиск по всему архиву переписки с владельцем (все сообщения за всё время, и его, и твои). Для вопросов «что я говорил про…», «когда мы обсуждали…».", {
     query: { type: "string", description: "Слова, которые должны быть в сообщении" },
     from: { type: "string", description: "ГГГГ-ММ-ДД" },
@@ -423,8 +435,10 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       if (!f.file_key) return { error: "Файл есть только в Telegram, на диске его нет — приложить не могу" };
       const parent = await nodes.get(+parent_id);
       if (!parent) return { error: `Нет записи #${parent_id}` };
+      const already = ((await deps.storage.attachedMap([f.id]))[f.id] || []).find((a) => a.id === parent.id);
+      if (already) return { ok: true, note: `Уже прикреплён к «${parent.title}»` };
       const item = await nodes.create({
-        kind: "attachment", title: f.name, parent_id: parent.id, body: f.summary || null,
+        kind: "attachment", title: f.name, parent_id: parent.id, body: f.description || f.summary || null,
         fields: { file_name: f.name, file_size: Number(f.size), file_type: f.mime || "", file_key: f.file_key, storage_id: f.id },
         allowSystemFields: true,
       }, source);
@@ -435,6 +449,26 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       if (!deps.storage) return { error: "Хранилище недоступно" };
       const f = await deps.storage.rename(+id, name).catch((e) => ({ error: e.message }));
       return f?.error ? f : f ? { ok: true, id: f.id, name: f.name } : { error: `Нет файла #${id}` };
+    },
+
+    async catalog_find({ query, kind, origin, from, to, limit = 10 } = {}) {
+      if (!deps.storage) return { error: "Каталог недоступен" };
+      const list = await deps.storage.catalog({ query, kind, origin, from, to, limit: Math.min(+limit || 10, 40) });
+      return {
+        count: list.length,
+        documents: list.map((d) => ({
+          id: d.id, name: d.name, kind: d.kind, added: d.created, ...(d.original ? { original_date: d.original } : {}),
+          origin: d.origin, ...(d.description ? { description: d.description.slice(0, 400) } : {}),
+          ...(d.summary ? { summary: d.summary } : {}), ...(d.duration ? { duration_sec: d.duration } : {}),
+          ...(d.attached_to.length ? { attached_to: d.attached_to.map((a) => `${a.title} (#${a.id})`) } : {}),
+        })),
+      };
+    },
+
+    async set_file_description({ id, description }) {
+      if (!deps.storage) return { error: "Каталог недоступен" };
+      const f = await deps.storage.update(+id, { description });
+      return f ? { ok: true, id: f.id, name: f.name, description: f.description } : { error: `Нет документа #${id}` };
     },
 
     async search_chat_history({ query, from, to, limit = 20 } = {}) {

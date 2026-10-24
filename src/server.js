@@ -175,17 +175,19 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
   });
 
   // Загрузка файла: тело запроса — сам файл, имя — в заголовке X-File-Name (в кодировке URI)
+  // Файл к объекту одним запросом (до ~8 МБ; большие сайт шлёт кусками через /api/storage/upload) — тоже в каталог
   route("POST", "/api/items/:id/upload", async ({ params, req }) => {
-    const { nodes, files } = await services();
+    const { nodes, files, storage } = await services();
     const parent = await nodes.get(+params.id);
     if (!parent) throw httpError(404, "Нет такой записи");
     const name = decodeURIComponent(String(req.headers["x-file-name"] || "файл")).slice(0, 200);
     const saved = await files.save(req, name);
-    const item = await nodes.create({
-      kind: "attachment", title: name, parent_id: parent.id,
-      fields: { file_name: name, file_size: saved.size, file_type: String(req.headers["content-type"] || "").slice(0, 100), file_key: saved.key },
-      allowSystemFields: true,
-    }, "web");
+    const { file } = await storage.add({
+      key: saved.key, size: saved.size, sha256: saved.sha256, name, mime: String(req.headers["content-type"] || "").slice(0, 100),
+      source: "web", originType: "attachment", origin: `Вложение: ${parent.title}`,
+    });
+    const item = await attachStored(nodes, file, parent, "web");
+    storage.process(file.id).catch(() => {});
     return { item };
   }, "user", { raw: true });
 
@@ -376,25 +378,49 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     const h = uploadHeaders(req);
     const r = await files.appendChunk(req, h);
     if (!r.done) return r;
-    const { file, duplicate } = await storage.add({ key: r.key, size: r.size, sha256: r.sha256, name: h.name, mime: h.mime, source: "web" });
+    const { nodes } = await services();
+    const parent = h.attachTo ? await nodes.get(+h.attachTo) : null;
+    const { file, duplicate } = await storage.add({
+      key: r.key, size: r.size, sha256: r.sha256, name: h.name, mime: h.mime, source: "web",
+      originType: parent ? "attachment" : "web", origin: parent ? `Вложение: ${parent.title}` : "Загружено на сайте",
+    });
     const done = await storage.process(file.id).catch(() => file);
-    if (h.attachTo) {
-      const { nodes } = await services();
-      const parent = await nodes.get(+h.attachTo);
-      if (parent) {
-        await nodes.create({
-          kind: "attachment", title: done.name, parent_id: parent.id, body: done.summary || null,
-          fields: { file_name: done.name, file_size: Number(done.size), file_type: done.mime || "", file_key: done.file_key, storage_id: done.id },
-          allowSystemFields: true,
-        }, "web");
-      }
-    }
+    if (parent) await attachStored(nodes, done, parent, "web");
     return { done: true, duplicate, file: storage.toApi(done) };
   }, "user", { raw: true });
 
   route("PATCH", "/api/storage/:id", async ({ params, body }) => {
     const { storage } = await services();
-    return { file: await storage.rename(+params.id, body.name) };
+    return { file: await storage.update(+params.id, { name: body.name, description: body.description }) };
+  });
+
+  // Прикрепить документ из каталога к объекту
+  route("POST", "/api/storage/:id/attach", async ({ params, body }) => {
+    const { storage, nodes } = await services();
+    const f = await storage.row(+params.id);
+    if (!f || f.deleted_at) throw httpError(404, "Нет такого документа");
+    if (!f.file_key) throw httpError(400, "Файл есть только в Telegram — прикрепить нельзя");
+    const parent = await nodes.get(+body.parent_id);
+    if (!parent) throw httpError(404, "Нет такого объекта");
+    const already = ((await storage.attachedMap([f.id]))[f.id] || []).some((a) => a.id === parent.id);
+    if (!already) await attachStored(nodes, f, parent, "web");
+    return { document: await storage.catalogItem(f.id) };
+  });
+
+  // --- каталог документов: реестр всех файлов системы ---
+  route("GET", "/api/catalog/:id", async ({ params }) => {
+    const { storage } = await services();
+    const d = await storage.catalogItem(+params.id);
+    if (!d) throw httpError(404, "Нет такого документа");
+    return { document: d };
+  });
+
+  route("GET", "/api/catalog", async ({ query }) => {
+    const { storage } = await services();
+    return {
+      documents: await storage.catalog({ query: query.q || "", kind: query.kind || undefined, origin: query.origin || undefined, from: query.from, to: query.to, limit: +query.limit || 200 }),
+      total: await storage.count(),
+    };
   });
 
   route("DELETE", "/api/storage/:id", async ({ params }) => {
@@ -500,6 +526,15 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
 }
 
 // ---------- помощники ----------
+
+// Вложение объекта, ссылающееся на документ каталога (файл не копируется)
+export async function attachStored(nodes, f, parent, source) {
+  return nodes.create({
+    kind: "attachment", title: f.name, parent_id: parent.id, body: f.description || null,
+    fields: { file_name: f.name, file_size: Number(f.size), file_type: f.mime || "", file_key: f.file_key, storage_id: f.id },
+    allowSystemFields: true,
+  }, source);
+}
 
 function uploadHeaders(req) {
   const h = req.headers;

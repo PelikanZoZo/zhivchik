@@ -64,11 +64,21 @@ for (const q of ["Что Глоубайт сделали для ТБанк", "к
   await sendFile("dogovor.docx", { document: { file_id: "D1", file_unique_id: "UD1", file_name: "scan_0041.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } });
   await sendFile("smeta.xlsx", { document: { file_id: "D2", file_unique_id: "UD2", file_name: "smeta.xlsx" }, caption: "сколько всего по смете и что дороже всего?" });
   await sendFile("akt.pdf", { voice: { file_id: "V1", file_unique_id: "UV1", duration: 9 } }, { transcript: "Кира, слушай, напомни мне в понедельник утром отправить акт GlowByte на подпись, и найди договор с Альфа-Строем, пришли его" });
+  await sendFile("deck.pptx", { document: { file_id: "D3", file_unique_id: "UD3", file_name: "SalesFox_pitch.pptx" }, caption: "питч от Олега, версия для инвесторов",
+    forward_origin: { type: "user", date: Math.floor(Date.now() / 1000) - 86400, sender_user: { id: 9, first_name: "Олег", last_name: "Смирнов" } } });
+  {
+    const { nodes: n2 } = await app.services();
+    console.log(`\n=== Вложений после присланных файлов (без просьбы должно быть 0): ${(await n2.list({ kind: "attachment", limit: 100 })).length}`);
+  }
+  await say("пришли презентацию, которую мне Олег пересылал");
+  await say("прикрепи её к проекту SalesFox");
   await say("найди голосовое, где я говорил про акт");
   await say("что я тебе писал про смету?");
   await (await app.services()).storage.runPending(5);
   console.log("\n=== Хранилище");
   for (const f of await (await app.services()).storage.search({ limit: 10 })) console.log(`#${f.id} ${f.kind} «${f.name}» [${f.text_status}] — ${f.summary || "(без описания)"} | ${f.keywords || ""}`);
+  console.log("\n=== Каталог документов");
+  for (const d of await (await app.services()).storage.catalog({ limit: 20 })) console.log(`#${d.id} «${d.name}» — ${d.origin}${d.description ? ` | описание: ${d.description}` : ""}${d.attached_to.length ? ` | прикреплён к: ${d.attached_to.map((a) => a.title).join(", ")}` : ""}`);
 }
 if (env.SMOKE === "files") { server.close(); await db.close(); process.exit(0); }
 

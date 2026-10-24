@@ -8,6 +8,7 @@ import { extractText } from "./docs/extract.js";
 import { formatLocal, parseLocal, localDayBounds } from "./time.js";
 import { extractJson } from "./pm/risk-ai.js";
 
+export const ORIGIN_TYPES = { chat: "Чат с Кирой", forward: "Пересылка", web: "Сайт", attachment: "Вложение объекта" };
 export const FILE_KINDS = { document: "Документ", voice: "Голосовое", audio: "Аудио", photo: "Фото", video: "Видео", other: "Файл" };
 const TEXT_STATUS = { pending: "ещё не прочитан", ok: "текст есть", empty: "текста нет", unsupported: "формат без текста", failed: "не прочитался" };
 
@@ -42,16 +43,24 @@ export function createStorage({ db, files, llm, tz, log = () => {} }) {
           await db.query("UPDATE storage_files SET tg_type = ?, tg_file_id = ?, tg_unique_id = ?, tg_message_id = ? WHERE id = ?",
             [f.tg.type, f.tg.file_id, f.tg.unique_id || null, f.tg.message_id || null, same.id]);
         }
+        const d = String(f.description || f.caption || "").trim();
+        if (d && !(same.description || "").includes(d)) {
+          await db.query("UPDATE storage_files SET description = ? WHERE id = ?", [same.description ? `${same.description}\n\n${d}` : d, same.id]);
+        }
         return { file: await row(same.id), duplicate: true };
       }
     }
     const name = String(f.name || defaultName(f)).slice(0, 255);
     const kind = f.kind || kindOf({ tgType: f.tg?.type, mime: f.mime, name });
     const r = await db.query(
-      `INSERT INTO storage_files (name, mime, kind, size, sha256, file_key, source, tg_type, tg_file_id, tg_unique_id, tg_message_id,
-        duration_sec, caption, text, text_status, text_note, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
-      [name, String(f.mime || "").slice(0, 100), kind, f.size || 0, f.sha256 || null, f.key || null, f.source || "web",
+      `INSERT INTO storage_files (name, description, mime, kind, size, sha256, file_key, source, origin_type, origin, original_at,
+        tg_type, tg_file_id, tg_unique_id, tg_message_id, duration_sec, caption, text, text_status, text_note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(3))`,
+      [name, String(f.description || f.caption || "").trim().slice(0, 10000) || null,
+        String(f.mime || "").slice(0, 100), kind, f.size || 0, f.sha256 || null, f.key || null, f.source || "web",
+        f.originType || (f.source === "web" ? "web" : "chat"),
+        String(f.origin || ORIGIN_TYPES[f.originType] || (f.source === "web" ? "Загружено на сайте" : "Чат с Кирой")).slice(0, 300),
+        f.originalAt || null,
         f.tg?.type || null, f.tg?.file_id || null, f.tg?.unique_id || null, f.tg?.message_id || null,
         f.duration || null, f.caption || null,
         f.transcript || null,
@@ -190,6 +199,79 @@ export function createStorage({ db, files, llm, tz, log = () => {} }) {
     return { files: Number(r.n), bytes: Number(r.bytes) };
   }
 
+  async function update(id, { name, description } = {}) {
+    if (name !== undefined) {
+      const n = String(name || "").trim().slice(0, 255);
+      if (!n) throw Object.assign(new Error("Пустое название"), { status: 400, expose: true });
+      await db.query("UPDATE storage_files SET name = ? WHERE id = ? AND deleted_at IS NULL", [n, +id]);
+    }
+    if (description !== undefined) {
+      await db.query("UPDATE storage_files SET description = ? WHERE id = ? AND deleted_at IS NULL", [String(description || "").trim().slice(0, 10000) || null, +id]);
+    }
+    return get(id);
+  }
+
+  // ---------- каталог документов: реестр всех файлов ----------
+  // Поиск — по названию, описанию и источнику (содержимое документов не используется);
+  // у голосовых и аудио — ещё по сути записи.
+  async function catalog({ query = "", kind, origin, from, to, limit = 100, offset = 0 } = {}) {
+    const where = ["deleted_at IS NULL"];
+    const params = [];
+    if (kind && FILE_KINDS[kind]) { where.push("kind = ?"); params.push(kind); }
+    if (origin && ORIGIN_TYPES[origin]) { where.push("origin_type = ?"); params.push(origin); }
+    if (from) { const d = parseLocal(`${String(from).slice(0, 10)} 00:00`, tz); if (d) { where.push("created_at >= ?"); params.push(d.utc); } }
+    if (to) { const d = String(to).slice(0, 10); if (parseLocal(`${d} 00:00`, tz)) { where.push("created_at <= ?"); params.push(localDayBounds(tz, d).end); } }
+    const words = String(query).toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || [];
+    for (const w of words) {
+      where.push("(name LIKE ? OR description LIKE ? OR origin LIKE ? OR (kind IN ('voice', 'audio', 'video') AND (summary LIKE ? OR text LIKE ?)))");
+      params.push(...Array(5).fill(`%${stem(w)}%`));
+    }
+    const rows = await db.query(
+      `SELECT * FROM storage_files WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ? OFFSET ?`,
+      [...params, Math.min(Math.max(+limit || 100, 1), 300), +offset || 0],
+    );
+    const att = await attachedMap(rows.map((r) => r.id));
+    return rows.map((r) => catalogApi(r, att[r.id] || []));
+  }
+
+  function catalogApi(f, attached = []) {
+    const spoken = SPOKEN.has(f.kind);
+    return {
+      id: f.id, name: f.name, description: f.description || null, kind: f.kind, kind_text: FILE_KINDS[f.kind] || f.kind,
+      mime: f.mime, size: Number(f.size), created: formatLocal(new Date(f.created_at), tz),
+      ...(f.original_at ? { original: formatLocal(new Date(f.original_at), tz) } : {}),
+      origin_type: f.origin_type, origin: f.origin || ORIGIN_TYPES[f.origin_type] || null,
+      ...(f.duration_sec ? { duration: f.duration_sec } : {}),
+      ...(spoken ? { transcribed: !!f.text, summary: f.summary || null } : {}),
+      attached_to: attached,
+      in_telegram: !!f.tg_file_id, on_disk: !!f.file_key,
+    };
+  }
+
+  // Где документ прикреплён: вложения объектов, ссылающиеся на него
+  async function attachedMap(ids) {
+    const out = {};
+    if (!ids.length) return out;
+    const rows = await db.query(
+      `SELECT a.id AS attachment_id, a.meta, p.id, p.kind, p.title FROM nodes a JOIN nodes p ON p.id = a.parent_id
+       WHERE a.kind = 'attachment' AND a.deleted_at IS NULL AND (${ids.map(() => "a.meta LIKE ?").join(" OR ")})`,
+      ids.map((i) => `%"storage_id":${+i}%`),
+    );
+    for (const r of rows) {
+      let sid;
+      try { sid = JSON.parse(r.meta || "{}").storage_id; } catch { continue; }
+      if (!ids.includes(sid)) continue;
+      (out[sid] ||= []).push({ id: r.id, kind: r.kind, title: r.title, attachment_id: r.attachment_id });
+    }
+    return out;
+  }
+
+  async function catalogItem(id) {
+    const f = await row(+id);
+    if (!f || f.deleted_at) return null;
+    return catalogApi(f, (await attachedMap([f.id]))[f.id] || []);
+  }
+
   async function rename(id, name) {
     const n = String(name || "").trim().slice(0, 255);
     if (!n) throw Object.assign(new Error("Пустое имя"), { status: 400, expose: true });
@@ -207,6 +289,14 @@ export function createStorage({ db, files, llm, tz, log = () => {} }) {
   }
 
   function toApi(f) {
+    const extra = {
+      description: f.description || null, origin_type: f.origin_type, origin: f.origin || null,
+      ...(f.original_at ? { original: formatLocal(new Date(f.original_at), tz) } : {}),
+    };
+    return { ...baseApi(f), ...extra };
+  }
+
+  function baseApi(f) {
     return {
       id: f.id, name: f.name, kind: f.kind, kind_text: FILE_KINDS[f.kind] || f.kind, mime: f.mime, size: Number(f.size),
       created: formatLocal(new Date(f.created_at), tz), source: f.source,
@@ -220,7 +310,7 @@ export function createStorage({ db, files, llm, tz, log = () => {} }) {
     };
   }
 
-  return { add, process, describe, runPending, get, row, readText, search, count, rename, remove, restore, toApi };
+  return { add, process, describe, runPending, get, row, readText, search, count, rename, update, remove, restore, toApi, catalog, catalogItem, attachedMap };
 }
 
 // Грубая основа слова для поиска по-русски: «договора», «договоре» → «догов»
@@ -241,4 +331,20 @@ function snippet(text, words) {
   if (at < 0) return t.slice(0, 200).replace(/\s+/g, " ").trim() + (t.length > 200 ? "…" : "");
   const s = Math.max(0, at - 120);
   return (s > 0 ? "…" : "") + t.slice(s, at + 200).replace(/\s+/g, " ").trim() + (at + 200 < t.length ? "…" : "");
+}
+
+// Откуда пришло сообщение: пересылка (от кого / из какого чата или канала) или личный чат с Кирой
+export function originOf(msg) {
+  const fo = msg.forward_origin;
+  const who = (u) => [u?.first_name, u?.last_name].filter(Boolean).join(" ") + (u?.username ? ` (@${u.username})` : "");
+  const date = (d) => (d ? new Date(d * 1000) : null);
+  const sign = (s) => (s ? `, ${s}` : "");
+  if (fo?.type === "user") return { type: "forward", text: `Переслано от ${who(fo.sender_user)}`, at: date(fo.date) };
+  if (fo?.type === "hidden_user") return { type: "forward", text: `Переслано от ${fo.sender_user_name}`, at: date(fo.date) };
+  if (fo?.type === "chat") return { type: "forward", text: `Переслано из чата «${fo.sender_chat?.title || "?"}»${sign(fo.author_signature)}`, at: date(fo.date) };
+  if (fo?.type === "channel") return { type: "forward", text: `Переслано из канала «${fo.chat?.title || "?"}»${sign(fo.author_signature)}`, at: date(fo.date) };
+  if (msg.forward_from) return { type: "forward", text: `Переслано от ${who(msg.forward_from)}`, at: date(msg.forward_date) };
+  if (msg.forward_from_chat) return { type: "forward", text: `Переслано из «${msg.forward_from_chat.title}»`, at: date(msg.forward_date) };
+  if (msg.forward_sender_name) return { type: "forward", text: `Переслано от ${msg.forward_sender_name}`, at: date(msg.forward_date) };
+  return { type: "chat", text: "Чат с Кирой", at: null };
 }

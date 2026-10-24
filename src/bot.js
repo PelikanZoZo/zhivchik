@@ -6,7 +6,7 @@
 
 import { safeEqual } from "./auth.js";
 import { sendMessageActions, fileAction } from "./telegram.js";
-import { FILE_KINDS } from "./storage.js";
+import { FILE_KINDS, originOf } from "./storage.js";
 
 const INTRO = "Пиши мне обычным текстом или голосом — дела, мысли, вопросы. Разложу на задачи, напомню, когда нужно, скажу, что горит, помогу спланировать день. Присылай документы и голосовые — сохраню в хранилище, прочитаю и найду, когда понадобятся.";
 const DOC_CHARS = 15000; // сколько текста документа сразу показывать Кире (дальше — read_file)
@@ -88,10 +88,13 @@ export function createBot({ db, agent, cfg, storage, log = () => {} }) {
     const chatId = msg.chat.id;
     if (!storage) return say(chatId, "Хранилище сейчас недоступно, файл не сохранила.");
     let saved;
+    const origin = originOf(msg);
+    const forwarded = origin.type === "forward";
     try {
       saved = await storage.add({
         key: kf.key || null, size: kf.size || media.size || 0, sha256: kf.sha256 || null,
         name: media.name, mime: media.mime, source: "telegram",
+        originType: origin.type, origin: origin.text, originalAt: origin.at,
         tg: { type: media.type, file_id: media.file_id, unique_id: media.unique_id, message_id: msg.message_id },
         duration: media.duration, caption: caption || null,
         transcript: kf.transcript || null,
@@ -106,8 +109,8 @@ export function createBot({ db, agent, cfg, storage, log = () => {} }) {
     const archive = { msg_type: media.type === "voice" ? "voice" : media.type === "photo" ? "photo" : "file", file_id: f.id, tg_chat_id: chatId, tg_message_id: msg.message_id };
     const label = `#${f.id} «${f.name}»`;
 
-    // Голосовое: расшифровка и есть сообщение
-    if (media.spoken && media.type !== "document") {
+    // Своё голосовое (не пересланное): расшифровка и есть сообщение
+    if (media.spoken && media.type !== "document" && !forwarded) {
       if (!f.text) {
         return say(chatId, `Сохранила ${media.type === "voice" ? "голосовое" : "запись"} в хранилище (${label}), но распознать не смогла${f.text_note ? `: ${f.text_note}` : ""}.`);
       }
@@ -126,9 +129,9 @@ export function createBot({ db, agent, cfg, storage, log = () => {} }) {
       FILE_KINDS[f.kind], f.pages ? `${f.kind === "document" ? "стр./листов" : ""} ${f.pages}`.trim() : null,
       fmtSize(f.size), f.duration_sec ? fmtDur(f.duration_sec) : null,
     ].filter(Boolean).join(", ");
-    const parts = [`[Владелец прислал файл ${label} (${info}). ${saved.duplicate ? "Такой файл уже был в хранилище — это он же." : "Сохранён в хранилище."}]`];
+    const parts = [`[Владелец ${forwarded ? `переслал файл ${label} — ${origin.text.toLowerCase()}` : `прислал файл ${label}`} (${info}). ${saved.duplicate ? "Такой файл уже был в хранилище — это он же." : "Сохранён в хранилище и в каталоге документов."}${caption ? " Текст сообщения сохранён как описание документа." : ""}]`];
     if (f.text) {
-      parts.push(`[Текст файла${f.text.length > DOC_CHARS ? `, начало — всего ${f.text.length} знаков, дальше через read_file` : ""}:]\n${f.text.slice(0, DOC_CHARS)}`);
+      parts.push(`[${["voice", "audio", "video"].includes(f.kind) ? "Расшифровка записи" : "Текст файла"}${f.text.length > DOC_CHARS ? `, начало — всего ${f.text.length} знаков, дальше через read_file` : ""}:]\n${f.text.slice(0, DOC_CHARS)}`);
     } else {
       parts.push(`[Текста нет: ${f.text_note || "формат без текста"}.]`);
     }

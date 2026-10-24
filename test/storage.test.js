@@ -291,3 +291,128 @@ test("архив переписки: всё, что было — с сайта, 
   await call("POST", "/api/chat/reset");
   assert.equal((await call("GET", "/api/dwh/messages")).data.stats.messages, before);
 });
+
+// ---------- каталог документов ----------
+test("каталог: пересланный документ — от кого, исходная дата, описание из сообщения; Кира ничего не прикрепляет сама", { skip: !haveDb }, async () => {
+  const { nodes } = await app.services();
+  const buf = fs.readFileSync(path.join(FX, "smeta.xlsx"));
+  const kf = await bridgeUpload(buf, "smeta.xlsx", "application/octet-stream");
+  script.push((messages) => {
+    const u = messages.at(-1).content;
+    assert.match(u, /Владелец переслал файл #\d+ «Смета Q4\.xlsx» — переслано от иван петров \(@ivan_p\)/);
+    assert.match(u, /Текст сообщения сохранён как описание документа/);
+    return { role: "assistant", content: "Сохранила смету от Ивана." };
+  });
+  const before = (await nodes.list({ kind: "attachment", limit: 500 })).length;
+  await bridge("POST", "/api/bridge/update", { ...update({
+    document: { file_id: "XL1", file_unique_id: "UXL1", file_name: "Смета Q4.xlsx" },
+    caption: "Смета от Ивана на четвёртый квартал, финальная",
+    forward_origin: { type: "user", date: 1792000000, sender_user: { id: 5, first_name: "Иван", last_name: "Петров", username: "ivan_p" } },
+  }), kira_file: kf });
+  assert.equal((await nodes.list({ kind: "attachment", limit: 500 })).length, before, "без просьбы — ничего не прикреплено");
+  const r = await call("GET", "/api/catalog?q=Петров");
+  assert.equal(r.status, 200);
+  const d = r.data.documents[0];
+  assert.equal(d.name, "Смета Q4.xlsx");
+  assert.equal(d.origin, "Переслано от Иван Петров (@ivan_p)");
+  assert.equal(d.origin_type, "forward");
+  assert.equal(d.description, "Смета от Ивана на четвёртый квартал, финальная");
+  assert.equal(d.original, "2026-10-14 20:46");
+  assert.deepEqual(d.attached_to, []);
+  // поиск по описанию и фильтр «пересылка»
+  assert.equal((await call("GET", "/api/catalog?q=квартал&origin=forward")).data.documents[0].id, d.id);
+  assert.equal((await call("GET", "/api/catalog?origin=web&q=квартал")).data.documents.length, 0);
+});
+
+test("каталог: Кира ищет по отправителю, присылает, потом прикрепляет по просьбе, меняет описание", { skip: !haveDb }, async () => {
+  const { nodes } = await app.services();
+  const pr = await nodes.create({ kind: "project", title: "Бюджет Q4" }, "web");
+  script.push(
+    toolCall("catalog_find", { query: "Иван смета" }),
+    (messages) => {
+      const r = lastTool(messages);
+      assert.equal(r.documents[0].origin, "Переслано от Иван Петров (@ivan_p)");
+      assert.equal(r.documents[0].description, "Смета от Ивана на четвёртый квартал, финальная");
+      return toolCall("send_file", { id: r.documents[0].id });
+    },
+    { role: "assistant", content: "Вот смета от Ивана." },
+  );
+  const r1 = await bridge("POST", "/api/bridge/update", update({ text: "пришли смету, которую мне Иван пересылал" }));
+  assert.equal(r1.data.actions[1].method, "sendDocument");
+  // в памяти разговора осталось, какой файл она прислала
+  const [mem] = await db.query("SELECT content FROM messages WHERE role = 'assistant' ORDER BY id DESC LIMIT 1");
+  const fid = +mem.content.match(/\[прислала файл #(\d+)\]/)[1];
+  script.push(
+    (messages) => {
+      assert.ok(messages.some((m) => m.role === "assistant" && m.content.includes(`[прислала файл #${fid}]`)));
+      return toolCall("attach_file", { id: fid, parent_id: pr.id });
+    },
+    (messages) => { assert.equal(lastTool(messages).ok, true); return toolCall("set_file_description", { id: fid, description: "Финальная смета Q4 от Ивана, согласована" }); },
+    { role: "assistant", content: "Прикрепила к «Бюджет Q4»." },
+  );
+  await bridge("POST", "/api/bridge/update", update({ text: "прикрепи её к проекту Бюджет Q4 и допиши в описание, что согласована" }));
+  const d = (await call("GET", `/api/catalog/${fid}`)).data.document;
+  assert.deepEqual(d.attached_to.map((a) => a.title), ["Бюджет Q4"]);
+  assert.equal(d.description, "Финальная смета Q4 от Ивана, согласована");
+  // повторное прикрепление не дублирует
+  script.push(toolCall("attach_file", { id: fid, parent_id: pr.id }), (messages) => { assert.match(lastTool(messages).note, /Уже прикреплён/); return { role: "assistant", content: "Уже там." }; });
+  await bridge("POST", "/api/bridge/update", update({ text: "прикрепи смету к Бюджет Q4" }));
+  assert.equal((await call("GET", `/api/catalog/${fid}`)).data.document.attached_to.length, 1);
+});
+
+test("каталог: всё, что прикрепляют на сайте, попадает туда сразу; прикрепить из каталога", { skip: !haveDb }, async () => {
+  const { nodes } = await app.services();
+  const pr = await nodes.create({ kind: "project", title: "Сайт-проект" }, "web");
+  const other = await nodes.create({ kind: "mission", title: "Выйти на ЛПР" }, "web");
+  // старый способ — одним запросом
+  const r1 = await call("POST", `/api/items/${pr.id}/upload`, Buffer.from("заметки к проекту"), { "X-File-Name": encodeURIComponent("заметки.txt"), "Content-Type": "text/plain" }, true);
+  assert.equal(r1.status, 200);
+  // новый — кусками с X-Attach-To
+  const id = "att" + Date.now();
+  const r2 = await call("POST", "/api/storage/upload", Buffer.from("%PDF-1.4 fake"), { "Content-Type": "application/octet-stream", "X-Upload-Id": id, "X-Chunk": "0", "X-Chunks": "1", "X-File-Name": encodeURIComponent("Устав.pdf"), "X-File-Type": "application/pdf", "X-Attach-To": String(pr.id) }, true);
+  assert.equal(r2.data.done, true);
+  const list = (await call("GET", "/api/catalog?origin=attachment")).data.documents;
+  const names = list.map((d) => d.name);
+  assert.ok(names.includes("заметки.txt") && names.includes("Устав.pdf"));
+  const ustav = list.find((d) => d.name === "Устав.pdf");
+  assert.equal(ustav.origin, "Вложение: Сайт-проект");
+  assert.deepEqual(ustav.attached_to.map((a) => a.title), ["Сайт-проект"]);
+  // прикрепить тот же документ ещё к миссии — из каталога
+  const r3 = await call("POST", `/api/storage/${ustav.id}/attach`, { parent_id: other.id });
+  assert.deepEqual(r3.data.document.attached_to.map((a) => a.title).sort(), ["Выйти на ЛПР", "Сайт-проект"]);
+  // описание правится на сайте
+  await call("PATCH", `/api/storage/${ustav.id}`, { description: "Устав, редакция 2026" });
+  assert.equal((await call("GET", `/api/catalog/${ustav.id}`)).data.document.description, "Устав, редакция 2026");
+});
+
+test("каталог: пересланное голосовое — не сообщение Кире, а запись с расшифровкой и сутью", { skip: !haveDb }, async () => {
+  const kf = await bridgeUpload(Buffer.from("OggS-forwarded-" + Date.now()), "v.ogg", "audio/ogg");
+  script.push((messages) => {
+    const u = messages.at(-1).content;
+    assert.match(u, /переслал файл #\d+ .*переслано из чата «отдел продаж», маша/);
+    assert.match(u, /\[Расшифровка записи:\]\nКлиент просит перенести поставку на декабрь/);
+    return { role: "assistant", content: "Маша пишет, что клиент просит перенести поставку на декабрь." };
+  });
+  await bridge("POST", "/api/bridge/update", { ...update({
+    voice: { file_id: "FV1", file_unique_id: "UFV1", duration: 12 },
+    forward_origin: { type: "chat", date: 1792100000, sender_chat: { id: -100, title: "Отдел продаж" }, author_signature: "Маша" },
+  }), kira_file: { ...kf, transcript: "Клиент просит перенести поставку на декабрь" } });
+  await bridge("GET", "/api/bridge/outbox"); // суть — в фоне
+  const d = (await call("GET", "/api/catalog?q=отдел продаж&kind=voice")).data.documents[0];
+  assert.equal(d.origin, "Переслано из чата «Отдел продаж», Маша");
+  assert.equal(d.transcribed, true);
+  assert.ok(d.summary);
+});
+
+test("миграция: старые вложения объектов попадают в каталог", { skip: !haveDb }, async () => {
+  const { nodes } = await app.services();
+  const pr = await nodes.create({ kind: "project", title: "Старый проект" }, "web");
+  const att = await nodes.create({ kind: "attachment", title: "старый.pdf", parent_id: pr.id, fields: { file_name: "старый.pdf", file_size: 10, file_type: "application/pdf", file_key: "2025-01/old.pdf" }, allowSystemFields: true }, "web");
+  await db.query("UPDATE schema_version SET version = 6");
+  await db.query("ALTER TABLE storage_files DROP COLUMN description, DROP COLUMN origin_type, DROP COLUMN origin, DROP COLUMN original_at");
+  await db.migrate();
+  const d = (await call("GET", "/api/catalog?q=старый")).data.documents.find((x) => x.name === "старый.pdf");
+  assert.equal(d.origin, "Вложение: Старый проект");
+  assert.deepEqual(d.attached_to.map((a) => a.id), [pr.id]);
+  assert.equal((await nodes.get(att.id)).fields.storage_id, d.id);
+});
