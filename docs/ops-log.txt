@@ -1,10 +1,64 @@
-Запуск: 2026-10-24 10:34 UTC
-=== имена переменных окружения у процесса сайта
+Запуск: 2026-10-24 16:10 UTC
+=== процессы
+   1831 Sat Oct 24 12:23:09 2026 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
+   2171 Sat Oct 24 12:23:10 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+   2184 Sat Oct 24 12:23:10 2026 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
+   2524 Sat Oct 24 12:23:12 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+   5464 Sat Oct 24 14:35:14 2026 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
+   5804 Sat Oct 24 14:35:15 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+=== папки
+/home/h551249:
+drwxr-xr-x 1 h551249 h551249   88 Oct 24 12:21 .
+drwxr-xr-x 1 root    root      22 Oct 24 12:10 ..
+-rw-r--r-- 1 h551249 h551249 5288 Mar  6  2024 .bashrc
+drwxr-xr-x 1 h551249 h551249   16 Oct 24 12:21 .cache
+drwxr-xr-x 1 h551249 h551249   12 Oct 24 12:21 devalby.ru
+drwxr-xr-x 1 h551249 h551249  102 Oct 24 12:21 log
+drwxr-xr-x 1 h551249 h551249   84 Oct 24 12:21 .npm
+-rw-r--r-- 1 h551249 h551249    5 Mar  6  2024 .nvmrc
+-rw-r--r-- 1 h551249 h551249  814 Mar  6  2024 .profile
+
+/home/h551249/devalby.ru:
+drwxr-xr-x 1 h551249 h551249  12 Oct 24 12:21 .
+drwxr-xr-x 1 h551249 h551249  88 Oct 24 12:21 ..
+drwxr-xr-x 1 h551249 h551249   0 Oct 24 12:21 tmp
+drwxr-xr-x 1 h551249 h551249 126 Oct 24 19:08 www
+
+/home/h551249/devalby.ru/www:
+drwxr-xr-x 1 h551249 h551249  126 Oct 24 19:08 .
+drwxr-xr-x 1 h551249 h551249   12 Oct 24 12:21 ..
+-rwxr-xr-x 1 h551249 h551249  520 Oct 24 19:07 app.js
+-rw------- 1 h551249 h551249  149 Oct 24 19:07 .env
+drwxr-xr-x 1 h551249 h551249  314 Oct 24 13:28 node_modules
+-rw-r--r-- 1 h551249 h551249  444 Oct 24 19:07 package.json
+-rw-r--r-- 1 h551249 h551249 5252 Oct 24 19:07 package-lock.json
+drwxr-xr-x 1 h551249 h551249   66 Oct 24 19:08 public
+drwxr-xr-x 1 h551249 h551249  166 Oct 24 19:08 src
+drwxr-xr-x 1 h551249 h551249   22 Oct 24 19:08 tmp
+=== имена переменных у процесса сайта
+pid 2171:
+pid 2524:
+=== журнал сайта
+2026/10/24 12:21:03 [info] 376#376 "devalby_ru" application started
+2026/10/24 12:21:09 [info] 770#770 "devalby_ru" application started
+2026/10/24 12:23:07 [info] 1124#1124 "devalby_ru" application started
+2026/10/24 12:23:08 [info] 1477#1477 "devalby_ru" application started
+2026/10/24 12:23:10 [info] 1831#1831 "devalby_ru" application started
+2026/10/24 12:23:11 [info] 2184#2184 "devalby_ru" application started
+2026/10/24 12:49:21 [info] 2936#2936 "devalby_ru" application started
+2026/10/24 12:50:23 [info] 3329#3329 "devalby_ru" application started
+2026/10/24 12:51:09 [info] 3697#3697 "devalby_ru" application started
+2026/10/24 13:30:07 [info] 4430#4430 "devalby_ru" application started
+2026/10/24 14:35:15 [info] 5464#5464 "devalby_ru" application started
+[кира 11:35:16 5804] слушаю порт 3000, версия 0.1.0
+[кира 11:35:17 5804] база готова, схема v1
 === пробный запуск
-база: имя НЕ задано пользователь НЕ задан хост localhost
+база: имя НЕ задано пользователь НЕ задан хост: localhost
 сервисы: ОШИБКА Не заданы параметры базы (DBNAME/DBUSER)
+=== локально
+Hello, World!
 --- снаружи, через интернет:
-http://devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 0 | Moved Permanently
-https://devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 18 | Moved Permanently
-http://www.devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 0 | Moved Permanently
-https://www.devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 18 | Moved Permanently
+http://devalby.ru/api/health -> HTTP 200 ->  | серт 0 | Hello, World!
+https://devalby.ru/api/health -> HTTP 000 ->  | серт 1 | Hello, World!
+http://www.devalby.ru/api/health -> HTTP 200 ->  | серт 0 | Hello, World!
+https://www.devalby.ru/api/health -> HTTP 000 ->  | серт 1 | Hello, World!
