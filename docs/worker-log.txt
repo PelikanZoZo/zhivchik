@@ -1,12 +1,25 @@
-Выкладка: 2026-10-24 10:26 UTC
-Wrangler requires at least Node.js v22.0.0. You are using v20.20.2. Please update your version of Node.js.
+Выкладка: 2026-10-24 10:33 UTC
 
-Consider using a Node.js version manager such as https://volta.sh/ or https://github.com/nvm-sh/nvm.
-Wrangler requires at least Node.js v22.0.0. You are using v20.20.2. Please update your version of Node.js.
+ ⛅️ wrangler 4.152.0
+────────────────────
+Total Upload: 3.72 KiB / gzip: 1.52 KiB
+Worker Startup Time: 2 ms
+Your Worker has access to the following bindings:
+Binding                                  Resource                  
+env.SITE_URL ("https://devalby.ru")      Environment Variable      
 
-Consider using a Node.js version manager such as https://volta.sh/ or https://github.com/nvm-sh/nvm.
+Deployed kira-bridge triggers (1.74 sec)
+  schedule: * * * * *
+Current Version ID: 40b3c30c-8a82-45c0-9966-ea5c8c8245e6
 
-Worker отвечает: error code: 1042
-setWebhook: {"ok":true,"description":"Webhook was set"}
+Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
+✨ Successfully created secret for key: BRIDGE_SECRET
+✨ Successfully created secret for key: TG_WEBHOOK_SECRET
+
+Finished processing secrets file:
+✨ 3 secrets successfully created
+
+Worker отвечает: ok
+setWebhook: {"ok":true,"description":"Webhook is already set"}
 команды: true
 состояние вебхука: {"pending_update_count":0,"last_error_message":null,"last_error_date":null}
