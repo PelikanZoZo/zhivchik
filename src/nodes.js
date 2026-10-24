@@ -128,6 +128,53 @@ export class Nodes {
     };
   }
 
+  // Обзор основных объектов: сколько задач открыто и сделано (со всем вложенным), блокеры, высокие риски,
+  // текущая стадия, ближайшая веха и финальная цель. Система личная — данных немного, считаем в памяти.
+  async overview({ kind, kinds, open } = {}) {
+    const rows = (await this.db.query("SELECT * FROM nodes WHERE deleted_at IS NULL")).map((r) => this.toApi(r));
+    const byParent = new Map();
+    for (const r of rows) {
+      if (!byParent.has(r.parent_id)) byParent.set(r.parent_id, []);
+      byParent.get(r.parent_id).push(r);
+    }
+    const subtree = (id) => {
+      const out = [];
+      const stack = [...(byParent.get(id) || [])];
+      while (stack.length) {
+        const n = stack.pop();
+        out.push(n);
+        stack.push(...(byParent.get(n.id) || []));
+      }
+      return out;
+    };
+    const ks = kinds || (kind ? [kind] : CORE);
+    const items = rows.filter((r) => ks.includes(r.kind) && (open === undefined || r.closed !== open));
+    for (const it of items) {
+      const all = subtree(it.id);
+      const tasks = all.filter((x) => x.kind === "task");
+      const direct = byParent.get(it.id) || [];
+      const goals = direct.filter((x) => x.kind === "goal");
+      const milestones = goals.filter((g) => g.fields.goal_type !== "final" && !g.closed)
+        .sort((a, b) => (a.due || "9999").localeCompare(b.due || "9999"));
+      it.stats = {
+        tasks_open: tasks.filter((t) => !t.closed).length,
+        tasks_done: tasks.filter((t) => t.status === "done").length,
+        overdue: tasks.filter((t) => t.overdue).length,
+        blockers: all.filter((x) => x.kind === "blocker" && !x.closed).length,
+        high_risks: all.filter((x) => x.kind === "risk" && !x.closed && x.risk?.level === "high").length,
+        missions_open: all.filter((x) => x.kind === "mission" && !x.closed).length,
+        projects_open: all.filter((x) => x.kind === "project" && !x.closed).length,
+        stage: direct.find((x) => x.kind === "stage" && x.status === "active")?.title || null,
+        stages: direct.filter((x) => x.kind === "stage").length,
+        next_milestone: milestones[0] ? { id: milestones[0].id, title: milestones[0].title, due: milestones[0].due } : null,
+        final_goal: (() => { const f = goals.find((g) => g.fields.goal_type === "final"); return f ? { id: f.id, title: f.title, status: f.status, closed: f.closed } : null; })(),
+        last_action: all.filter((x) => x.kind === "action").sort((a, b) => (b.event_at || "").localeCompare(a.event_at || ""))[0]?.event_at || null,
+      };
+    }
+    await this.withHomes(items);
+    return items.sort((a, b) => a.position - b.position || a.id - b.id);
+  }
+
   // Добавляет к объектам «дом» — ближайший основной объект (трек, проект, миссия), в котором они живут
   async withHomes(items) {
     const cache = new Map();

@@ -44,6 +44,30 @@ await say("составь мне план на сегодня");
 await say("присылай утренний план в 7:30");
 await say("давай начнём разговор с чистого листа");
 
+// --- система управления: треки, проекты, миссии, риски, действия, блокеры ---
+await say("заведи трек «Развитие SalesFox», а в нём проект «Пилот с Альфа-Строй» со стадиями: подготовка, выход на ЛПР, пилот, договор. Сейчас идёт подготовка. Финальная цель — подписанный договор на пилот к 20 декабря, промежуточная — первая встреча с гендиректором");
+await say("заведи миссию в этом проекте: выйти и установить контакт с гендиректором Альфа-Строй Иваном Петровым, он ЛПР");
+await say("риск по миссии: гендиректор не выйдет на разговор без рекомендации. Я оцениваю вероятность 4, влияние 5");
+await say("сегодня в 15:00 позвонил в приёмную Альфа-Строй, секретарь дала только общую почту");
+await say("мешает: нет прямого телефона гендиректора, ждём, когда Пётр Сидоров даст контакт");
+await say("что у нас по миссии с гендиректором?");
+
+{
+  const svc0 = await app.services();
+  const n = await svc0.riskAi.runPending();
+  console.log(`\n=== Кира оценила рисков: ${n}`);
+  for (const r of await svc0.nodes.list({ kind: "risk" })) {
+    console.log(`«${r.title}»: моя ${r.fields.probability}×${r.fields.impact}, Киры ${r.fields.ai_probability}×${r.fields.ai_impact} — ${r.fields.ai_comment}`);
+  }
+  console.log("\n=== Структура");
+  const all = await svc0.nodes.list({ kinds: ["track", "project", "mission", "stage", "goal", "task", "risk", "blocker", "action", "memo", "person"], limit: 500, order: "created" });
+  for (const o of all.filter((x) => !["task"].includes(x.kind) || x.parent_id)) {
+    console.log(`#${o.id} ${o.kind} [${o.status}] ${o.title}${o.parent_id ? ` (в #${o.parent_id})` : ""}${o.due ? ` срок ${o.due}` : ""}${o.event_at && o.kind === "action" ? ` когда ${o.event_at}` : ""}${Object.keys(o.fields || {}).length ? " " + JSON.stringify(o.fields) : ""}`);
+  }
+  const m = all.find((x) => x.kind === "mission");
+  if (m) console.log("люди миссии:", (await svc0.nodes.linksOf(m.id)).map((l) => `${l.title} — ${l.role}`).join("; "));
+}
+
 // --- задания Киры ---
 await say("напомни мне завтра в 9 утра позвонить в банк");
 await say("каждую пятницу в 18:00 присылай мне итоги недели по SalesFox: что сделано, что зависло");

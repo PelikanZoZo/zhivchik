@@ -29,19 +29,17 @@
       <div class="brand-row"><span class="brand">Кира</span></div>
       <a href="/" data-view="today">Сегодня</a>
       <a href="/inbox" data-view="inbox">Входящие</a>
-      <a href="/all" data-view="all">Все задачи</a>
+      <a href="/tasks" data-view="tasks">Задачи</a>
+      <a href="/tracks" data-view="tracks">Треки</a>
+      <a href="/projects" data-view="projects">Проекты</a>
+      <a href="/missions" data-view="missions">Миссии</a>
+      <a href="/people" data-view="people">Люди</a>
       <a href="/assistant" data-view="assistant">Ассистент</a>
       <a href="/jobs" data-view="jobs">Задания Киры</a>
-      <a href="/projects" data-view="projects" class="mobile-only">Проекты</a>
-      <a href="/goals" data-view="goals">Цели</a>
-      <a href="/notes" data-view="notes">Заметки</a>
       <a href="/changes" data-view="changes">История</a>
       <div class="side-group">
-        <div class="side-head">
-          <span>Проекты</span>
-          <button class="icon-btn" id="new-project" title="Новый проект" aria-label="Новый проект">+</button>
-        </div>
-        <div id="project-list"></div>
+        <div class="side-head"><span>Треки и проекты</span></div>
+        <div id="tree"></div>
       </div>
       <a href="/settings" data-view="settings" class="side-bottom">Настройки</a>
     </nav>

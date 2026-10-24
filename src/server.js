@@ -132,6 +132,12 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     return { items: await nodes.list(f) };
   });
 
+  route("GET", "/api/overview", async ({ query }) => {
+    const { nodes } = await services();
+    const open = query.open === "1" ? true : query.open === "0" ? false : undefined;
+    return { items: await nodes.overview({ kinds: query.kinds ? query.kinds.split(",") : undefined, open }) };
+  });
+
   route("GET", "/api/schema", async () => ({ types: TYPES, core: CORE, sections: SECTIONS, person_roles: PERSON_ROLES }));
 
   route("GET", "/api/items/:id", async ({ params }) => {

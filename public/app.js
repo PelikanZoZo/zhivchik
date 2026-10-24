@@ -1,92 +1,24 @@
-// Веб-интерфейс Киры. Без сборки и библиотек: один модуль, всё общение с сервером через /api.
+// Веб-интерфейс Киры. Без сборки и библиотек: модули в js/, общение с сервером через /api.
+import { $, el, api, state, hooks, navigate } from "./js/core.js";
+import { openItem, closeDrawer } from "./js/item.js";
+import { objectView } from "./js/object.js";
+import { today, inbox, tasks, coreList, people, changes, assistant, settings } from "./js/views.js";
+import { jobsView, openJobDrawer } from "./js/jobs.js";
 
-const $ = (sel, root = document) => root.querySelector(sel);
-const el = (tag, attrs = {}, ...kids) => {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === "class") n.className = v;
-    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
-    else if (k === "html") n.innerHTML = v;
-    else n.setAttribute(k, v === true ? "" : v);
-  }
-  for (const kid of kids.flat(Infinity)) if (kid !== null && kid !== undefined && kid !== false && kid !== "") n.append(kid.nodeType ? kid : String(kid));
-  return n;
+hooks.openItem = openItem;
+hooks.openJob = openJobDrawer;
+hooks.closeDrawer = closeDrawer;
+hooks.showLogin = showLogin;
+hooks.render = render;
+hooks.loadTree = loadTree;
+
+const ROUTES = {
+  today: today, inbox, tasks,
+  tracks: (m) => coreList(m, { kind: "track" }),
+  projects: (m) => coreList(m, { kind: "project" }),
+  missions: (m) => coreList(m, { kind: "mission" }),
+  people, changes, assistant, settings, jobs: jobsView,
 };
-
-const KIND = { task: "Задача", project: "Проект", goal: "Цель", note: "Заметка" };
-const STATUS = {
-  task: { todo: "К выполнению", doing: "В работе", waiting: "Ждёт", done: "Сделано", cancelled: "Отменено" },
-  project: { active: "Идёт", paused: "На паузе", done: "Завершён", archived: "В архиве" },
-  goal: { active: "В процессе", achieved: "Достигнута", dropped: "Отброшена" },
-  note: { active: "Актуальна", archived: "В архиве" },
-};
-const DONE = { task: "done", project: "done", goal: "achieved", note: "archived" };
-const OPEN = { task: "todo", project: "active", goal: "active", note: "active" };
-const PRIORITY = ["Нет", "Низкий", "Средний", "Высокий"];
-const FIELD = {
-  title: "название", body: "описание", status: "статус", priority: "приоритет", due_at: "срок",
-  due_has_time: null, parent_id: "место", tags: "метки", kind: "вид", deleted_at: "удаление", position: null, meta: null,
-};
-const SOURCE = { web: "сайт", bot: "бот", ai: "ассистент", system: "система", kira: "Кира сама" };
-
-let state = { tz: "Europe/Moscow", projects: [], selected: null, view: null };
-
-// ---------- сервер ----------
-async function api(method, path, body) {
-  const res = await fetch(path, {
-    method,
-    headers: body ? { "Content-Type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: "same-origin",
-  });
-  const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Error("Нужно войти"); }
-  if (!res.ok) throw new Error(data.error || `Ошибка ${res.status}`);
-  return data;
-}
-
-function toast(text, error = false) {
-  const t = $("#toast");
-  t.textContent = text;
-  t.className = "toast show" + (error ? " error" : "");
-  clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => (t.className = "toast"), error ? 4500 : 2200);
-}
-
-async function attempt(fn) {
-  try { return await fn(); } catch (e) { if (e.message !== "Нужно войти") toast(e.message, true); }
-}
-
-// ---------- даты ----------
-function localToday() {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: state.tz }).format(new Date());
-}
-function addDays(d, n) {
-  const x = new Date(d + "T00:00:00Z");
-  x.setUTCDate(x.getUTCDate() + n);
-  return x.toISOString().slice(0, 10);
-}
-const MONTHS = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
-const WEEK = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
-function humanDate(d) {
-  const today = localToday();
-  if (d === today) return "сегодня";
-  if (d === addDays(today, 1)) return "завтра";
-  if (d === addDays(today, -1)) return "вчера";
-  const x = new Date(d + "T00:00:00Z");
-  const sameYear = d.slice(0, 4) === today.slice(0, 4);
-  return `${WEEK[x.getUTCDay()]}, ${x.getUTCDate()} ${MONTHS[x.getUTCMonth()]}${sameYear ? "" : " " + d.slice(0, 4)}`;
-}
-function humanDue(due) {
-  if (!due) return "";
-  const [d, t] = due.split(" ");
-  return humanDate(d) + (t ? ` ${t}` : "");
-}
-function isoToLocal(iso) {
-  if (!iso) return "—";
-  return new Intl.DateTimeFormat("ru-RU", { timeZone: state.tz, dateStyle: "short", timeStyle: "short" }).format(new Date(iso));
-}
 
 // ---------- вход ----------
 function showLogin() {
@@ -108,685 +40,57 @@ $("#login-form").addEventListener("submit", async (e) => {
 });
 
 // ---------- навигация ----------
-function navigate(path, replace = false) {
-  if (replace) history.replaceState({}, "", path);
-  else history.pushState({}, "", path);
-  render();
-}
-
 document.addEventListener("click", (e) => {
   const a = e.target.closest("a[href^='/']");
-  if (!a || a.target || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  if (!a || a.target || e.metaKey || e.ctrlKey || e.shiftKey || a.getAttribute("href").startsWith("/api/")) return;
   e.preventDefault();
   navigate(a.getAttribute("href"));
 });
 window.addEventListener("popstate", render);
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && state.selected) closeDrawer();
+  if (e.key === "Escape" && (state.selected || state.selectedJob)) closeDrawer();
 });
 
 function route() {
   const p = location.pathname;
-  let m;
-  if ((m = p.match(/^\/project\/(\d+)/))) return { view: "project", id: +m[1] };
+  const m = p.match(/^\/o\/(\d+)/);
+  if (m) return { view: "object", id: +m[1] };
   const v = p.replace(/^\/|\/$/g, "") || "today";
-  return { view: ["today", "inbox", "all", "assistant", "jobs", "goals", "notes", "changes", "settings", "projects"].includes(v) ? v : "today" };
+  return { view: ROUTES[v] ? v : "today" };
 }
 
 async function render() {
   const r = route();
   state.view = r;
   document.querySelectorAll(".side a").forEach((a) => {
-    const active = (a.dataset.view && a.dataset.view === r.view) || (r.view === "project" && a.dataset.project == r.id);
+    const active = (a.dataset.view && a.dataset.view === r.view) || (r.view === "object" && +a.dataset.id === r.id);
     a.classList.toggle("active", !!active);
     if (active) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
   const main = $("#main");
   main.replaceChildren();
-  const views = { today, inbox, all, assistant, jobs: jobsView, goals, notes, changes, settings, project, projects: projectsView };
-  await attempt(() => views[r.view](main, r));
-}
-
-// ---------- боковое меню: проекты ----------
-async function loadProjects() {
-  const { items } = await api("GET", "/api/items?kind=project&open=1&order=position");
-  state.projects = items;
-  const box = $("#project-list");
-  box.replaceChildren(
-    ...items.map((p) => el("a", { href: `/project/${p.id}`, "data-project": p.id }, el("span", {}, p.title))),
-  );
-  if (!items.length) box.append(el("p", { class: "empty", style: "padding:4px 10px;font-size:13px" }, "Пока нет"));
-}
-
-$("#new-project").addEventListener("click", () => attempt(async () => {
-  const title = prompt("Название проекта");
-  if (!title?.trim()) return;
-  const { item } = await api("POST", "/api/items", { kind: "project", title: title.trim() });
-  await loadProjects();
-  navigate(`/project/${item.id}`);
-}));
-
-// ---------- строки задач ----------
-function row(item, { showParent = true } = {}) {
-  const parent = item.parent_id && state.projects.find((p) => p.id === item.parent_id);
-  const meta = [];
-  if (item.due) meta.push(el("span", { class: item.overdue ? "late" : "" }, humanDue(item.due)));
-  if (showParent && parent) meta.push(el("span", {}, parent.title));
-  if (item.tags.length) meta.push(el("span", {}, item.tags.map((t) => "#" + t).join(" ")));
-  if (item.kind === "task" && item.status === "doing") meta.push(el("span", {}, "в работе"));
-  if (item.kind === "task" && item.status === "waiting") meta.push(el("span", {}, "ждёт"));
-  const done = DONE[item.kind];
-  const li = el("li", {
-    class: "row" + (item.closed ? " closed" : "") + (state.selected === item.id ? " selected" : ""),
-    "data-priority": item.priority, "data-id": item.id,
-    onclick: () => openDrawer(item.id),
-  },
-  el("button", {
-    class: "check" + (item.closed ? " on" : ""), "aria-label": item.closed ? "Вернуть в работу" : "Отметить выполненной",
-    onclick: (e) => {
-      e.stopPropagation();
-      attempt(async () => {
-        await api("PATCH", `/api/items/${item.id}`, { status: item.closed ? OPEN[item.kind] : done });
-        toast(item.closed ? "Вернула в работу" : "Готово");
-        refresh();
-      });
-    },
-  }),
-  el("div", {}, el("div", { class: "title" }, item.title), meta.length ? el("div", { class: "meta" }, meta) : null),
-  el("div", { class: "side-info" }, item.kind !== "task" ? KIND[item.kind] : ""));
-  return li;
-}
-
-function group(title, items, opts = {}) {
-  if (!items.length && !opts.always) return "";
-  return el("section", { class: "group " + (opts.cls || "") },
-    el("h2", { class: "group-title" }, title, el("span", { class: "n" }, items.length || "")),
-    items.length ? el("ul", { class: "list" }, items.map((i) => row(i, opts))) : el("p", { class: "empty" }, opts.empty || "Пусто"),
-  );
-}
-
-function quickAdd({ parent_id, kind = "task", placeholder = "Новая задача" } = {}) {
-  const title = el("input", { type: "text", placeholder, "aria-label": "Название" });
-  const due = el("input", { type: "date", "aria-label": "Срок" });
-  const prio = el("select", { "aria-label": "Приоритет" }, PRIORITY.map((p, i) => el("option", { value: i }, i ? p : "Приоритет")));
-  const form = el("form", { class: "quick", onsubmit: (e) => {
-    e.preventDefault();
-    if (!title.value.trim()) return;
-    attempt(async () => {
-      await api("POST", "/api/items", {
-        kind, title: title.value.trim(), parent_id: parent_id ?? null, due: due.value || null, priority: +prio.value,
-      });
-      title.value = ""; due.value = ""; prio.value = 0;
-      refresh();
-    });
-  } }, title, due, prio, el("button", { class: "btn primary", type: "submit" }, "Добавить"));
-  if (kind !== "task") { due.remove(); form.style.gridTemplateColumns = "1fr auto auto"; }
-  return form;
-}
-
-let refreshing = null;
-function refresh() {
-  clearTimeout(refreshing);
-  refreshing = setTimeout(async () => {
-    const y = scrollY;
-    await loadProjects().catch(() => {});
-    await render();
-    scrollTo(0, y);
-    if (state.selected) openDrawer(state.selected, { keepScroll: true });
-    else if (state.selectedJob) openJobDrawer(state.selectedJob, { keepScroll: true });
-  }, 50);
-}
-
-// ---------- разделы ----------
-async function today(main) {
-  const a = await api("GET", "/api/agenda?days=7");
-  const x = new Date(a.today + "T00:00:00Z");
-  const weekday = new Intl.DateTimeFormat("ru-RU", { weekday: "long", timeZone: "UTC" }).format(x);
-  main.append(
-    el("header", { class: "day-head" },
-      el("h1", { class: "weekday" }, weekday[0].toUpperCase() + weekday.slice(1)),
-      el("p", { class: "date" }, new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" }).format(x)),
-    ),
-    quickAdd(),
-    group("Просрочено", a.overdue, { cls: "overdue" }),
-    group("Сегодня", a.today_tasks, { always: !a.overdue.length, empty: "На сегодня ничего. Добавь задачу или напиши ассистенту." }),
-    group("В работе", a.in_progress.filter((t) => !t.due)),
-    group("Важное без срока", a.important_no_date),
-    group("На неделе", a.upcoming),
-  );
-}
-
-async function inbox(main) {
-  main.append(
-    el("h1", { class: "view-title" }, "Входящие"),
-    el("p", { class: "view-sub" }, "Задачи без проекта. Разбери: привяжи к проекту, поставь срок или выполни."),
-    quickAdd(),
-  );
-  const { items } = await api("GET", "/api/items?kind=task&root=1&open=1");
-  main.append(group("Открытые", items, { always: true, empty: "Входящие разобраны." }));
-}
-
-async function all(main) {
-  main.append(el("h1", { class: "view-title" }, "Все задачи"), el("p", { class: "view-sub" }, "Открытые задачи по срокам."));
-  const search = el("input", { type: "search", placeholder: "Поиск по задачам", "aria-label": "Поиск" });
-  const box = el("div");
-  main.append(el("div", { style: "margin-bottom:20px" }, search), box);
-  const load = async () => {
-    const q = search.value.trim();
-    const { items } = await api("GET", `/api/items?kind=task&open=1${q ? "&q=" + encodeURIComponent(q) : ""}`);
-    box.replaceChildren(group(q ? "Найдено" : "Открытые", items, { always: true, empty: q ? "Ничего не нашлось." : "Открытых задач нет." }) || "");
-    if (!q) {
-      const done = await api("GET", "/api/items?kind=task&open=0&order=recent&limit=30");
-      const g = group("Недавно закрытые", done.items);
-      if (g) box.append(g);
-    }
-  };
-  let t;
-  search.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => attempt(load), 250); });
-  await load();
-}
-
-async function project(main, { id }) {
-  const { item } = await api("GET", `/api/items/${id}`);
-  const tasks = item.children.filter((c) => c.kind === "task");
-  const other = item.children.filter((c) => c.kind !== "task");
-  const open = tasks.filter((t) => !t.closed);
-  const closed = tasks.filter((t) => t.closed);
-  main.append(
-    el("h1", { class: "view-title" }, item.title),
-    el("p", { class: "view-sub" },
-      `${STATUS.project[item.status]}${item.due ? " · срок " + humanDue(item.due) : ""} · `,
-      el("a", { href: "#", onclick: (e) => { e.preventDefault(); openDrawer(item.id); } }, "карточка проекта")),
-    item.body ? el("p", { style: "white-space:pre-wrap;margin:-8px 0 22px" }, item.body) : "",
-    quickAdd({ parent_id: item.id }),
-    group("Задачи", open, { always: true, showParent: false, empty: "В проекте нет открытых задач." }),
-    group("Цели и заметки", other, { showParent: false }),
-    group("Выполнено", closed, { showParent: false }),
-  );
-}
-
-async function projectsView(main) {
-  main.append(el("h1", { class: "view-title" }, "Проекты"), quickAdd({ kind: "project", placeholder: "Новый проект" }));
-  const { items } = await api("GET", "/api/items?kind=project&order=position");
-  main.append(group("Все проекты", items, { always: true, empty: "Проектов пока нет." }));
-  main.querySelectorAll(".row").forEach((r) => (r.onclick = () => navigate(`/project/${r.dataset.id}`)));
-}
-
-async function goals(main) {
-  main.append(
-    el("h1", { class: "view-title" }, "Цели"),
-    el("p", { class: "view-sub" }, "Большие цели. Шаги к ним — задачи внутри цели."),
-    quickAdd({ kind: "goal", placeholder: "Новая цель" }),
-  );
-  const { items } = await api("GET", "/api/items?kind=goal");
-  main.append(group("Цели", items.filter((g) => !g.closed), { always: true, empty: "Целей пока нет." }), group("Закрытые", items.filter((g) => g.closed)));
-}
-
-async function notes(main) {
-  main.append(el("h1", { class: "view-title" }, "Заметки"), quickAdd({ kind: "note", placeholder: "Новая заметка" }));
-  const { items } = await api("GET", "/api/items?kind=note&order=recent");
-  main.append(group("Заметки", items, { always: true, empty: "Заметок пока нет." }));
-}
-
-async function changes(main) {
-  main.append(el("h1", { class: "view-title" }, "История"), el("p", { class: "view-sub" }, "Что менялось за последние 14 дней."));
-  const { changes } = await api("GET", "/api/changes?days=14");
-  if (!changes.length) { main.append(el("p", { class: "empty" }, "Изменений пока нет.")); return; }
-  main.append(el("ul", { class: "feed" }, changes.map((c) => el("li", {},
-    el("div", { class: "when" }, humanDue(c.at_local)),
-    el("div", { class: "what" },
-      el("a", { href: "#", onclick: (e) => { e.preventDefault(); openDrawer(c.id); } }, c.title),
-      el("div", { class: "detail" }, describeChange(c), ` · ${SOURCE[c.source] || c.source}`),
-    ),
-  ))));
-}
-
-function describeChange(c) {
-  if (c.action === "create") return `${KIND[c.kind] || c.kind}: создано`;
-  if (c.action === "delete") return "удалено";
-  if (c.action === "restore") return "восстановлено";
-  return describeDiff(c.changes, c.kind);
-}
-
-function describeDiff(diff, kind) {
-  if (!diff) return "изменено";
-  const parts = [];
-  for (const [f, [from, to]] of Object.entries(diff)) {
-    const name = FIELD[f];
-    if (name === null) continue;
-    if (f === "status") parts.push(`${STATUS[kind]?.[from] || from} → ${STATUS[kind]?.[to] || to}`);
-    else if (f === "due_at") parts.push(`срок: ${from ? isoToLocal(from) : "нет"} → ${to ? isoToLocal(to) : "нет"}`);
-    else if (f === "priority") parts.push(`приоритет: ${PRIORITY[from]} → ${PRIORITY[to]}`);
-    else if (f === "title") parts.push(`название: «${to}»`);
-    else if (f === "body") parts.push("описание изменено");
-    else if (f === "parent_id") parts.push("перенесено");
-    else parts.push(name || f);
-  }
-  return parts.join("; ") || "изменено";
-}
-
-async function assistant(main) {
-  main.append(
-    el("h1", { class: "view-title" }, "Ассистент"),
-    el("p", { class: "view-sub" }, "То же, что в Telegram: пиши дела, мысли, вопросы — разложу на задачи и подскажу, что делать."),
-  );
-  const chat = el("div", { class: "chat", "aria-live": "polite" });
-  const input = el("textarea", { placeholder: "Например: завтра в 11 созвон с Петром по SalesFox, до пятницы подготовить смету", rows: 2, "aria-label": "Сообщение" });
-  const smart = el("input", { type: "checkbox", id: "smart" });
-  const send = el("button", { class: "btn primary", type: "submit" }, "Отправить");
-  const form = el("form", { class: "chat-form" }, input, send);
-  const tools = el("div", { class: "chat-tools" },
-    el("label", {}, smart, " думать дольше (умная модель)"),
-    el("button", { class: "btn ghost", type: "button", onclick: () => attempt(async () => {
-      await api("POST", "/api/chat/reset");
-      chat.replaceChildren();
-      toast("Начали заново");
-    }) }, "Начать заново"));
-  main.append(chat, form, tools);
-
-  const bubble = (role, text) => el("div", { class: `bubble ${role}` }, text);
-  const { messages } = await api("GET", "/api/chat");
-  chat.append(...messages.map((m) => bubble(m.role, m.text)));
-  if (!messages.length) chat.append(bubble("assistant", "Привет! Что у тебя сегодня?"));
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
-  });
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
-    input.value = "";
-    chat.append(bubble("user", text));
-    const wait = bubble("assistant pending", "Думаю…");
-    chat.append(wait);
-    wait.scrollIntoView({ block: "end" });
-    send.disabled = true;
-    attempt(async () => {
-      try {
-        const r = await api("POST", "/api/chat", { text, smart: smart.checked });
-        wait.className = "bubble assistant";
-        wait.textContent = r.text;
-        if (r.tools?.some((t) => /create|update|delete|restore/.test(t.tool))) loadProjects();
-      } catch (err) {
-        wait.remove();
-        input.value = text;
-        throw err;
-      } finally {
-        send.disabled = false;
-        input.focus();
-      }
-    });
-  });
-  input.focus();
-}
-
-async function settings(main) {
-  main.append(el("h1", { class: "view-title" }, "Настройки"));
-  const bot = await api("GET", "/api/bot");
-  const time = el("input", { type: "time", value: bot.morning_time === "off" ? "" : bot.morning_time, "aria-label": "Время утреннего плана" });
-  main.append(el("div", { class: "settings" },
-    el("section", {},
-      el("h2", { class: "group-title" }, "Telegram-бот"),
-      bot.owner
-        ? el("p", {}, `Привязан к ${bot.owner.name}${bot.owner.username ? " (@" + bot.owner.username + ")" : ""} с ${isoToLocal(bot.owner.since)}.`)
-        : el("p", {}, "Ещё не привязан. Пришли боту пароль от сайта обычным сообщением."),
-      bot.owner ? el("button", { class: "btn danger", onclick: () => attempt(async () => {
-        if (!confirm("Отвязать бота? Чтобы привязать снова, нужно будет прислать ему пароль.")) return;
-        await api("PATCH", "/api/bot", { unlink_owner: true });
-        toast("Бот отвязан");
-        render();
-      }) }, "Отвязать") : ""),
-    el("section", {},
-      el("h2", { class: "group-title" }, "Утренний план"),
-      el("p", {}, "Во сколько бот присылает план на день. Пустое поле — не присылать."),
-      el("div", { class: "line" }, time, el("button", { class: "btn", onclick: () => attempt(async () => {
-        await api("PATCH", "/api/bot", { morning_time: time.value || "off" });
-        toast(time.value ? `Буду присылать в ${time.value}` : "Утренний план выключен");
-      }) }, "Сохранить"))),
-    el("section", {},
-      el("h2", { class: "group-title" }, "Выход"),
-      el("button", { class: "btn", onclick: async () => { await api("POST", "/api/logout"); showLogin(); } }, "Выйти")),
-  ));
-}
-
-// ---------- карточка записи ----------
-function closeDrawer() {
-  state.selected = null;
-  state.selectedJob = null;
-  $("#drawer").hidden = true;
-  $("#app").classList.remove("with-drawer");
-  document.querySelectorAll(".row.selected").forEach((r) => r.classList.remove("selected"));
-}
-
-async function openDrawer(id, { keepScroll = false } = {}) {
-  const d = $("#drawer");
-  const y = d.scrollTop;
-  let item, history;
   try {
-    [{ item }, { history }] = await Promise.all([api("GET", `/api/items/${id}`), api("GET", `/api/items/${id}/history`)]);
+    if (r.view === "object") await objectView(main, r);
+    else await ROUTES[r.view](main, r);
   } catch (e) {
-    toast(e.message, true);
-    return;
+    if (e.message !== "Нужно войти") main.append(el("p", { class: "empty" }, e.message));
   }
-  state.selected = id;
-  state.selectedJob = null;
-  document.querySelectorAll(".row").forEach((r) => r.classList.toggle("selected", +r.dataset.id === id));
-  $("#app").classList.add("with-drawer");
-  d.hidden = false;
+}
 
-  const save = (patch, note) => attempt(async () => {
-    await api("PATCH", `/api/items/${id}`, patch);
-    if (note) toast(note);
-    refresh();
-  });
-
-  const title = el("textarea", { class: "title-input", rows: 1, "aria-label": "Название" }, item.title);
-  const fit = () => { title.style.height = "auto"; title.style.height = title.scrollHeight + "px"; };
-  title.addEventListener("input", fit);
-  title.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); title.blur(); } });
-  title.addEventListener("change", () => title.value.trim() && title.value.trim() !== item.title && save({ title: title.value.trim() }));
-  setTimeout(fit);
-
-  const status = el("select", { id: "f-status", onchange: () => save({ status: status.value }) },
-    Object.entries(STATUS[item.kind]).map(([k, v]) => el("option", { value: k, selected: k === item.status }, v)));
-  const prio = el("select", { id: "f-prio", onchange: () => save({ priority: +prio.value }) },
-    PRIORITY.map((p, i) => el("option", { value: i, selected: i === item.priority }, p)));
-  const [dd, dt] = item.due ? item.due.split(" ") : ["", ""];
-  const dueDate = el("input", { type: "date", id: "f-due", value: dd });
-  const dueTime = el("input", { type: "time", value: dt || "", "aria-label": "Время" });
-  const saveDue = () => save({ due: dueDate.value ? dueDate.value + (dueTime.value ? " " + dueTime.value : "") : null });
-  dueDate.addEventListener("change", saveDue);
-  dueTime.addEventListener("change", saveDue);
-  const parentOptions = [el("option", { value: "" }, "— без проекта —"),
-    ...state.projects.filter((p) => p.id !== item.id).map((p) => el("option", { value: p.id, selected: p.id === item.parent_id }, p.title))];
-  if (item.parent_id && !state.projects.some((p) => p.id === item.parent_id)) {
-    const last = item.path.at(-1);
-    parentOptions.push(el("option", { value: item.parent_id, selected: true }, last ? last.title : `#${item.parent_id}`));
-  }
-  const parent = el("select", { id: "f-parent", onchange: () => save({ parent_id: parent.value || null }, "Перенесено") }, parentOptions);
-  const kind = el("select", { id: "f-kind", onchange: () => save({ kind: kind.value }) },
-    Object.entries(KIND).map(([k, v]) => el("option", { value: k, selected: k === item.kind }, v)));
-  const tags = el("input", { type: "text", id: "f-tags", value: item.tags.join(", "), placeholder: "через запятую" });
-  tags.addEventListener("change", () => save({ tags: tags.value }));
-  const body = el("textarea", { id: "f-body", placeholder: "Подробности, мысли, ссылки…", "aria-label": "Описание" }, item.body || "");
-  body.addEventListener("change", () => save({ body: body.value || null }));
-
-  const childInput = el("input", { type: "text", placeholder: item.kind === "task" ? "Подзадача" : "Новая задача внутри" });
-  const addChild = el("form", { class: "add-child", onsubmit: (e) => {
-    e.preventDefault();
-    if (!childInput.value.trim()) return;
-    attempt(async () => {
-      await api("POST", "/api/items", { kind: "task", title: childInput.value.trim(), parent_id: id });
-      childInput.value = "";
-      refresh();
-    });
-  } }, childInput, el("button", { class: "btn", type: "submit" }, "Добавить"));
-
-  d.replaceChildren(
-    el("div", { class: "drawer-top" },
-      el("span", {}, `${KIND[item.kind]} #${item.id}`),
-      el("button", { class: "icon-btn", "aria-label": "Закрыть", onclick: closeDrawer }, "×")),
-    item.path.length ? el("div", { class: "path" }, item.path.map((p, i) => [i ? " / " : "",
-      p.kind === "project" ? el("a", { href: `/project/${p.id}` }, p.title)
-        : el("a", { href: "#", onclick: (e) => { e.preventDefault(); openDrawer(p.id); } }, p.title)])) : "",
-    title,
-    item.deleted ? el("p", { style: "color:var(--danger)" }, "Запись удалена.") : "",
-    el("div", { class: "fields" },
-      el("label", { for: "f-status" }, "Статус"), status,
-      el("label", { for: "f-due" }, "Срок"), el("div", { class: "due-pair" }, dueDate, dueTime),
-      el("label", { for: "f-prio" }, "Приоритет"), prio,
-      el("label", { for: "f-parent" }, "Проект"), parent,
-      el("label", { for: "f-tags" }, "Метки"), tags,
-      el("label", { for: "f-kind" }, "Вид"), kind),
-    body,
-    el("h3", {}, item.kind === "task" ? "Подзадачи" : "Внутри"),
-    item.children.length ? el("ul", { class: "children" }, item.children.map((c) => el("li", {},
-      el("button", { class: "check" + (c.closed ? " on" : ""), "aria-label": "Отметить", onclick: () =>
-        attempt(async () => { await api("PATCH", `/api/items/${c.id}`, { status: c.closed ? OPEN[c.kind] : DONE[c.kind] }); refresh(); }) }),
-      el("a", { href: "#", style: c.closed ? "text-decoration:line-through;color:var(--done)" : "",
-        onclick: (e) => { e.preventDefault(); openDrawer(c.id); } }, c.title)))) : "",
-    addChild,
-    el("h3", {}, "История"),
-    el("ul", { class: "timeline" }, history.map((h) => el("li", {},
-      el("div", { class: "when" }, `${humanDue(h.at_local)} · ${SOURCE[h.source] || h.source}`),
-      el("div", { class: "what" }, h.action === "create" ? "Создано" : h.action === "delete" ? "Удалено"
-        : h.action === "restore" ? "Восстановлено" : describeDiff(h.changes, item.kind))))),
-    el("div", { class: "drawer-actions" },
-      item.kind === "project" ? el("a", { class: "btn", href: `/project/${item.id}` }, "Открыть проект") : "",
-      item.deleted
-        ? el("button", { class: "btn", onclick: () => attempt(async () => { await api("POST", `/api/items/${id}/restore`); toast("Восстановлено"); refresh(); }) }, "Восстановить")
-        : el("button", { class: "btn danger", onclick: () => attempt(async () => {
-          const n = item.children.length;
-          if (!confirm(`Удалить «${item.title}»${n ? ` вместе с вложенными (${n})` : ""}? Восстановить можно из истории.`)) return;
-          await api("DELETE", `/api/items/${id}`);
-          toast("Удалено");
-          closeDrawer();
-          if (state.view?.view === "project" && state.view.id === id) navigate("/", true);
-          else refresh();
-        }) }, "Удалить")),
+// ---------- боковое меню: треки и проекты ----------
+async function loadTree() {
+  const { items } = await api("GET", "/api/items?kinds=track,project&open=1&order=position&limit=300");
+  state.tree = items;
+  const tracks = items.filter((i) => i.kind === "track");
+  const projects = items.filter((i) => i.kind === "project");
+  const link = (i, cls = "") => el("a", { href: `/o/${i.id}`, "data-id": i.id, class: cls }, el("span", {}, i.title));
+  const box = $("#tree");
+  box.replaceChildren(
+    ...tracks.map((t) => [link(t, "tree-track"), ...projects.filter((p) => p.parent_id === t.id).map((p) => link(p, "tree-sub"))]).flat(),
+    ...projects.filter((p) => !p.parent_id || !tracks.some((t) => t.id === p.parent_id)).map((p) => link(p)),
   );
-  if (keepScroll) d.scrollTop = y;
-}
-
-// ---------- задания Киры ----------
-const WEEKDAYS = [[1, "пн"], [2, "вт"], [3, "ср"], [4, "чт"], [5, "пт"], [6, "сб"], [0, "вс"]];
-const EXEC_CLASS = { failed: "bad", retrying: "warn", running: "run", succeeded: "ok", skipped: "", scheduled: "" };
-
-// Конструктор расписания: разово / каждый день / по дням недели / раз в месяц / интервал / своё (cron)
-function scheduleEditor(job) {
-  const init = { type: "once", date: localToday(), time: "09:00", days: [1], dom: 1, every: 60, unit: "min", cron: "0 9 * * *", until: job?.until || "" };
-  if (job) {
-    if (job.schedule === "once" && job.run_at) [init.date, init.time] = job.run_at.split(" ");
-    else if (job.schedule === "interval") {
-      init.type = "interval";
-      if (job.every_minutes % 60 === 0) { init.every = job.every_minutes / 60; init.unit = "hour"; } else init.every = job.every_minutes;
-    } else if (job.schedule === "cron") {
-      init.cron = job.cron;
-      const [mi, ho, dom, mon, dow] = job.cron.split(" ");
-      const simple = /^\d+$/.test(mi) && /^\d+$/.test(ho) && mon === "*";
-      if (simple) init.time = `${ho.padStart(2, "0")}:${mi.padStart(2, "0")}`;
-      if (simple && dom === "*" && dow === "*") init.type = "daily";
-      else if (simple && dom === "*" && /^[\d,]+$/.test(dow)) { init.type = "weekly"; init.days = dow.split(",").map(Number).map((d) => (d === 7 ? 0 : d)); }
-      else if (simple && dom === "*" && dow === "1-5") { init.type = "weekly"; init.days = [1, 2, 3, 4, 5]; }
-      else if (simple && /^\d+$/.test(dom) && dow === "*") { init.type = "monthly"; init.dom = +dom; }
-      else init.type = "cron";
-    }
-  }
-  const type = el("select", { "aria-label": "Как часто" },
-    [["once", "Разово"], ["daily", "Каждый день"], ["weekly", "По дням недели"], ["monthly", "Раз в месяц"], ["interval", "С интервалом"], ["cron", "Своё (cron)"]]
-      .map(([v, t]) => el("option", { value: v, selected: v === init.type }, t)));
-  const date = el("input", { type: "date", value: init.date, "aria-label": "Дата" });
-  const time = el("input", { type: "time", value: init.time, "aria-label": "Время" });
-  const days = el("div", { class: "days" }, WEEKDAYS.map(([d, t]) => el("label", { class: "day" },
-    el("input", { type: "checkbox", value: d, checked: init.days.includes(d) }), t)));
-  const dom = el("input", { type: "number", min: 1, max: 31, value: init.dom, "aria-label": "Число месяца", style: "width:80px" });
-  const every = el("input", { type: "number", min: 1, value: init.every, "aria-label": "Интервал", style: "width:90px" });
-  const unit = el("select", { "aria-label": "Единица" }, el("option", { value: "min", selected: init.unit === "min" }, "минут"), el("option", { value: "hour", selected: init.unit === "hour" }, "часов"));
-  const cron = el("input", { type: "text", value: init.cron, placeholder: "минута час день месяц день_недели", "aria-label": "cron" });
-  const until = el("input", { type: "date", value: init.until, "aria-label": "До даты" });
-  const row = (label, ...kids) => el("div", { class: "sched-row" }, el("span", { class: "sched-label" }, label), ...kids);
-  const box = el("div", { class: "sched" });
-  const paint = () => {
-    const t = type.value;
-    box.replaceChildren(
-      row("Как часто", type),
-      t === "once" ? row("Когда", date, time) : "",
-      t === "daily" ? row("Во сколько", time) : "",
-      t === "weekly" ? row("Дни", days) : "", t === "weekly" ? row("Во сколько", time) : "",
-      t === "monthly" ? row("Число", dom) : "", t === "monthly" ? row("Во сколько", time) : "",
-      t === "interval" ? row("Каждые", every, unit) : "",
-      t === "cron" ? row("Расписание", cron) : "",
-      t !== "once" ? row("До даты", until, el("span", { class: "hint" }, "необязательно")) : "",
-    );
-  };
-  type.addEventListener("change", paint);
-  paint();
-  box.value = () => {
-    const t = type.value;
-    const [h, m] = (time.value || "09:00").split(":").map(Number);
-    const out = { until: t === "once" ? null : until.value || null };
-    if (t === "once") { if (!date.value) throw new Error("Укажи дату"); out.run_at = `${date.value} ${time.value || "09:00"}`; }
-    if (t === "daily") out.cron = `${m} ${h} * * *`;
-    if (t === "weekly") {
-      const ds = [...days.querySelectorAll("input:checked")].map((i) => i.value);
-      if (!ds.length) throw new Error("Выбери хотя бы один день");
-      out.cron = `${m} ${h} * * ${ds.join(",")}`;
-    }
-    if (t === "monthly") out.cron = `${m} ${h} ${Math.min(31, Math.max(1, +dom.value || 1))} * *`;
-    if (t === "interval") out.every_minutes = (+every.value || 1) * (unit.value === "hour" ? 60 : 1);
-    if (t === "cron") out.cron = cron.value.trim();
-    return out;
-  };
-  return box;
-}
-
-// Выбор связанных задач и проектов
-async function linksEditor(initial = []) {
-  const { items } = await api("GET", "/api/items?open=1&kinds=task,project,goal&order=recent&limit=300");
-  const chosen = new Map(initial.map((l) => [l.id, l.title || `#${l.id}`]));
-  const listId = "links-" + Math.random().toString(36).slice(2);
-  const input = el("input", { type: "text", list: listId, placeholder: "Начни вводить название задачи или проекта", "aria-label": "Связать с" });
-  const dl = el("datalist", { id: listId }, items.map((i) => el("option", { value: `#${i.id} ${i.title}` })));
-  const chips = el("div", { class: "chips" });
-  const paint = () => chips.replaceChildren(...[...chosen].map(([id, title]) => el("span", { class: "chip" }, title,
-    el("button", { type: "button", "aria-label": `Убрать ${title}`, onclick: () => { chosen.delete(id); paint(); } }, "×"))));
-  input.addEventListener("change", () => {
-    const m = input.value.match(/^#(\d+)\s*(.*)$/);
-    if (m) { chosen.set(+m[1], m[2] || `#${m[1]}`); input.value = ""; paint(); }
-  });
-  paint();
-  const box = el("div", { class: "links-editor" }, chips, input, dl);
-  box.value = () => [...chosen.keys()];
-  return box;
-}
-
-const cell = (h, cls, ...kids) => el("td", { "data-h": h, class: cls }, el("div", { class: "cell" }, ...kids));
-
-async function jobsView(main) {
-  const filter = new URLSearchParams(location.search).get("status") || "active";
-  main.append(
-    el("h1", { class: "view-title" }, "Задания Киры"),
-    el("p", { class: "view-sub" }, "Что Кира сделает сама, без команды: напомнит, проверит, пришлёт сводку. Можно попросить её в чате или добавить здесь."),
-  );
-  const tabs = el("div", { class: "tabs", role: "tablist" }, [["active", "Активные"], ["done", "Выполненные"], ["cancelled", "Отменённые"], ["all", "Все"]]
-    .map(([v, t]) => el("a", { href: `/jobs${v === "active" ? "" : "?status=" + v}`, class: "tab" + (v === filter ? " on" : ""), role: "tab", "aria-selected": v === filter }, t)));
-  const addBtn = el("button", { class: "btn primary", onclick: () => { form.hidden = !form.hidden; if (!form.hidden) form.querySelector("input").focus(); } }, "Новое задание");
-  main.append(el("div", { class: "jobs-bar" }, tabs, addBtn));
-
-  // форма нового задания
-  const title = el("input", { type: "text", placeholder: "Что сделать, например: прислать итоги недели", "aria-label": "Что сделать" });
-  const instruction = el("textarea", { placeholder: "Подробнее для Киры: что проверить, на что смотреть, что написать (необязательно)", rows: 3, "aria-label": "Инструкция" });
-  const action = el("select", { "aria-label": "Как" }, el("option", { value: "remind" }, "Напомнить — прислать этот текст"), el("option", { value: "do" }, "Выполнить — Кира подумает и сделает"));
-  const sched = scheduleEditor(null);
-  const links = await linksEditor([]);
-  const form = el("form", { class: "job-form", hidden: true, onsubmit: (e) => {
-    e.preventDefault();
-    attempt(async () => {
-      if (!title.value.trim()) throw new Error("Напиши, что сделать");
-      await api("POST", "/api/jobs", { title: title.value.trim(), instruction: instruction.value.trim() || null, action: action.value, ...sched.value(), links: links.value() });
-      toast("Задание поставлено");
-      refresh();
-    });
-  } },
-  el("div", { class: "fields" },
-    el("label", {}, "Что сделать"), title,
-    el("label", {}, "Подробнее"), instruction,
-    el("label", {}, "Как"), action,
-    el("label", {}, "Когда"), sched,
-    el("label", {}, "Связано с"), links),
-  el("div", { class: "drawer-actions" }, el("button", { class: "btn primary", type: "submit" }, "Поставить"), el("button", { class: "btn ghost", type: "button", onclick: () => (form.hidden = true) }, "Отмена")));
-  main.append(form);
-
-  const { jobs } = await api("GET", `/api/jobs?status=${filter}`);
-  if (!jobs.length) { main.append(el("p", { class: "empty" }, filter === "active" ? "Активных заданий нет. Скажи Кире, например: «каждую пятницу в 18:00 присылай итоги недели»." : "Пусто.")); return; }
-  main.append(el("div", { class: "table-wrap" }, el("table", { class: "jobs" },
-    el("thead", {}, el("tr", {}, ["№", "Создано", "Кем", "Когда", "Что сделать", "Связано", "Исполнение", "Статус"].map((h) => el("th", { scope: "col" }, h)))),
-    el("tbody", {}, jobs.map((j) => el("tr", { class: (state.selectedJob === j.id ? "selected " : "") + (j.status !== "active" ? "closed" : ""), "data-id": j.id, tabindex: 0,
-      onclick: () => openJobDrawer(j.id), onkeydown: (e) => { if (e.key === "Enter") openJobDrawer(j.id); } },
-      cell("№", "num", j.id),
-      cell("Создано", null, humanDue(j.created)),
-      cell("Кем", null, j.created_by_text),
-      cell("Когда", null, el("div", {}, j.schedule_text), j.next_run && j.status === "active" ? el("div", { class: "sub" }, "следующий: " + humanDue(j.next_run)) : ""),
-      cell("Что сделать", "what", el("div", { class: "jt" }, j.title), el("div", { class: "sub" }, j.action_text)),
-      cell("Связано", null, j.links.length ? j.links.map((l) => el("div", { class: "sub" }, l.title || `#${l.id}`)) : el("span", { class: "sub" }, "—")),
-      cell("Исполнение", null, el("span", { class: "badge " + (EXEC_CLASS[j.exec_status] || "") }, j.exec_status_text), j.last_run ? el("div", { class: "sub" }, humanDue(j.last_run)) : ""),
-      cell("Статус", null, j.status_text),
-    ))),
-  )));
-}
-
-async function openJobDrawer(id, { keepScroll = false } = {}) {
-  const d = $("#drawer");
-  const y = d.scrollTop;
-  let data;
-  try { data = await api("GET", `/api/jobs/${id}`); } catch (e) { toast(e.message, true); return; }
-  const { job, runs, history } = data;
-  state.selected = null;
-  state.selectedJob = id;
-  document.querySelectorAll("table.jobs tr[data-id]").forEach((r) => r.classList.toggle("selected", +r.dataset.id === id));
-  $("#app").classList.add("with-drawer");
-  d.hidden = false;
-  const save = (patch, note) => attempt(async () => { await api("PATCH", `/api/jobs/${id}`, patch); if (note) toast(note); refresh(); });
-
-  const title = el("textarea", { class: "title-input", rows: 1, "aria-label": "Что сделать", disabled: job.system }, job.title);
-  title.addEventListener("change", () => title.value.trim() && save({ title: title.value.trim() }));
-  const instruction = el("textarea", { placeholder: "Инструкция для Киры", "aria-label": "Инструкция", disabled: job.system }, job.instruction || "");
-  instruction.addEventListener("change", () => save({ instruction: instruction.value || null }));
-  const action = el("select", { disabled: job.system, onchange: () => save({ action: action.value }) },
-    el("option", { value: "remind", selected: job.action === "remind" }, "Напомнить"), el("option", { value: "do", selected: job.action === "do" }, "Выполнить"));
-  const sched = scheduleEditor(job);
-  const links = job.system ? null : await linksEditor(job.links);
-
-  d.replaceChildren(...[
-    el("div", { class: "drawer-top" }, el("span", {}, `Задание №${job.id}${job.system ? " · системное" : ""}`),
-      el("button", { class: "icon-btn", "aria-label": "Закрыть", onclick: closeDrawer }, "×")),
-    title,
-    el("div", { class: "fields" },
-      el("label", {}, "Статус"), el("div", {}, job.status_text),
-      el("label", {}, "Исполнение"), el("div", {}, el("span", { class: "badge " + (EXEC_CLASS[job.exec_status] || "") }, job.exec_status_text), job.last_run ? ` · ${humanDue(job.last_run)}` : ""),
-      el("label", {}, "Следующий раз"), el("div", {}, job.next_run ? humanDue(job.next_run) : "—"),
-      el("label", {}, "Расписание"), el("div", {}, job.schedule_text),
-      el("label", {}, "Создано"), el("div", {}, `${humanDue(job.created)} · ${job.created_by_text}`),
-      el("label", {}, "Запусков"), el("div", {}, job.run_count),
-      el("label", {}, "Как"), action),
-    instruction,
-    el("h3", {}, "Изменить расписание"),
-    sched,
-    el("div", { class: "drawer-actions" }, el("button", { class: "btn", onclick: () => attempt(async () => { await api("PATCH", `/api/jobs/${id}`, sched.value()); toast("Расписание изменено"); refresh(); }) }, "Сохранить расписание")),
-    links ? [el("h3", {}, "Связано с"), links, el("div", { class: "drawer-actions" }, el("button", { class: "btn", onclick: () => save({ links: links.value() }, "Связи сохранены") }, "Сохранить связи"))] : "",
-    job.last_result ? [el("h3", {}, "Итог последнего запуска"), el("p", { class: "result" }, job.last_result)] : "",
-    el("div", { class: "drawer-actions" },
-      job.status === "active" ? el("button", { class: "btn primary", onclick: (e) => attempt(async () => {
-        e.target.disabled = true; e.target.textContent = "Выполняю…";
-        try { const r = await api("POST", `/api/jobs/${id}/run`); toast(r.result.status === "succeeded" ? "Выполнено" : `Итог: ${r.result.status}`); refresh(); }
-        finally { e.target.disabled = false; e.target.textContent = "Выполнить сейчас"; }
-      }) }, "Выполнить сейчас") : "",
-      job.status === "active" && !job.system ? el("button", { class: "btn", onclick: () => save({ status: "done" }, "Отмечено выполненным") }, "Отметить выполненным") : "",
-      job.status === "active" ? el("button", { class: "btn danger", onclick: () => save({ status: "cancelled" }, "Задание отменено") }, "Отменить")
-        : el("button", { class: "btn", onclick: () => save({ status: "active" }, "Задание снова активно") }, "Вернуть в работу")),
-    el("h3", {}, "Запуски"),
-    runs.length ? el("ul", { class: "timeline" }, runs.map((r) => el("li", {},
-      el("div", { class: "when" }, `${humanDue(r.started)} · `, el("span", { class: "badge " + (EXEC_CLASS[r.status] || "") }, r.status_text),
-        r.planned && r.planned !== r.started ? ` · по плану ${humanDue(r.planned)}` : ""),
-      r.result ? el("div", { class: "what" }, r.result) : "",
-      r.meta?.tools?.length ? el("div", { class: "when" }, "действия: " + r.meta.tools.map((t) => t.tool).join(", ")) : ""))) : el("p", { class: "empty" }, "Ещё не запускалось."),
-    el("h3", {}, "История изменений"),
-    el("ul", { class: "timeline" }, history.map((h) => el("li", {},
-      el("div", { class: "when" }, `${humanDue(h.at_local)} · ${SOURCE[h.source] || h.source}`),
-      el("div", { class: "what" }, h.action === "create" ? "Создано" : h.action === "run" ? "Запуск" : describeJobDiff(h.changes))))),
-  ].flat(Infinity).filter(Boolean));
-  title.style.height = "auto";
-  title.style.height = title.scrollHeight + "px";
-  if (keepScroll) d.scrollTop = y;
-}
-
-function describeJobDiff(diff) {
-  if (!diff) return "Изменено";
-  const names = { title: "текст", instruction: "инструкция", action: "способ", schedule: "тип расписания", run_at: "время", cron: "расписание", interval_min: "интервал", until_at: "срок окончания", max_runs: "число запусков", links: "связи", status: "статус", next_run_at: null };
-  const st = { active: "активно", done: "выполнено", cancelled: "отменено" };
-  return Object.entries(diff).filter(([f]) => names[f] !== null).map(([f, [a, b]]) =>
-    f === "status" ? `статус: ${st[a] || a} → ${st[b] || b}` : f === "cron" ? `расписание: ${b}` : names[f] || f).join("; ") || "Изменено";
+  if (!items.length) box.append(el("p", { class: "empty side-empty" }, "Пока нет"));
+  render.markActive?.();
 }
 
 // ---------- запуск ----------
@@ -794,9 +98,10 @@ async function boot() {
   const me = await api("GET", "/api/me");
   if (!me.loggedIn) return showLogin();
   state.tz = me.tz || state.tz;
+  state.schema = await api("GET", "/api/schema");
   $("#login").hidden = true;
   $("#app").hidden = false;
-  await attempt(loadProjects);
+  await loadTree().catch(() => {});
   await render();
 }
 
