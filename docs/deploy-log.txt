@@ -10,15 +10,15 @@ Transferring file `storage.js'
 Transferring file `telegram.js'
 Transferring file `time.js'
 Transferring file `ai/agent.js'
-Transferring file `jobs/model.js'
-Transferring file `docs/extract.js'
-Transferring file `pm/files.js'
 Transferring file `ai/deepseek.js'
-Transferring file `jobs/runner.js'
-Transferring file `pm/risk-ai.js'
-Transferring file `pm/schema.js'
+Transferring file `jobs/model.js'
+Transferring file `pm/files.js'
 Transferring file `ai/tools.js'
 Transferring file `ai/web.js'
+Transferring file `pm/risk-ai.js'
+Transferring file `jobs/runner.js'
+Transferring file `pm/schema.js'
+Removing old directory `docs'
 Transferring file `app.js'
 Transferring file `icon.svg'
 Transferring file `index.html'
@@ -39,11 +39,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 21:44 UTC
-health: {"ok":true,"db":true,"version":"0.1.0"}
-главная (http): 200 -> 
-сертификат: 1 (0 — в порядке)
---- проверка 2026-10-24 21:48 UTC
+--- проверка 2026-10-24 21:54 UTC
 health: {"ok":true,"db":true,"version":"0.1.0"}
 главная (http): 200 -> 
 сертификат: 1 (0 — в порядке)
