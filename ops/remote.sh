@@ -1,9 +1,14 @@
-# Почему сайт отвечает редиректом: файлы, конфиги, журналы
-echo "=== ~/"; ls -la ~ 2>&1 | head -30
-echo "=== ~/devalby.ru"; ls -la ~/devalby.ru 2>&1
-echo "=== www"; ls -la ~/devalby.ru/www 2>&1
-echo "=== .htaccess и конфиги"; find ~ -maxdepth 3 \( -name ".htaccess" -o -name "*.conf" -o -name "nginx*" \) 2>/dev/null | head; for f in $(find ~ -maxdepth 3 -name ".htaccess" 2>/dev/null); do echo "--- $f"; head -30 "$f"; done
-echo "=== журналы"; ls -la ~/log 2>&1 | head
-echo "--- error.log, конец"; tail -25 ~/log/devalby.ru.error.log 2>&1 | grep -av "pass"
-echo "--- access.log, конец"; ls ~/log/ | grep -i access | head -3; tail -8 ~/log/*access* 2>/dev/null | cut -c1-220
-echo "=== изнутри"; curl -s -o /dev/null -w "http://devalby.ru/api/health -> %{http_code} %{redirect_url}\n" --max-time 20 http://devalby.ru/api/health
+# Запуск Киры вручную на хостинге: что мешает стартовать
+export PATH=/usr/nvm/versions/node/v21.5.0/bin:$PATH
+echo "=== имена переменных окружения у процесса сайта"
+for p in $(pgrep -f "unit-http/loader app.js" | head -1); do tr "\0" "\n" < /proc/$p/environ 2>/dev/null | cut -d= -f1 | sort | tr "\n" " "; echo; done
+echo "=== пробный запуск"
+cd ~/devalby.ru/www && KIRA_NO_LISTEN=1 timeout 20 node -e '
+  const { loadDotEnv, readConfig } = await import("./src/config.js");
+  loadDotEnv(); const c = readConfig();
+  console.log("секреты в .env:", ["adminPassword","bridgeSecret"].map(k => k + "=" + (c[k] ? "есть" : "НЕТ")).join(" "), "deepseek=" + (c.deepseek.key ? "есть" : "НЕТ"));
+  console.log("база:", c.db.database ? "имя задано" : "имя НЕ задано", c.db.user ? "пользователь задан" : "пользователь НЕ задан", "хост", c.db.host);
+  const { createApp } = await import("./src/server.js");
+  try { const app = createApp(c); await app.services(); console.log("сервисы: ОК"); } catch (e) { console.log("сервисы: ОШИБКА", e.message); }
+  process.exit(0);
+' --input-type=module 2>&1 | grep -av "pass"
