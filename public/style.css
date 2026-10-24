@@ -396,6 +396,60 @@ table.jobs .jt { font-weight: 500; }
 .card-stats .bad { color: var(--danger); }
 .cards + .closed-list .cards { margin-top: 10px; }
 
+
+/* ---------- контакты и сеть ---------- */
+.chip-mini.loyal.ok { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.chip-mini.loyal.strong { background: var(--accent-soft); }
+.chip-mini.loyal.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.chip-mini.loyal.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.chip-mini.ai { border-style: dashed; color: var(--accent); }
+.relation-panel { display: grid; gap: 8px; margin: 12px 0 6px; }
+.rel-h { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 14px; }
+.loyalty-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.loy-btn { display: grid; gap: 1px; justify-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 5px 2px; cursor: pointer; font: inherit; color: inherit; }
+.loy-btn:hover { border-color: var(--accent); }
+.loy-n { font-weight: 600; font-variant-numeric: tabular-nums; }
+.loy-t { font-size: 11px; color: var(--muted); }
+.loy-btn.on.l1 { background: var(--danger); border-color: var(--danger); }
+.loy-btn.on.l2 { background: var(--warn); border-color: var(--warn); }
+.loy-btn.on.l3 { background: var(--muted); border-color: var(--muted); }
+.loy-btn.on.l4 { background: color-mix(in srgb, var(--accent) 70%, var(--surface)); border-color: var(--accent); }
+.loy-btn.on.l5 { background: var(--accent); border-color: var(--accent); }
+.loy-btn.on, .loy-btn.on .loy-t { color: var(--surface); }
+.ai-model { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
+.ai-model p { margin: 0; font-size: 14px; line-height: 1.45; }
+.path-list { margin: 6px 0; padding-left: 20px; font-size: 14px; display: grid; gap: 4px; }
+
+.net-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px; margin-top: 8px; }
+.net-svg { width: 100%; height: auto; display: block; }
+.net-svg .edge { stroke: var(--line); stroke-width: 1.4; }
+.net-svg .edge.ai { stroke-dasharray: 4 4; stroke: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.net-svg .edge.bad { stroke: var(--danger); stroke-dasharray: 2 4; }
+.net-svg .edge.me { stroke-width: 1; stroke: var(--line); opacity: .7; }
+.net-svg .edge.me.l5, .net-svg .edge.me.l4 { stroke: var(--accent); opacity: .5; }
+.net-svg .edge.me.l1 { stroke: var(--danger); opacity: .4; }
+.net-svg .edge-label { font-size: 10px; fill: var(--muted); text-anchor: middle; pointer-events: none; }
+.net-svg .nd { cursor: pointer; }
+.net-svg .nd circle { fill: var(--surface); stroke: var(--muted); stroke-width: 2; }
+.net-svg .nd.l5 circle { fill: var(--accent); stroke: var(--accent); }
+.net-svg .nd.l4 circle { fill: color-mix(in srgb, var(--accent) 45%, var(--surface)); stroke: var(--accent); }
+.net-svg .nd.l3 circle { fill: color-mix(in srgb, var(--muted) 25%, var(--surface)); }
+.net-svg .nd.l2 circle { fill: color-mix(in srgb, var(--warn) 30%, var(--surface)); stroke: var(--warn); }
+.net-svg .nd.l1 circle { fill: color-mix(in srgb, var(--danger) 30%, var(--surface)); stroke: var(--danger); }
+.net-svg .nd.me circle { fill: var(--ink); stroke: var(--ink); }
+.net-svg .nd:hover circle, .net-svg .nd:focus-visible circle { stroke-width: 4; }
+.net-svg .nd:focus { outline: none; }
+.net-svg .nd-label { font-size: 12px; fill: var(--ink); text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; }
+.net-svg .nd.me .nd-label { font-weight: 600; }
+.net-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); padding: 6px 8px 2px; }
+.net-legend .lg { display: inline-flex; align-items: center; gap: 5px; }
+.net-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 2px solid var(--muted); background: var(--surface); }
+.net-legend .l5 i { background: var(--accent); border-color: var(--accent); }
+.net-legend .l4 i { background: color-mix(in srgb, var(--accent) 45%, var(--surface)); border-color: var(--accent); }
+.net-legend .l3 i { background: color-mix(in srgb, var(--muted) 25%, var(--surface)); }
+.net-legend .l2 i { background: color-mix(in srgb, var(--warn) 30%, var(--surface)); border-color: var(--warn); }
+.net-legend .l1 i { background: color-mix(in srgb, var(--danger) 30%, var(--surface)); border-color: var(--danger); }
+
 /* ---------- уведомление ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);

@@ -30,7 +30,9 @@ export function row(item, { showHome = true, onOpen } = {}) {
     if (f.url) meta.push(el("span", { class: "url" }, f.url.replace(/^https?:\/\//, "").slice(0, 50)));
   } else if (item.kind === "person") {
     const w = [f.position, f.company].filter(Boolean).join(", ");
+    if (f.loyalty) meta.push(loyaltyChip(f.loyalty));
     if (w) meta.push(el("span", {}, w));
+    if (f.ai_summary) meta.push(el("span", { class: "memo-line" }, f.ai_summary));
   } else if (item.kind === "memo" && item.body) {
     meta.push(el("span", { class: "memo-line" }, item.body.split("\n")[0].slice(0, 120)));
   }
@@ -171,7 +173,7 @@ export async function openItem(id, { keepScroll = false } = {}) {
   }
   // поля вида
   for (const [key, def] of Object.entries(t.fields || {})) {
-    if (def.system || (item.kind === "risk" && ["probability", "impact"].includes(key))) continue;
+    if (def.system || (item.kind === "risk" && ["probability", "impact"].includes(key)) || (item.kind === "person" && ["loyalty", "relation"].includes(key))) continue;
     fieldRow(def.label, fieldInput(key, def, f[key], (v) => save({ fields: { [key]: v } })), `ff-${key}`);
   }
 
@@ -188,12 +190,13 @@ export async function openItem(id, { keepScroll = false } = {}) {
     item.deleted ? el("p", { class: "danger-text" }, "Объект удалён.") : "",
     item.blocked_by?.length ? el("p", { class: "blocked-note" }, "Блокирует: ", item.blocked_by.map((b, i) => [i ? ", " : "", el("a", { href: "#", onclick: (e) => { e.preventDefault(); openItem(b.id); } }, b.title)])) : "",
     item.kind === "risk" ? riskPanel(item, save) : "",
+    item.kind === "person" ? relationPanel(item, save) : "",
     item.kind === "attachment" ? attachmentPanel(item) : "",
     el("div", { class: "fields" }, grid),
     body,
     item.children?.length ? [el("h3", {}, item.kind === "task" ? "Внутри задачи" : "Внутри"), list(item.children, { showHome: false })] : "",
     item.kind === "task" && !item.path.some((p) => p.kind === "task") ? addInline("Подзадача", (title) => api("POST", "/api/items", { kind: "task", title, parent_id: id })) : "",
-    item.kind === "person" ? personPanel(item) : peoplePanel(item),
+    item.kind === "person" ? [personLinks(item), personPanel(item)] : peoplePanel(item),
     item.kind === "blocker" ? blocksPanel(item) : "",
     otherLinks(item),
     commentsPanel(item),
@@ -412,4 +415,78 @@ export function describeDiff(diff, kind) {
     } else parts.push(FIELD_NAMES[k] || k);
   }
   return parts.join("; ") || "Изменено";
+}
+
+// ---------- контакты и сеть ----------
+const LOYALTY_CLASS = { 1: "bad", 2: "warn", 3: "", 4: "ok", 5: "ok strong" };
+export function loyaltyChip(v) {
+  const label = state.schema?.loyalty?.[v] || v;
+  return el("span", { class: `chip-mini loyal l${v} ${LOYALTY_CLASS[v] || ""}`, title: "Лояльность — моя оценка" }, `${v} · ${label.toLowerCase()}`);
+}
+
+// Лояльность и мой комментарий об отношениях; рядом — модель от Киры
+function relationPanel(item, save) {
+  const f = item.fields;
+  const rel = el("textarea", { id: "f-relation", rows: 4, placeholder: "Кто он мне, откуда знаем, как относится, с кем связан, чем может помочь…", "aria-label": "Мои отношения" }, f.relation || "");
+  rel.addEventListener("change", () => save({ fields: { relation: rel.value || null } }, "Сохранено — Кира обновит модель связей"));
+  const labels = state.schema?.loyalty || {};
+  return el("div", { class: "relation-panel" },
+    el("div", { class: "rel-h" }, "Лояльность", f.loyalty ? loyaltyChip(f.loyalty) : el("span", { class: "sub" }, "не оценена")),
+    el("div", { class: "loyalty-scale", role: "radiogroup", "aria-label": "Лояльность" }, [1, 2, 3, 4, 5].map((v) => el("button", {
+      type: "button", class: `loy-btn l${v}` + (f.loyalty === v ? " on" : ""), role: "radio", "aria-checked": f.loyalty === v ? "true" : "false",
+      title: labels[v], onclick: () => save({ fields: { loyalty: f.loyalty === v ? null : v } }),
+    }, el("span", { class: "loy-n" }, v), el("span", { class: "loy-t" }, labels[v] || "")))),
+    el("label", { class: "rel-h", for: "f-relation" }, "Мои отношения"),
+    rel,
+    el("div", { class: "ai-model" },
+      el("div", { class: "rel-h" }, "Модель Киры", f.ai_influence ? el("span", { class: "chip-mini", title: "Влиятельность" }, `влияние ${f.ai_influence}/5`) : ""),
+      f.ai_summary ? el("p", {}, f.ai_summary) : el("p", { class: "sub" }, f.relation ? "Кира построит модель в течение минуты." : "Напиши об отношениях — Кира построит модель связей."),
+      f.ai_approach ? el("p", {}, el("b", {}, "Как выстраивать: "), f.ai_approach) : "",
+      f.ai_assessed_at ? el("div", { class: "sub" }, `обновлено ${humanDue(f.ai_assessed_at)}`) : "",
+      f.relation ? el("button", { class: "btn ghost small", onclick: (e) => attempt(async () => {
+        e.target.disabled = true; e.target.textContent = "Строю…";
+        try { await api("POST", `/api/items/${item.id}/network`); toast("Модель обновлена"); refresh(); }
+        finally { e.target.disabled = false; e.target.textContent = "Пересобрать"; }
+      }) }, "Пересобрать") : ""));
+}
+
+// Связи с другими людьми: мои и найденные Кирой; как выйти на человека
+function personLinks(item) {
+  const links = item.links.filter((l) => l.kind === "person");
+  const nameIn = el("input", { type: "text", list: "people-list2", placeholder: "Имя", "aria-label": "С кем связан" });
+  const typeIn = el("input", { type: "text", list: "plink-list", placeholder: "Кто ему", "aria-label": "Тип связи" });
+  const dl1 = el("datalist", { id: "people-list2" });
+  api("GET", "/api/items?kind=person&order=title&limit=1000").then(({ items }) => dl1.append(...items.filter((p) => p.id !== item.id).map((p) => el("option", { value: p.title }))));
+  const dl2 = el("datalist", { id: "plink-list" }, (state.schema?.person_links || []).map((r) => el("option", { value: r })));
+  const pathsBox = el("div", { class: "paths" });
+  const showPaths = () => attempt(async () => {
+    const r = await api("GET", `/api/items/${item.id}/paths`);
+    pathsBox.replaceChildren(r.direct
+      ? el("p", { class: "sub" }, "Выход прямой — он и так к тебе расположен.")
+      : r.paths.length ? el("ol", { class: "path-list" }, r.paths.map((p) => el("li", {}, p.chain)))
+        : el("p", { class: "sub" }, "Цепочек через лояльных людей не нашлось. Расскажи Кире, кто с кем знаком."));
+  });
+  return [
+    el("h3", {}, "Связи с людьми"),
+    links.length ? el("ul", { class: "children" }, links.map((l) => el("li", {},
+      el("span", { class: "kind-dot k-person" }),
+      el("a", { href: "#", onclick: (e) => { e.preventDefault(); openItem(l.id); } }, l.title),
+      el("span", { class: "chip-mini" }, l.role),
+      l.origin === "ai" ? el("span", { class: "chip-mini ai", title: l.note || "По твоему комментарию" }, "Кира") : "",
+      l.fields?.loyalty ? loyaltyChip(l.fields.loyalty) : "",
+      el("button", { class: "icon-btn", "aria-label": "Убрать", onclick: () => attempt(async () => { await api("DELETE", `/api/links/${l.link_id}`); refresh(); }) }, "×")))) : el("p", { class: "sub" }, "Связей пока нет."),
+    el("form", { class: "add-child", onsubmit: (e) => {
+      e.preventDefault();
+      const name = nameIn.value.trim();
+      if (!name) return;
+      attempt(async () => {
+        const { items } = await api("GET", `/api/items?kind=person&q=${encodeURIComponent(name)}`);
+        let p = items.find((x) => x.title.toLowerCase() === name.toLowerCase());
+        if (!p) p = (await api("POST", "/api/items", { kind: "person", title: name })).item;
+        await api("POST", `/api/items/${item.id}/links`, { other_id: p.id, role: typeIn.value.trim() || "знакомый" });
+        refresh();
+      });
+    } }, nameIn, typeIn, el("button", { class: "btn", type: "submit" }, "Связать"), dl1, dl2),
+    (item.fields.loyalty || 0) < 4 ? [el("button", { class: "btn ghost small", onclick: showPaths }, "Как на него выйти"), pathsBox] : "",
+  ];
 }

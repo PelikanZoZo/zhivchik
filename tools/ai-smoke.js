@@ -68,6 +68,24 @@ await say("что у нас по миссии с гендиректором?");
   if (m) console.log("люди миссии:", (await svc0.nodes.linksOf(m.id)).map((l) => `${l.title} — ${l.role}`).join("; "));
 }
 
+// --- контакты и сеть ---
+await say("Пётр Сидоров — мой старый друг, вместе работали в Бета, лояльность 5. Он партнёр Ивана Петрова по гольф-клубу, а его жена Мария — юрист в Альфа-Строй");
+await say("Ольга Лебедева — бывшая коллега, всегда помогает, лояльность 4. Дружит с Анной Ким, коммерческим директором Альфа-Строй");
+await say("Ивана Петрова я видел один раз на выставке, он холодно ответил, лояльность 2");
+{
+  const svc1 = await app.services();
+  let n = 0;
+  for (let i = 0; i < 4; i++) n += await svc1.networkAi.runPending();
+  console.log(`\n=== Кира построила модель связей для ${n} человек`);
+  const net = await svc1.nodes.network();
+  const name = (id) => net.people.find((p) => p.id === id)?.title;
+  for (const p of net.people) {
+    console.log(`${p.title}: лояльность ${p.fields.loyalty ?? "—"}, влияние ${p.fields.ai_influence ?? "—"}${p.fields.ai_summary ? ` — ${p.fields.ai_summary}` : ""}${p.fields.ai_approach ? ` | как: ${p.fields.ai_approach}` : ""}`);
+  }
+  console.log("связи:", net.edges.map((e) => `${name(e.a)} —${e.role}${e.origin === "ai" ? "*" : ""}→ ${name(e.b)}`).join("; "));
+}
+await say("как мне выйти на Ивана Петрова?");
+
 // --- задания Киры ---
 await say("напомни мне завтра в 9 утра позвонить в банк");
 await say("каждую пятницу в 18:00 присылай мне итоги недели по SalesFox: что сделано, что зависло");

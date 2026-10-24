@@ -162,6 +162,10 @@ const MIGRATIONS = [
       INDEX (node_id, id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ],
+  // 4. Сеть контактов: откуда связь — поставил владелец или построил ИИ по его комментарию
+  [
+    "ALTER TABLE node_links ADD COLUMN origin VARCHAR(10) NOT NULL DEFAULT 'owner' AFTER note",
+  ],
 ];
 
 export async function openDb(cfg) {

@@ -346,7 +346,7 @@ export class Nodes {
 
   // ---------- связи (человек ↔ объект с ролью, блокер → что блокирует, «связано») ----------
 
-  async link(aId, bId, role = "related", source = "web", note = null) {
+  async link(aId, bId, role = "related", source = "web", note = null, { origin = "owner", quiet = false } = {}) {
     if (+aId === +bId) throw new ValidationError("Нельзя связать объект сам с собой");
     const [a, b] = [await this.getRow(+aId), await this.getRow(+bId)];
     if (!a || a.deleted_at) throw new ValidationError(`Нет записи #${aId}`);
@@ -360,9 +360,10 @@ export class Nodes {
     );
     if (exists.length) return { id: exists[0].id, existed: true };
     const r = await this.db.query(
-      "INSERT INTO node_links (a_id, b_id, role, note, created_at) VALUES (?, ?, ?, ?, NOW(3))", [x.id, y.id, role, note],
+      "INSERT INTO node_links (a_id, b_id, role, note, origin, created_at) VALUES (?, ?, ?, ?, ?, NOW(3))", [x.id, y.id, role, note, origin],
     );
-    await this.touch(x.id, "link", source, { link: [null, `${role}: ${y.title} (#${y.id})`] });
+    // связи, которые строит ИИ, не меняют версию объекта (иначе он снова попал бы на пересчёт)
+    if (!quiet) await this.touch(x.id, "link", source, { link: [null, `${role}: ${y.title} (#${y.id})`] });
     return { id: r.insertId };
   }
 
@@ -378,16 +379,34 @@ export class Nodes {
   // Все связи объекта в обе стороны
   async linksOf(id) {
     const rows = await this.db.query(
-      `SELECT l.id, l.a_id, l.b_id, l.role, l.note, l.created_at, n.id AS nid, n.kind, n.title, n.status, n.meta, n.deleted_at
+      `SELECT l.id, l.a_id, l.b_id, l.role, l.note, l.origin, l.created_at, n.id AS nid, n.kind, n.title, n.status, n.meta, n.deleted_at
        FROM node_links l JOIN nodes n ON n.id = IF(l.a_id = ?, l.b_id, l.a_id)
        WHERE (l.a_id = ? OR l.b_id = ?) AND l.removed_at IS NULL ORDER BY l.id`,
       [id, id, id],
     );
     return rows.filter((r) => !r.deleted_at).map((r) => ({
-      link_id: r.id, role: r.role, note: r.note, direction: r.a_id === +id ? "out" : "in",
+      link_id: r.id, role: r.role, note: r.note, origin: r.origin, direction: r.a_id === +id ? "out" : "in",
       id: r.nid, kind: r.kind, title: r.title, status: r.status, closed: isClosed(r.kind, r.status),
       fields: r.kind === "person" ? safeJson(r.meta) || {} : undefined,
     }));
+  }
+
+  // Убрать связи, которые ИИ построил от этого человека (перед новым разбором)
+  async removeAiLinks(personId) {
+    const r = await this.db.query("UPDATE node_links SET removed_at = NOW(3) WHERE a_id = ? AND origin = 'ai' AND removed_at IS NULL", [personId]);
+    return r.affectedRows;
+  }
+
+  // Сеть людей: все люди и связи между ними (для графа и поиска путей)
+  async network() {
+    const people = (await this.list({ kind: "person", limit: 2000, order: "title" })).filter((p) => !p.closed);
+    const ids = new Set(people.map((p) => p.id));
+    const rows = ids.size ? await this.db.query(
+      `SELECT id, a_id, b_id, role, note, origin FROM node_links WHERE removed_at IS NULL
+       AND a_id IN (${[...ids].map(() => "?").join(",")}) AND b_id IN (${[...ids].map(() => "?").join(",")})`,
+      [...ids, ...ids],
+    ) : [];
+    return { people, edges: rows.map((r) => ({ id: r.id, a: r.a_id, b: r.b_id, role: r.role, note: r.note, origin: r.origin })) };
   }
 
   // Изменение без смены полей (связь, комментарий) — тоже в историю
