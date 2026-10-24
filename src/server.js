@@ -10,6 +10,8 @@
 
 import http from "node:http";
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { ROOT, loadDotEnv, readConfig } from "./config.js";
 import { openDb } from "./db.js";
@@ -333,7 +335,29 @@ if (isMain && !process.env.KIRA_NO_LISTEN) {
   loadDotEnv();
   const cfg = readConfig();
   const app = createApp(cfg);
-  const server = http.createServer(app.handler);
-  server.listen(cfg.port, () => log(`слушаю порт ${cfg.port}, версия ${VERSION}`));
+
+  // Masterhost запускает Node.js через NGINX Unit: он принимает только сервер из модуля unit-http,
+  // который слушает не порт, а сам Unit. Если модуля нет (локально) — обычный http на порту.
+  let server;
+  try {
+    const unit = createRequire(import.meta.url)("unit-http");
+    server = unit.createServer(app.handler);
+    server.listen();
+    log(`работаю через NGINX Unit, версия ${VERSION}`);
+  } catch {
+    server = http.createServer(app.handler);
+    server.listen(cfg.port, () => log(`слушаю порт ${cfg.port}, версия ${VERSION}`));
+  }
   app.services().catch((e) => log("база пока недоступна:", e.message));
+
+  // Выкладка меняет tmp/restart.txt — заметив это, процесс выходит, и хостинг поднимает его уже с новым кодом
+  const restartFile = path.join(ROOT, "tmp", "restart.txt");
+  const mtime = () => { try { return fsSync.statSync(restartFile).mtimeMs; } catch { return 0; } };
+  const startedWith = mtime();
+  setInterval(() => {
+    if (mtime() !== startedWith) {
+      log("выложена новая версия, перезапускаюсь");
+      process.exit(0);
+    }
+  }, 10000).unref();
 }
