@@ -50,17 +50,20 @@ export function createRiskAssessor({ db, nodes, llm, tz, log = () => {} }) {
       f.probability || f.impact ? `Оценка владельца: вероятность ${f.probability ?? "—"}, влияние ${f.impact ?? "—"} (из 5)` : "Владелец ещё не оценил.",
       await context(risk),
     ].filter(Boolean).join("\n");
-    const res = await llm.chat({
-      messages: [
-        { role: "system", content: "Ты — Кира, ассистент по управлению проектами. Оцени риск независимо от владельца: вероятность (1 — почти невозможно, 5 — почти наверняка) и влияние на результат (1 — незаметно, 5 — провал цели). Комментарий 1–3 предложения по-русски: почему так и что стоит сделать; если твоя оценка сильно расходится с оценкой владельца — скажи, в чём. Ответ строго JSON: {\"probability\": 1-5, \"impact\": 1-5, \"comment\": \"...\"}" },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.2,
-      maxTokens: 400,
-      json: true,
-    });
-    let data;
-    try { data = JSON.parse((res.message.content || "").replace(/^```(json)?|```$/g, "").trim()); } catch { throw new Error("Модель ответила не JSON"); }
+    const messages = [
+      { role: "system", content: "Ты — Кира, ассистент по управлению проектами. Оцени риск независимо от владельца: вероятность (1 — почти невозможно, 5 — почти наверняка) и влияние на результат (1 — незаметно, 5 — провал цели). Комментарий 1–3 предложения по-русски: почему так и что стоит сделать; если твоя оценка сильно расходится с оценкой владельца — скажи, в чём. Ответь только JSON-объектом без пояснений: {\"probability\": число 1-5, \"impact\": число 1-5, \"comment\": \"текст\"}" },
+      { role: "user", content: prompt },
+    ];
+    // Сначала просим строгий JSON; если модель ответила не так — повторяем без этого режима и вынимаем JSON из текста
+    let data = null;
+    let lastText = "";
+    for (const json of [true, false]) {
+      const res = await llm.chat({ messages, temperature: 0.2, maxTokens: 1200, json });
+      lastText = res.message.content || "";
+      data = extractJson(lastText);
+      if (data && data.probability && data.impact) break;
+    }
+    if (!data || !data.probability || !data.impact) throw new Error(`Модель ответила не JSON: ${lastText.slice(0, 160) || "(пусто)"}`);
     const clamp = (x) => Math.min(5, Math.max(1, Math.round(+x) || 3));
     const fresh = await nodes.getRow(risk.id);
     const updated = await nodes.update(risk.id, {
@@ -85,4 +88,12 @@ export function createRiskAssessor({ db, nodes, llm, tz, log = () => {} }) {
   }
 
   return { assess, runPending, pending };
+}
+
+function extractJson(text) {
+  const t = String(text || "").replace(/```(?:json)?/gi, "").trim();
+  try { return JSON.parse(t); } catch {}
+  const m = t.match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch {} }
+  return null;
 }
