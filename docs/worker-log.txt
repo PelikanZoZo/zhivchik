@@ -1,16 +1,16 @@
-Выкладка: 2026-10-24 10:33 UTC
+Выкладка: 2026-10-24 10:41 UTC
 
  ⛅️ wrangler 4.152.0
 ────────────────────
 Total Upload: 3.72 KiB / gzip: 1.52 KiB
-Worker Startup Time: 2 ms
+Worker Startup Time: 1 ms
 Your Worker has access to the following bindings:
 Binding                                  Resource                  
 env.SITE_URL ("https://devalby.ru")      Environment Variable      
 
-Deployed kira-bridge triggers (1.74 sec)
+Deployed kira-bridge triggers (0.92 sec)
   schedule: * * * * *
-Current Version ID: 40b3c30c-8a82-45c0-9966-ea5c8c8245e6
+Current Version ID: a10d5455-fd3e-4d0f-9638-d4da10845327
 
 Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
 ✨ Successfully created secret for key: BRIDGE_SECRET
