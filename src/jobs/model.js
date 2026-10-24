@@ -22,7 +22,7 @@ export const CREATORS = { owner: "Владелец", kira: "Кира", system: "
 export const ACTIONS = { remind: "Напомнить", do: "Выполнить" };
 
 const MAX_ACTIVE = 300;
-const FIELDS = ["title", "instruction", "action", "schedule", "run_at", "cron", "interval_min", "until_at", "max_runs", "links", "status"];
+const FIELDS = ["title", "instruction", "message", "action", "schedule", "run_at", "cron", "interval_min", "until_at", "max_runs", "links", "status"];
 
 export class JobsModel {
   constructor(db, tz) {
@@ -97,7 +97,7 @@ export class JobsModel {
     const now = new Date();
     const createdBy = CREATORS[input.created_by] ? input.created_by : source === "web" ? "owner" : "kira";
     const row = {
-      instruction: null, action: "do", run_at: null, cron: null, interval_min: null, until_at: null, max_runs: null,
+      instruction: null, message: null, action: "do", run_at: null, cron: null, interval_min: null, until_at: null, max_runs: null,
       links: "", status: "active", ...data,
     };
     row.next_run_at = this.computeNext(row, now, true);
@@ -248,6 +248,7 @@ export class JobsModel {
       out.title = t;
     }
     if (input.instruction !== undefined) out.instruction = input.instruction ? String(input.instruction) : null;
+    if (input.message !== undefined) out.message = cleanMessage(input.message);
     if (input.action !== undefined) {
       if (!ACTIONS[input.action]) throw new ValidationError("action: remind (напомнить текстом) или do (выполнить)");
       out.action = input.action;
@@ -315,6 +316,7 @@ export class JobsModel {
       id: r.id,
       title: r.title,
       instruction: r.instruction,
+      message: r.message || null,
       action: r.action, action_text: ACTIONS[r.action],
       created: formatLocal(r.created_at, this.tz),
       created_by: r.created_by, created_by_text: CREATORS[r.created_by] || r.created_by,
@@ -346,6 +348,17 @@ function plain(v) {
 
 function same(a, b) {
   return JSON.stringify(plain(a)) === JSON.stringify(plain(b));
+}
+
+// Текст напоминания — ровно то, что получит владелец: без кавычек вокруг и пробелов по краям
+export function cleanMessage(v) {
+  let t = String(v ?? "").trim();
+  for (;;) {
+    const m = t.match(/^[«"“„'](.*)[»"”“']$/s);
+    if (!m) break;
+    t = m[1].trim();
+  }
+  return t ? t.slice(0, 1000) : null;
 }
 
 function snapshot(row) {

@@ -123,6 +123,7 @@ await say("что у нас по миссии с гендиректором?");
 
 // --- задания Киры ---
 await say("напомни мне завтра в 9 утра позвонить в банк");
+await say("напомни через 5 минут проверить стендовый сервер");
 await say("каждую пятницу в 18:00 присылай мне итоги недели по SalesFox: что сделано, что зависло");
 await say("через 2 дня проверь, сдвинулась ли смета для Альфа-Строй, и если нет — напиши мне");
 await say("какие у тебя сейчас задания?");
@@ -142,7 +143,7 @@ if (weekly) {
 
 console.log("\n=== Задания после разговора");
 for (const j of await svc.jobs.list({})) {
-  console.log(`#${j.id} [${j.status}/${j.exec_status}] ${j.title} — ${j.action}, ${j.schedule_text}${j.next_run ? ", дальше " + j.next_run : ""}; кем: ${j.created_by}${j.links.length ? "; связи: " + j.links.map((l) => l.title).join(", ") : ""}`);
+  console.log(`#${j.id} [${j.status}/${j.exec_status}] ${j.title}${j.message ? ` → придёт: «${j.message}»` : ""} — ${j.action}, ${j.schedule_text}${j.next_run ? ", дальше " + j.next_run : ""}; кем: ${j.created_by}${j.links.length ? "; связи: " + j.links.map((l) => l.title).join(", ") : ""}`);
 }
 
 console.log("\n=== Задачи в базе после разговора");

@@ -115,12 +115,25 @@ test("напоминание: уходит владельцу, разовое з
   assert.deepEqual(done.map((d) => [d.id, d.status]), [[j.id, "succeeded"]]);
   const [msg] = await db.query("SELECT text, chat_id FROM outbox ORDER BY id DESC LIMIT 1");
   assert.equal(msg.chat_id, 555);
-  assert.equal(msg.text, "⏰ Выпить таблетку\n\nБелая, после еды");
+  assert.equal(msg.text, "⏰ Выпить таблетку"); // служебная инструкция владельцу не уходит
   const after = await jobs.get(j.id);
   assert.equal(after.status, "done");
   assert.equal(after.run_count, 1);
   assert.equal(after.next_run, null);
   assert.equal((await runner.runDue()).length, 0); // второй раз не выполняется
+});
+
+test("напоминание: владелец получает ровно текст message, без кавычек и пояснений", { skip: !haveDb }, async () => {
+  const j = await jobs.create({
+    title: "Проверить стендовый сервер", action: "remind", run_at: "2030-01-01 09:00",
+    instruction: "Напомнить владельцу проверить стендовый сервер (он просил через 5 минут).",
+    message: "«Пора проверить стендовый сервер.»",
+  }, "bot");
+  assert.equal(j.message, "Пора проверить стендовый сервер.");
+  await due(j.id);
+  await runner.runDue();
+  const [msg] = await db.query("SELECT text FROM outbox ORDER BY id DESC LIMIT 1");
+  assert.equal(msg.text, "⏰ Пора проверить стендовый сервер.");
 });
 
 test("регулярное: после запуска — следующий по расписанию; лимит запусков", { skip: !haveDb }, async () => {

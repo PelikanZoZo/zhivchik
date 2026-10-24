@@ -247,6 +247,13 @@ const MIGRATIONS = [
     `UPDATE storage_files SET text = NULL, summary = NULL, keywords = NULL, pages = NULL, described_at = NULL, text_status = 'none', text_note = NULL
        WHERE kind NOT IN ('voice', 'audio', 'video')`,
   ],
+  // 9. Напоминание: отдельный текст, который получит владелец (инструкция — служебная, для Киры)
+  [
+    async (conn) => {
+      const [cols] = await conn.query("SHOW COLUMNS FROM jobs LIKE 'message'");
+      if (!cols.length) await conn.query("ALTER TABLE jobs ADD COLUMN message VARCHAR(1000) NULL AFTER instruction");
+    },
+  ],
 ];
 
 // Файлы, приложенные к объектам до появления каталога, — в реестр (сам файл не копируется)

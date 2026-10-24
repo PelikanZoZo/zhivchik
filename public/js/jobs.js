@@ -116,7 +116,8 @@ export async function jobsView(main) {
     e.preventDefault();
     attempt(async () => {
       if (!title.value.trim()) throw new Error("Напиши, что сделать");
-      await api("POST", "/api/jobs", { title: title.value.trim(), instruction: instruction.value.trim() || null, action: action.value, ...sched.value(), links: links.value() });
+      const remind = action.value === "remind";
+      await api("POST", "/api/jobs", { title: title.value.trim(), message: remind ? title.value.trim() : null, instruction: remind ? null : instruction.value.trim() || null, action: action.value, ...sched.value(), links: links.value() });
       toast("Задание поставлено");
       refresh();
     });
@@ -163,8 +164,10 @@ export async function openJobDrawer(id, { keepScroll = false } = {}) {
 
   const title = el("textarea", { class: "title-input", rows: 1, "aria-label": "Что сделать", disabled: job.system }, job.title);
   title.addEventListener("change", () => title.value.trim() && save({ title: title.value.trim() }));
-  const instruction = el("textarea", { placeholder: "Инструкция для Киры", "aria-label": "Инструкция", disabled: job.system }, job.instruction || "");
-  instruction.addEventListener("change", () => save({ instruction: instruction.value || null }));
+  const instruction = job.action === "remind"
+    ? el("textarea", { placeholder: "Текст, который ты получишь", "aria-label": "Текст напоминания", rows: 2 }, job.message || job.title)
+    : el("textarea", { placeholder: "Инструкция для Киры", "aria-label": "Инструкция", disabled: job.system }, job.instruction || "");
+  instruction.addEventListener("change", () => save(job.action === "remind" ? { message: instruction.value || null } : { instruction: instruction.value || null }));
   const action = el("select", { disabled: job.system, onchange: () => save({ action: action.value }) },
     el("option", { value: "remind", selected: job.action === "remind" }, "Напомнить"), el("option", { value: "do", selected: job.action === "do" }, "Выполнить"));
   const sched = scheduleEditor(job);
@@ -215,7 +218,7 @@ export async function openJobDrawer(id, { keepScroll = false } = {}) {
 
 function describeJobDiff(diff) {
   if (!diff) return "Изменено";
-  const names = { title: "текст", instruction: "инструкция", action: "способ", schedule: "тип расписания", run_at: "время", cron: "расписание", interval_min: "интервал", until_at: "срок окончания", max_runs: "число запусков", links: "связи", status: "статус", next_run_at: null };
+  const names = { title: "название", message: "текст напоминания", instruction: "инструкция", action: "способ", schedule: "тип расписания", run_at: "время", cron: "расписание", interval_min: "интервал", until_at: "срок окончания", max_runs: "число запусков", links: "связи", status: "статус", next_run_at: null };
   const st = { active: "активно", done: "выполнено", cancelled: "отменено" };
   return Object.entries(diff).filter(([f]) => names[f] !== null).map(([f, [a, b]]) =>
     f === "status" ? `статус: ${st[a] || a} → ${st[b] || b}` : f === "cron" ? `расписание: ${b}` : names[f] || f).join("; ") || "Изменено";

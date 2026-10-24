@@ -41,7 +41,8 @@ export function createRunner({ jobs, agent, outbox, log = () => {} }) {
       let meta = null;
       let status = "succeeded";
       if (job.action === "remind") {
-        const text = `⏰ ${job.title}${job.instruction ? `\n\n${job.instruction}` : ""}`;
+        // владельцу — только текст напоминания; инструкция служебная и не отправляется
+        const text = `⏰ ${job.message || job.title}`;
         const r = await outbox.notifyOwner(text, `job:${job.id}`);
         result = r.sent ? "Напоминание отправлено" : `Не отправлено: ${r.reason}`;
         if (!r.sent) status = "skipped";

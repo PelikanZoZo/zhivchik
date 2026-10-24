@@ -82,9 +82,10 @@ export const TOOL_DEFS = [
 ];
 
 const jobFields = {
-  title: { type: "string", description: "Что сделать — коротко. Для напоминания это текст напоминания" },
-  instruction: { type: "string", description: "Подробная инструкция самой себе: что проверить, что сделать, когда и что написать владельцу" },
-  action: { type: "string", enum: ["remind", "do"], description: "remind — просто отправить владельцу напоминание (title + instruction) без размышлений; do — выполнить: подумать, посмотреть данные, действовать инструментами" },
+  title: { type: "string", description: "Короткое название задания для списка заданий" },
+  message: { type: "string", description: "Для remind — ровно тот текст, который придёт владельцу, как он его сформулировал или как естественно сказать ему: «Пора проверить стендовый сервер». Без кавычек, без пояснений вроде «он просил», без служебных пометок" },
+  instruction: { type: "string", description: "Для do — инструкция самой себе: что проверить, что сделать, что написать владельцу. Владельцу не отправляется. Для remind не нужна" },
+  action: { type: "string", enum: ["remind", "do"], description: "remind — в нужное время отправить владельцу текст message, как есть, без размышлений; do — выполнить: подумать, посмотреть данные, действовать инструментами" },
   run_at: { type: "string", description: "Разово: когда выполнить, местное время ГГГГ-ММ-ДД ЧЧ:ММ. Для интервала — когда первый раз" },
   cron: { type: "string", description: "Регулярно: расписание cron по местному времени, 5 полей «минута час день месяц день_недели» (0 или 7 — вс, 1 — пн). Примеры: «0 9 * * *» — каждый день в 9:00; «0 18 * * 5» — по пятницам в 18:00; «0 10 * * 1-5» — по будням в 10:00; «0 12 1 * *» — 1-го числа в 12:00" },
   every_minutes: { type: "integer", description: "Регулярно с интервалом в минутах (не меньше 5). Например 120 — каждые 2 часа" },
@@ -345,7 +346,7 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       if (!j) return { error: `Нет задания #${id}` };
       const runs = await jobs.runs(+id, 5);
       return {
-        ...briefJob(j), instruction: j.instruction, created: j.created, created_by: j.created_by, run_count: j.run_count,
+        ...briefJob(j), instruction: j.instruction, ...(j.message ? { message: j.message } : {}), created: j.created, created_by: j.created_by, run_count: j.run_count,
         last_result: j.last_result?.slice(0, 1500),
         runs: runs.map((r) => ({ started: r.started, status: r.status, result: r.result?.slice(0, 500) })),
       };
