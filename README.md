@@ -32,7 +32,8 @@ Telegram ⇄ Cloudflare Worker (worker/) ⇄ сайт на Masterhost (app.js, s
 | Команды на хостинге по SSH (`ssh-ops.yml`) | изменение `ops/remote.sh` | `docs/ops-log.txt` |
 
 Секреты репозитория: `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`, `SSH_HOST`, `SSH_USER`, `SSH_PASSWORD`,
-`DEEPSEEK_API_KEY`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TELEGRAM_BOT_TOKEN`, `ADMIN_PASSWORD`, `BRIDGE_SECRET`.
+`DEEPSEEK_API_KEY`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TELEGRAM_BOT_TOKEN`, `ADMIN_PASSWORD`, `BRIDGE_SECRET`,
+`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (база MySQL из панели Masterhost).
 
 Репозиторий публичный: в коде и журналах нет ни паролей, ни данных.
 

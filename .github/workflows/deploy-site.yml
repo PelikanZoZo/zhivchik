@@ -54,6 +54,10 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           BRIDGE_SECRET: ${{ secrets.BRIDGE_SECRET }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           npm ci --omit=dev
           mkdir -p dist/tmp
@@ -62,6 +66,12 @@ jobs:
             echo "ADMIN_PASSWORD=$ADMIN_PASSWORD"
             echo "BRIDGE_SECRET=$BRIDGE_SECRET"
             echo "DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY"
+            # База: если панель хостинга не передаёт её параметры сама — берём из секретов
+            [ -n "$DB_HOST" ] && echo "DB_HOST=$DB_HOST"
+            [ -n "$DB_NAME" ] && echo "DB_NAME=$DB_NAME"
+            [ -n "$DB_USER" ] && echo "DB_USER=$DB_USER"
+            [ -n "$DB_PASSWORD" ] && echo "DB_PASSWORD=$DB_PASSWORD"
+            true
           } > dist/.env
           date -u > dist/tmp/restart.txt
 
