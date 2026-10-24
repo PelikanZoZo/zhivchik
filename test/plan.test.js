@@ -195,3 +195,32 @@ test("Кира строит план проекта в диалоге и отв�
   // ничего не записалось при «что если»
   assert.equal(by("Интервью").start, "2026-11-02");
 });
+
+test("build_plan подхватывает существующие этапы и цели по названию, не плодит дубли", { skip: !haveDb }, async () => {
+  const { nodes, planner } = await app.services();
+  const pr = await nodes.create({ kind: "project", title: "С этапами" }, "web");
+  const st = await nodes.create({ kind: "stage", title: "Выход на ЛПР", parent_id: pr.id }, "web");
+  const g = await nodes.create({ kind: "goal", title: "Первая встреча с гендиректором", parent_id: pr.id }, "web");
+  const r = await planner.buildPlan(pr.id, { start: "2026-12-01", stages: [{ title: "выход на лпр", tasks: [{ title: "Найти контакт", days: 3 }], goals: [{ title: "Первая встреча с гендиректором" }] }] }, { source: "web" });
+  assert.equal(r.reused, 2);
+  assert.equal(r.created.stages, 0);
+  assert.equal(r.created.goals, 0);
+  const goal = await nodes.get(g.id);
+  assert.deepEqual([goal.stage_id, goal.due.slice(0, 10)], [st.id, "2026-12-03"]);
+  assert.equal((await nodes.list({ kind: "stage", parent_id: pr.id })).length, 1);
+});
+
+test("обрезанный по длине ответ модели — Киру просят сделать меньшими шагами", { skip: !haveDb }, async () => {
+  let n = 0;
+  script.push(() => { n++; return { role: "assistant", content: "" }; });
+  const orig = fakeLlm.chat;
+  fakeLlm.chat = async (args) => {
+    const r = await orig(args);
+    if (n === 1 && !r.finish) { n++; return { ...r, finish: "length" }; }
+    return r;
+  };
+  script.push((messages) => { assert.match(messages.at(-1).content, /не поместился/); return { role: "assistant", content: "Построила по частям." }; });
+  const r = await call("POST", "/api/chat", { text: "распланируй большой проект" });
+  fakeLlm.chat = orig;
+  assert.equal(r.data.text, "Построила по частям.");
+});

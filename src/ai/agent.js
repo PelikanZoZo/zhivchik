@@ -62,7 +62,8 @@ export function createAgent({ db, nodes, jobs, outbox, dwh, deps = {}, llm, tz, 
       "- Источники — в конце, одна строка: «Источники: [название](ссылка), [название](ссылка)» — 1–3 главных. То, что владелец просит запомнить из найденного, сохраняй в систему (памятка или вложение-ссылка в нужном доме).",
       "Планирование (график как в MS Project):",
       "- «Распланируй проект…», «составь план-график» — сначала уточни только то, без чего нельзя (дата старта или срок, если их нет), потом build_plan: этапы по порядку, задачи с длительностью в днях и зависимостями, вехи этапов (цели), риски этапов, финальная цель. Реалистичные длительности, 3–7 задач на этап.",
-      "- Если у проекта уже есть план (get_plan) — не дублируй, а дополняй или правь (create_item со start/due/stage_id, set_dates, link_tasks).",
+      "- Сначала посмотри get_plan. Этапы и цели, которые уже есть (даже без дат), build_plan подхватит по точному названию — передавай их названия как есть. Если задачи уже стоят на графике — не дублируй, а дополняй или правь (create_item со start/due/stage_id, set_dates, link_tasks).",
+      "- Большой план (больше ~15 задач) строй по частям: build_plan на один-два этапа за вызов, следующий этап — с start на день после окончания предыдущего.",
       "- «Что будет, если сдвинуть / затянется…» — set_dates с dry_run=true и коротко скажи, что уедет и на сколько; меняй, только если он подтвердит.",
       "- Цели этапа — goal со stage_id этапа; риски этапа — risk со stage_id этапа. «Зафиксируй план» — save_baseline.",
       "- После построения — коротко: этапы с датами, когда финиш, ключевые вехи. График он видит и правит руками на сайте (раздел «Планировщик» или вкладка «График» в проекте).",
@@ -123,7 +124,14 @@ export function createAgent({ db, nodes, jobs, outbox, dwh, deps = {}, llm, tz, 
     let answer = "";
     const usage = { prompt: 0, completion: 0 };
     for (let step = 0; step < MAX_STEPS; step++) {
-      const res = await llm.chat({ messages, tools, model: smart ? llm.smartModel : undefined });
+      // большой вызов (например, план проекта целиком) может не влезть — тогда повтор с запасом
+      let res = await llm.chat({ messages, tools, model: smart ? llm.smartModel : undefined, maxTokens: 8000, timeoutMs: 100000 });
+      if (res.finish === "length" && !(res.message.tool_calls || []).length) {
+        log("ответ модели обрезан по длине — прошу короче");
+        messages.push({ role: "user", content: "[Система: твой предыдущий ответ не поместился и обрезался. Сделай то же самое меньшими шагами: например, план — по одному этапу за вызов (build_plan на этап, потом следующий), либо ответь короче.]" });
+        res = await llm.chat({ messages, tools, model: smart ? llm.smartModel : undefined, maxTokens: 8000, timeoutMs: 100000 });
+        messages.pop();
+      }
       if (res.usage) {
         usage.prompt += res.usage.prompt_tokens || 0;
         usage.completion += res.usage.completion_tokens || 0;

@@ -400,10 +400,19 @@ export function createPlanner({ db, nodes, tz }) {
     let prevEnd = startDay - 1;
     let prevEndTasks = [];
     const mk = (input) => nodes.create({ ...input, parent_id: root.id }, source);
+    // уже существующие этапы и цели с теми же названиями — используем, а не плодим дубли
+    const norm = (t) => String(t || "").toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const existing = (await db.query("SELECT id, kind, title FROM nodes WHERE parent_id = ? AND kind IN ('stage', 'goal') AND deleted_at IS NULL", [root.id]));
+    const findExisting = (kind, title) => existing.find((e) => e.kind === kind && norm(e.title) === norm(title));
+    let reused = 0;
     for (const [i, st] of stagesSpec.entries()) {
       const stageStart = st.start ? dayNum(String(st.start)) : prevEnd + 1;
-      const stage = root.kind === "mission" ? null : await mk({ kind: "stage", title: String(st.title || `Этап ${i + 1}`), status: "planned" });
-      if (stage) created.stages++;
+      let stage = null;
+      if (root.kind !== "mission") {
+        const ex = findExisting("stage", st.title);
+        if (ex) { stage = { id: ex.id, title: ex.title }; reused++; }
+        else { stage = await mk({ kind: "stage", title: String(st.title || `Этап ${i + 1}`), status: "planned" }); created.stages++; }
+      }
       const tasks = Array.isArray(st.tasks) ? st.tasks : [];
       const inStage = [];
       for (const [j, t] of tasks.entries()) {
@@ -432,8 +441,11 @@ export function createPlanner({ db, nodes, tz }) {
       if (stage) await nodes.update(stage.id, { start: dayStr(stageStart), due: dayStr(stageEnd) }, source);
       for (const g of Array.isArray(st.goals) ? st.goals : []) {
         const date = g.date ? dayNum(String(g.date)) : stageEnd;
-        const goal = await mk({ kind: "goal", title: String(g.title), stage_id: stage?.id ?? null, due: dayStr(date), fields: { goal_type: g.final ? "final" : "milestone" } });
-        created.goals++;
+        const ex = findExisting("goal", g.title);
+        const goal = ex
+          ? await nodes.update(ex.id, { stage_id: stage?.id ?? null, due: dayStr(date) }, source)
+          : await mk({ kind: "goal", title: String(g.title), stage_id: stage?.id ?? null, due: dayStr(date), fields: { goal_type: g.final ? "final" : "milestone" } });
+        if (ex) reused++; else created.goals++;
         if (!g.date) for (const e of endTasks) links.push({ pred: e.id, succ: goal.id });
       }
       for (const r of Array.isArray(st.risks) ? st.risks : []) {
@@ -449,8 +461,11 @@ export function createPlanner({ db, nodes, tz }) {
     }
     if (spec.final_goal?.title) {
       const date = spec.final_goal.date ? dayNum(String(spec.final_goal.date)) : prevEnd;
-      const goal = await mk({ kind: "goal", title: String(spec.final_goal.title), due: dayStr(date), fields: { goal_type: "final" } });
-      created.goals++;
+      const ex = findExisting("goal", spec.final_goal.title);
+      const goal = ex
+        ? await nodes.update(ex.id, { due: dayStr(date), fields: { goal_type: "final" } }, source)
+        : await mk({ kind: "goal", title: String(spec.final_goal.title), due: dayStr(date), fields: { goal_type: "final" } });
+      if (ex) reused++; else created.goals++;
       if (!spec.final_goal.date) for (const e of prevEndTasks) links.push({ pred: e.id, succ: goal.id });
     }
     for (const l of links) {
@@ -461,7 +476,7 @@ export function createPlanner({ db, nodes, tz }) {
     const ext = [...new Set(links.map((l) => l.pred))];
     const shifted = await propagateFrom(ext, source);
     await syncStages(source);
-    return { created, stages: summary, finish: dayStr(prevEnd), shifted: shifted.length };
+    return { created, reused, stages: summary, finish: dayStr(prevEnd), shifted: shifted.length };
   }
 
   return { buildPlan, getPlan, move, addLink, removeLink, saveBaseline, latestBaseline, propagateFrom, syncStages, load };
