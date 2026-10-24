@@ -1,4 +1,9 @@
-# Проверка нового приложения на хостинге: процессы и журнал
-echo "=== процессы"; ps -eo pid,lstart,args 2>/dev/null | grep -a "app.js" | grep -av grep
-echo "=== журнал (последние 30 строк про Киру и ошибки)"; tail -200 ~/log/devalby.ru.error.log 2>/dev/null | grep -aiE "кира|error|ошибка|cannot|fail" | tail -30
-echo "=== переменные базы у процесса (только имена)"; for p in $(pgrep -f "loader app.js" | head -1); do tr "\0" "\n" < /proc/$p/environ 2>/dev/null | cut -d= -f1 | grep -iE "^db|mysql" | sort | tr "\n" " "; echo; done
+# Почему сайт отвечает редиректом: файлы, конфиги, журналы
+echo "=== ~/"; ls -la ~ 2>&1 | head -30
+echo "=== ~/devalby.ru"; ls -la ~/devalby.ru 2>&1
+echo "=== www"; ls -la ~/devalby.ru/www 2>&1
+echo "=== .htaccess и конфиги"; find ~ -maxdepth 3 \( -name ".htaccess" -o -name "*.conf" -o -name "nginx*" \) 2>/dev/null | head; for f in $(find ~ -maxdepth 3 -name ".htaccess" 2>/dev/null); do echo "--- $f"; head -30 "$f"; done
+echo "=== журналы"; ls -la ~/log 2>&1 | head
+echo "--- error.log, конец"; tail -25 ~/log/devalby.ru.error.log 2>&1 | grep -av "pass"
+echo "--- access.log, конец"; ls ~/log/ | grep -i access | head -3; tail -8 ~/log/*access* 2>/dev/null | cut -c1-220
+echo "=== изнутри"; curl -s -o /dev/null -w "http://devalby.ru/api/health -> %{http_code} %{redirect_url}\n" --max-time 20 http://devalby.ru/api/health
