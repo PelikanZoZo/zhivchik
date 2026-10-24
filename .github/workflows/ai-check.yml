@@ -1,0 +1,52 @@
+# Проверка ассистента с настоящим DeepSeek на временной тестовой базе.
+# Запускается вручную или при изменении ассистента. Результат — docs/ai-check.txt.
+name: Проверка ассистента
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["src/ai/**", "src/bot.js", "tools/ai-smoke.js", ".github/workflows/ai-check.yml"]
+concurrency:
+  group: ai-check
+  cancel-in-progress: true
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: kira_smoke
+          MYSQL_USER: kira
+          MYSQL_PASSWORD: kira
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --omit=dev
+      - name: Разговор с ассистентом
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_NAME: kira_smoke
+          TEST_DB_USER: kira
+          TEST_DB_PASSWORD: kira
+          KIRA_NO_LISTEN: "1"
+        run: |
+          mkdir -p docs
+          { echo "Проверка: $(date -u '+%Y-%m-%d %H:%M UTC')"; timeout 900 node tools/ai-smoke.js 2>&1; echo "итог: $?"; } > docs/ai-check.txt || true
+          cat docs/ai-check.txt
+      - name: Сохранить результат
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/ai-check.txt
+          git commit -m "Результат проверки ассистента" || exit 0
+          git pull --rebase -q && git push

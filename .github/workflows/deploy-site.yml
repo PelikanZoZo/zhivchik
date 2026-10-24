@@ -1,0 +1,119 @@
+# Выкладка сайта на Masterhost: тесты → сборка → заливка по FTP в www/ → перезапуск → проверка.
+# Секреты (ADMIN_PASSWORD, BRIDGE_SECRET, DEEPSEEK_API_KEY) попадают только в файл .env на хостинге.
+# Журнал (без паролей и адресов) — docs/deploy-log.txt.
+name: Выкладка сайта
+on:
+  push:
+    branches: [main]
+    paths: ["app.js", "package.json", "package-lock.json", "src/**", "public/**", "test/**", ".github/workflows/deploy-site.yml"]
+  workflow_dispatch:
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: kira_test
+          MYSQL_USER: kira
+          MYSQL_PASSWORD: kira
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - name: Тесты
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_NAME: kira_test
+          TEST_DB_USER: kira
+          TEST_DB_PASSWORD: kira
+        run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Собрать
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          BRIDGE_SECRET: ${{ secrets.BRIDGE_SECRET }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          npm ci --omit=dev
+          mkdir -p dist/tmp
+          cp -r app.js package.json package-lock.json src public node_modules dist/
+          {
+            echo "ADMIN_PASSWORD=$ADMIN_PASSWORD"
+            echo "BRIDGE_SECRET=$BRIDGE_SECRET"
+            echo "DEEPSEEK_API_KEY=$DEEPSEEK_API_KEY"
+          } > dist/.env
+          date -u > dist/tmp/restart.txt
+
+      - name: Залить в www/ и перезапустить
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          sudo apt-get install -y -qq lftp > /dev/null
+          mkdir -p docs
+          set -o pipefail
+          # Модули — только изменившиеся; код целиком, лишнее (остатки старого проекта) удаляется;
+          # в самом конце новый tmp/restart.txt — сигнал хостингу перезапустить приложение
+          lftp -u "$FTP_USERNAME,$FTP_PASSWORD" "$FTP_SERVER" -e "
+            set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; set ftp:passive-mode yes; set xfer:use-temp-file yes; set xfer:temp-file-name .in.*;
+            mirror -R --delete --verbose=1 --parallel=4 --ignore-time dist/node_modules/ www/node_modules/;
+            mirror -R --delete --verbose=1 --parallel=4 dist/src/ www/src/;
+            mirror -R --delete --verbose=1 --parallel=4 dist/public/ www/public/;
+            put dist/app.js -o www/app.js; put dist/package.json -o www/package.json; put dist/package-lock.json -o www/package-lock.json;
+            put dist/.env -o www/.env;
+            rm -f www/server.js;
+            chmod 755 www/app.js; chmod 600 www/.env;
+            mkdir -p www/tmp; put dist/tmp/restart.txt -o www/tmp/restart.txt;
+            cls -1 www/;
+            bye" 2>&1 | sed "s/$FTP_PASSWORD/***/g" | grep -v "\.env" | tail -40 > docs/deploy-log.txt && status=0 || status=$?
+          echo "итог заливки: $status" >> docs/deploy-log.txt
+          cat docs/deploy-log.txt
+          exit $status
+
+      - name: Проверить, что сайт ожил
+        if: always()
+        run: |
+          sleep 15
+          {
+            echo "--- проверка $(date -u '+%Y-%m-%d %H:%M UTC')"
+            for i in 1 2 3 4 5 6; do
+              out=$(curl -sk --max-time 40 https://devalby.ru/api/health || true)
+              echo "health (https): ${out:-нет ответа}"
+              echo "$out" | grep -q '"db":true' && break
+              sleep 15
+            done
+            echo "главная (http): $(curl -s -o /dev/null --max-time 30 -w '%{http_code} -> %{redirect_url}' http://devalby.ru/)"
+            echo "сертификат: $(curl -s -o /dev/null --max-time 30 -w '%{ssl_verify_result}' https://devalby.ru/ 2>/dev/null; true) (0 — в порядке)"
+          } >> docs/deploy-log.txt
+          tail -12 docs/deploy-log.txt
+
+      - name: Сохранить журнал выкладки
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/deploy-log.txt
+          git commit -m "Журнал выкладки сайта" || exit 0
+          git pull --rebase -q && git push

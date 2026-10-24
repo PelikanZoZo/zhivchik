@@ -1,0 +1,80 @@
+# Выкладка Cloudflare Worker'а (мост Telegram ↔ сайт) и настройка вебхука Telegram.
+# Журнал (без ключей) — docs/worker-log.txt.
+name: Выкладка бота (Cloudflare)
+on:
+  push:
+    branches: [main]
+    paths: ["worker/**", ".github/workflows/deploy-worker.yml"]
+  workflow_dispatch:
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      BRIDGE_SECRET: ${{ secrets.BRIDGE_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+
+      - name: Выложить Worker и передать ему секреты
+        run: |
+          mkdir -p ../docs
+          # Ключ подписи вебхука Telegram — производный от BRIDGE_SECRET, отдельно хранить не нужно
+          TG_WEBHOOK_SECRET=$(printf 'kira-telegram:%s' "$BRIDGE_SECRET" | sha256sum | cut -c1-48)
+          echo "::add-mask::$TG_WEBHOOK_SECRET"
+          echo "TG_WEBHOOK_SECRET=$TG_WEBHOOK_SECRET" >> $GITHUB_ENV
+          {
+            echo "Выкладка: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            npx wrangler deploy 2>&1 | grep -vE "workers\.dev|Uploaded|Proxy" | tail -15
+            jq -n --arg a "$TELEGRAM_BOT_TOKEN" --arg b "$BRIDGE_SECRET" --arg c "$TG_WEBHOOK_SECRET" \
+              '{TELEGRAM_BOT_TOKEN:$a, BRIDGE_SECRET:$b, TG_WEBHOOK_SECRET:$c}' > /tmp/secrets.json
+            npx wrangler secret bulk /tmp/secrets.json 2>&1 | grep -viE "proxy" | tail -5
+            rm -f /tmp/secrets.json
+          } > ../docs/worker-log.txt 2>&1
+          cat ../docs/worker-log.txt
+
+      - name: Настроить вебхук Telegram
+        run: |
+          SUB=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain')
+          URL="https://kira-bridge.$SUB.workers.dev"
+          echo "::add-mask::$SUB"
+          T="https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN"
+          {
+            echo
+            echo "Worker отвечает: $(curl -s --max-time 30 $URL/health)"
+            echo "setWebhook: $(curl -s "$T/setWebhook" -H 'Content-Type: application/json' -d "$(jq -n --arg u "$URL/telegram" --arg s "$TG_WEBHOOK_SECRET" \
+              '{url:$u, secret_token:$s, allowed_updates:["message","callback_query"], max_connections:4}')" | jq -c '{ok, description}')"
+            echo "команды: $(curl -s "$T/setMyCommands" -H 'Content-Type: application/json' -d '{"commands":[
+              {"command":"plan","description":"План на сегодня"},
+              {"command":"today","description":"Что на сегодня (быстро)"},
+              {"command":"new","description":"Начать разговор заново"},
+              {"command":"morning","description":"Время утреннего плана"},
+              {"command":"help","description":"Подсказка"}]}' | jq -c '.ok')"
+            sleep 5
+            echo "состояние вебхука: $(curl -s "$T/getWebhookInfo" | jq -c '.result | {pending_update_count, last_error_message, last_error_date}')"
+          } >> ../docs/worker-log.txt
+          cat ../docs/worker-log.txt
+
+      - name: Сохранить журнал
+        if: always()
+        run: |
+          cd ..
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/worker-log.txt
+          git commit -m "Журнал выкладки бота" || exit 0
+          git pull --rebase -q && git push

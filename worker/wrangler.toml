@@ -1,0 +1,15 @@
+# Cloudflare Worker — мост Telegram ↔ сайт. Выкладывается из GitHub Actions (deploy-worker.yml).
+name = "kira-bridge"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[vars]
+SITE_URL = "https://devalby.ru"
+
+# Раз в минуту — забрать с сайта сообщения, которые бот должен отправить сам (утренний план и т.п.)
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true

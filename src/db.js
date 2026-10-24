@@ -1,0 +1,185 @@
+// База MySQL. Таблицы создаются и обновляются сами при запуске (миграции по номерам).
+//
+// Главная идея: всё хранится во времени. Ничего не перезаписывается без следа —
+// каждое изменение записи (задачи, проекта, цели…) сохраняет полный снимок в node_history.
+// Поэтому всегда можно посмотреть, какой была задача неделю назад и что с ней происходило.
+
+import mysql from "mysql2/promise";
+
+const MIGRATIONS = [
+  // 1. Ядро
+  [
+    // Узлы — всё, из чего состоит система: проекты, задачи, цели, заметки, сценарии.
+    // Дерево через parent_id: проект → задачи → подзадачи, цель → шаги, сценарий → ветки.
+    `CREATE TABLE nodes (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      kind VARCHAR(20) NOT NULL,
+      parent_id BIGINT NULL,
+      title VARCHAR(500) NOT NULL,
+      body MEDIUMTEXT NULL,
+      status VARCHAR(20) NOT NULL,
+      priority TINYINT NOT NULL DEFAULT 0,
+      due_at DATETIME NULL,
+      due_has_time TINYINT NOT NULL DEFAULT 0,
+      tags VARCHAR(500) NOT NULL DEFAULT '',
+      meta MEDIUMTEXT NULL,
+      position INT NOT NULL DEFAULT 0,
+      version INT NOT NULL DEFAULT 1,
+      created_at DATETIME(3) NOT NULL,
+      updated_at DATETIME(3) NOT NULL,
+      completed_at DATETIME(3) NULL,
+      deleted_at DATETIME(3) NULL,
+      INDEX (kind, status), INDEX (parent_id), INDEX (due_at), INDEX (updated_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // История: снимок узла после каждого изменения и что именно поменялось
+    `CREATE TABLE node_history (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      node_id BIGINT NOT NULL,
+      version INT NOT NULL,
+      action VARCHAR(20) NOT NULL,
+      source VARCHAR(20) NOT NULL,
+      changed_at DATETIME(3) NOT NULL,
+      diff MEDIUMTEXT NULL,
+      snapshot MEDIUMTEXT NOT NULL,
+      INDEX (node_id, version), INDEX (changed_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Переписка с ассистентом (из Telegram и с сайта)
+    `CREATE TABLE messages (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      channel VARCHAR(20) NOT NULL,
+      role VARCHAR(20) NOT NULL,
+      content MEDIUMTEXT NOT NULL,
+      meta MEDIUMTEXT NULL,
+      created_at DATETIME(3) NOT NULL,
+      INDEX (channel, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Уже обработанные сообщения Telegram — чтобы повтор не выполнился дважды
+    `CREATE TABLE tg_updates (
+      update_id BIGINT PRIMARY KEY,
+      received_at DATETIME(3) NOT NULL
+    ) ENGINE=InnoDB`,
+    // Очередь сообщений, которые бот должен отправить сам (утренний план, напоминания)
+    `CREATE TABLE outbox (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      chat_id BIGINT NOT NULL,
+      text MEDIUMTEXT NOT NULL,
+      kind VARCHAR(30) NOT NULL DEFAULT '',
+      created_at DATETIME(3) NOT NULL,
+      sent_at DATETIME(3) NULL,
+      INDEX (sent_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Отметки о запусках задач по расписанию: одна строка = один запуск (защита от двойного)
+    `CREATE TABLE job_runs (
+      job VARCHAR(50) NOT NULL,
+      run_key VARCHAR(50) NOT NULL,
+      started_at DATETIME(3) NOT NULL,
+      PRIMARY KEY (job, run_key)
+    ) ENGINE=InnoDB`,
+    // Настройки и состояние: владелец бота, время утреннего плана и т.п.
+    `CREATE TABLE kv (
+      k VARCHAR(100) PRIMARY KEY,
+      v MEDIUMTEXT NOT NULL,
+      updated_at DATETIME(3) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ],
+];
+
+export async function openDb(cfg) {
+  if (!cfg.database || !cfg.user) throw new Error("Не заданы параметры базы (DBNAME/DBUSER)");
+  const pool = mysql.createPool({
+    host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password, database: cfg.database,
+    connectionLimit: 4, charset: "utf8mb4", timezone: "Z", dateStrings: false,
+    supportBigNumbers: true, bigNumberStrings: false,
+  });
+  await pool.query("SET time_zone = '+00:00'").catch(() => {});
+  return new Db(pool);
+}
+
+export class Db {
+  constructor(pool) {
+    this.pool = pool;
+  }
+
+  async query(sql, params) {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.query("SET time_zone = '+00:00'");
+      const [rows] = await conn.query(sql, params);
+      return rows;
+    } finally {
+      conn.release();
+    }
+  }
+
+  // Несколько запросов одной транзакцией
+  async tx(fn) {
+    const conn = await this.pool.getConnection();
+    try {
+      await conn.query("SET time_zone = '+00:00'");
+      await conn.beginTransaction();
+      const q = async (sql, params) => (await conn.query(sql, params))[0];
+      const res = await fn(q);
+      await conn.commit();
+      return res;
+    } catch (e) {
+      await conn.rollback().catch(() => {});
+      throw e;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async migrate() {
+    await this.query(`CREATE TABLE IF NOT EXISTS schema_version (
+      id TINYINT PRIMARY KEY, version INT NOT NULL
+    ) ENGINE=InnoDB`);
+    // Несколько копий приложения могут стартовать одновременно — миграции под блокировкой
+    const conn = await this.pool.getConnection();
+    try {
+      const [[lock]] = await conn.query("SELECT GET_LOCK('kira_migrate', 30) AS ok");
+      if (!lock.ok) throw new Error("Не дождался блокировки миграций");
+      const [rows] = await conn.query("SELECT version FROM schema_version WHERE id = 1");
+      let v = rows.length ? rows[0].version : 0;
+      for (let i = v; i < MIGRATIONS.length; i++) {
+        for (const sql of MIGRATIONS[i]) await conn.query(sql);
+        v = i + 1;
+        await conn.query(
+          "INSERT INTO schema_version (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)", [v],
+        );
+      }
+      await conn.query("SELECT RELEASE_LOCK('kira_migrate')");
+      return v;
+    } finally {
+      conn.release();
+    }
+  }
+
+  async version() {
+    const [row] = await this.query("SELECT VERSION() AS v");
+    return row.v;
+  }
+
+  // ---------- kv ----------
+  async get(k, dflt = null) {
+    const rows = await this.query("SELECT v FROM kv WHERE k = ?", [k]);
+    if (!rows.length) return dflt;
+    try { return JSON.parse(rows[0].v); } catch { return dflt; }
+  }
+
+  async set(k, v) {
+    await this.query(
+      "INSERT INTO kv (k, v, updated_at) VALUES (?, ?, NOW(3)) ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = VALUES(updated_at)",
+      [k, JSON.stringify(v)],
+    );
+  }
+
+  // Занять запуск задачи по расписанию. true — этот процесс выполняет, false — уже кто-то выполнил.
+  async claimRun(job, runKey) {
+    const r = await this.query("INSERT IGNORE INTO job_runs (job, run_key, started_at) VALUES (?, ?, NOW(3))", [job, runKey]);
+    return r.affectedRows === 1;
+  }
+
+  async close() {
+    await this.pool.end();
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "kira-bridge",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}
