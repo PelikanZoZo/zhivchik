@@ -430,9 +430,9 @@ async function settings(main) {
       el("h2", { class: "group-title" }, "Telegram-бот"),
       bot.owner
         ? el("p", {}, `Привязан к ${bot.owner.name}${bot.owner.username ? " (@" + bot.owner.username + ")" : ""} с ${isoToLocal(bot.owner.since)}.`)
-        : el("p", {}, "Ещё не привязан. Напиши боту: /start и пароль от сайта."),
+        : el("p", {}, "Ещё не привязан. Пришли боту пароль от сайта обычным сообщением."),
       bot.owner ? el("button", { class: "btn danger", onclick: () => attempt(async () => {
-        if (!confirm("Отвязать бота? Чтобы привязать снова, понадобится /start с паролем.")) return;
+        if (!confirm("Отвязать бота? Чтобы привязать снова, нужно будет прислать ему пароль.")) return;
         await api("PATCH", "/api/bot", { unlink_owner: true });
         toast("Бот отвязан");
         render();

@@ -85,6 +85,7 @@ export const JOB_TOOL_DEFS = [
   }, ["id"]),
 ];
 
+const FORGET_DEF = fn("forget_conversation", "Забыть текущий разговор и начать с чистого листа (задачи и задания не трогаются). Только по просьбе владельца: «давай заново», «забудь, о чём говорили».", {});
 const RUN_NOW_DEF = fn("run_job_now", "Выполнить задание прямо сейчас, не дожидаясь расписания.", { id: { type: "integer" } }, ["id"]);
 const SEND_DEF = fn("send_message", "Отправить сообщение владельцу в Telegram. Единственный способ связаться с ним, пока ты выполняешь задание.", {
   text: { type: "string", description: "Текст сообщения" },
@@ -92,7 +93,7 @@ const SEND_DEF = fn("send_message", "Отправить сообщение вл�
 
 // Набор инструментов: в разговоре с владельцем (chat) и при самостоятельном выполнении задания (job)
 export function toolDefs(mode = "chat") {
-  return mode === "job" ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, SEND_DEF] : [...TOOL_DEFS, ...JOB_TOOL_DEFS, RUN_NOW_DEF];
+  return mode === "job" ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, SEND_DEF] : [...TOOL_DEFS, ...JOB_TOOL_DEFS, RUN_NOW_DEF, FORGET_DEF];
 }
 
 function briefJob(j) {
@@ -128,7 +129,7 @@ async function withParents(nodes, items) {
   return items.map((i) => brief(i, parents));
 }
 
-export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = "ai", mode = "chat" }) {
+export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = "ai", mode = "chat", onForget }) {
   let created = 0; // сколько заданий создано за этот разговор/запуск — защита от зацикливания
   const allowed = new Set(toolDefs(mode).map((t) => t.function.name));
   const run = {
@@ -231,6 +232,12 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       if (!deps.runner) return { error: "Планировщик недоступен" };
       const r = await deps.runner.runNow(+id);
       return { status: r.status, result: r.result?.slice(0, 1500), error: r.error };
+    },
+
+    async forget_conversation() {
+      if (!onForget) return { error: "Недоступно" };
+      await onForget();
+      return { ok: true, note: "Разговор забыт. Задачи и задания на месте." };
     },
 
     async send_message({ text }) {

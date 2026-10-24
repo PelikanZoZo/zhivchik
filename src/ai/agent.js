@@ -32,6 +32,8 @@ export function createAgent({ db, nodes, jobs, outbox, deps = {}, llm, tz, name 
       "- После действий кратко подтверди, что сделано: названия, сроки, проект. Номера записей (#id) упоминай, только если это помогает.",
       "- Для плана на день: возьми сводку (get_agenda), начни с просроченного и сегодняшнего, предложи реалистичный порядок, 3–7 пунктов, отметь, что можно перенести.",
       "- Форматирование: обычный текст, списки через «•» или «1.», можно выделять *важное* звёздочками. Без таблиц и заголовков с #.",
+      "- Команд у тебя нет — владелец пишет обычным текстом. Никогда не предлагай ему команды со слешем; если он сам пришлёт что-то вроде «/plan», пойми это как обычную просьбу.",
+      "- Утренний план на день — твоё системное задание. Если владелец просит присылать его в другое время или перестать — меняй его через update_job (cron или status).",
       "",
       "Задания (jobs) — это не задачи владельца, а то, что ТЫ сама сделаешь в нужное время без его команды:",
       "- «Напомни…», «каждую пятницу присылай…», «проверь через неделю…», «следи за…» — ставь задание (create_job, created_by=owner).",
@@ -69,8 +71,8 @@ export function createAgent({ db, nodes, jobs, outbox, deps = {}, llm, tz, name 
   }
 
   // Цикл «модель → инструменты → модель…» до готового ответа
-  async function loop(messages, { mode, source, smart }) {
-    const runTool = createToolRunner({ nodes, jobs, outbox, deps, tz, source, mode });
+  async function loop(messages, { mode, source, smart, onForget }) {
+    const runTool = createToolRunner({ nodes, jobs, outbox, deps, tz, source, mode, onForget });
     const tools = toolDefs(mode);
     const trace = [];
     let answer = "";
@@ -105,7 +107,7 @@ export function createAgent({ db, nodes, jobs, outbox, deps = {}, llm, tz, name 
     const history = remember ? await loadHistory(channel) : [];
     const messages = [{ role: "system", content: await systemPrompt() }, ...history, { role: "user", content: text }];
     if (remember) await save(channel, "user", text);
-    const { answer: a, trace, usage } = await loop(messages, { mode: "chat", source, smart });
+    const { answer: a, trace, usage } = await loop(messages, { mode: "chat", source, smart, onForget: () => reset(channel) });
     const answer = a || (trace.length ? "Готово." : "Не получилось ответить, попробуй переформулировать.");
     if (remember) await save(channel, "assistant", answer, { tools: trace, usage });
     return { text: answer, tools: trace, usage };

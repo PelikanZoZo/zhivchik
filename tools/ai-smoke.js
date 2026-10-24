@@ -29,17 +29,20 @@ async function say(text) {
   });
   const data = await res.json();
   const answer = (data.actions || []).filter((a) => a.method === "sendMessage").map((a) => a.fallback_text).join("\n");
-  const shown = text.startsWith("/start") ? "/start ***" : text;
+  const shown = text === "smoke-pass" ? "*** (пароль)" : text;
   console.log(`\n>>> ${shown}\n(${((Date.now() - started) / 1000).toFixed(1)} с, HTTP ${res.status})\n${answer || JSON.stringify(data)}`);
 }
 
 console.log(`Модели: обычная ${cfg.deepseek.model}, умная ${cfg.deepseek.smartModel}`);
-await say("/start smoke-pass");
+await say("/start");
+await say("smoke-pass");
 await say("завтра в 11 созвон с Петром по SalesFox, до пятницы подготовить смету для Альфа-Строй, и купить корм коту");
 await say("что у меня на завтра?");
 await say("созвон с Петром перенеси на понедельник 15:00 и сделай важным");
 await say("договор юристу я отправил");
-await say("/plan");
+await say("составь мне план на сегодня");
+await say("присылай утренний план в 7:30");
+await say("давай начнём разговор с чистого листа");
 
 // --- задания Киры ---
 await say("напомни мне завтра в 9 утра позвонить в банк");

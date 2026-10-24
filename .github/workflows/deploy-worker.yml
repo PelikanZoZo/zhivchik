@@ -58,13 +58,9 @@ jobs:
             echo "Worker отвечает: $(curl -s --max-time 30 $URL/health)"
             echo "setWebhook: $(curl -s "$T/setWebhook" -H 'Content-Type: application/json' -d "$(jq -n --arg u "$URL/telegram" --arg s "$TG_WEBHOOK_SECRET" \
               '{url:$u, secret_token:$s, allowed_updates:["message","callback_query"], max_connections:4}')" | jq -c '{ok, description}')"
-            echo "команды: $(curl -s "$T/setMyCommands" -H 'Content-Type: application/json' -d '{"commands":[
-              {"command":"plan","description":"План на сегодня"},
-              {"command":"today","description":"Что на сегодня (быстро)"},
-              {"command":"jobs","description":"Мои задания"},
-              {"command":"new","description":"Начать разговор заново"},
-              {"command":"morning","description":"Время утреннего плана"},
-              {"command":"help","description":"Подсказка"}]}' | jq -c '.ok')"
+            # Меню команд не нужно: с Кирой говорят обычным текстом
+            echo "меню команд убрано: $(curl -s "$T/deleteMyCommands" -H 'Content-Type: application/json' -d '{}' | jq -c '.ok')"
+            echo "кнопка меню: $(curl -s "$T/setChatMenuButton" -H 'Content-Type: application/json' -d '{"menu_button":{"type":"default"}}' | jq -c '.ok')"
             sleep 5
             echo "состояние вебхука: $(curl -s "$T/getWebhookInfo" | jq -c '.result | {pending_update_count, last_error_message, last_error_date}')"
           } >> ../docs/worker-log.txt

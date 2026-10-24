@@ -123,19 +123,24 @@ const msg = (id, text, from = 111) => ({
   message: { message_id: id * 10, text, chat: { id: from, type: "private" }, from: { id: from, first_name: "Тест" } },
 });
 
-test("бот: привязка владельца и чужие", { skip: !haveDb }, async () => {
-  let r = await bridge("POST", "/api/bridge/update", msg(100, "привет", 222));
-  assert.match(r.data.actions[0]?.params.text || "", /Это личный бот/); // владельца ещё нет — подсказываем
-  r = await bridge("POST", "/api/bridge/update", msg(101, "/start неверно", 222));
+test("бот: без команд, привязка владельца паролем и чужие", { skip: !haveDb }, async () => {
+  let r = await bridge("POST", "/api/bridge/update", msg(99, "/start", 222));
+  assert.match(r.data.actions[0].params.text, /пришли мне пароль/); // знакомство без команд
+  r = await bridge("POST", "/api/bridge/update", msg(101, "неверно", 222));
   assert.equal(r.data.actions[0].method, "deleteMessage");
   assert.match(r.data.actions[1].params.text, /не подошёл/);
-  r = await bridge("POST", "/api/bridge/update", msg(102, `/start ${cfg.adminPassword}`, 111));
+  r = await bridge("POST", "/api/bridge/update", msg(102, cfg.adminPassword, 111)); // просто пароль сообщением
   assert.equal(r.data.actions[0].method, "deleteMessage");
   assert.match(r.data.actions[1].params.text, /твоя/);
+  assert.ok(!/\/\w/.test(r.data.actions[1].params.text), "в приветствии нет команд");
   r = await bridge("POST", "/api/bridge/update", msg(103, "привет", 222));
   assert.deepEqual(r.data.actions, []); // чужим молчим
-  r = await bridge("POST", "/api/bridge/update", msg(102, `/start ${cfg.adminPassword}`, 111));
+  r = await bridge("POST", "/api/bridge/update", msg(104, "неверно", 222));
+  assert.deepEqual(r.data.actions, []); // и на неверный пароль, когда владелец уже есть, тоже
+  r = await bridge("POST", "/api/bridge/update", msg(102, cfg.adminPassword, 111));
   assert.deepEqual(r.data.actions, []); // повтор того же апдейта не обрабатывается
+  r = await bridge("POST", "/api/bridge/update", msg(105, "/start", 111));
+  assert.match(r.data.actions[0].params.text, /на месте/);
   const owner = (await call("GET", "/api/bot")).data.owner;
   assert.equal(owner.name, "Тест");
 });
@@ -160,8 +165,9 @@ test("бот: ассистент создаёт задачу через инст
   const ctx = seen.at(-1).messages;
   assert.equal(ctx[0].role, "system");
   assert.ok(ctx.some((m) => m.role === "user" && /подарок маме/.test(m.content)));
-  // /new — забывает разговор
-  await bridge("POST", "/api/bridge/update", msg(202, "/new"));
+  // «давай заново» — Кира забывает разговор своим инструментом
+  script.push(toolCall("forget_conversation", {}), { role: "assistant", content: "Начали заново." });
+  await bridge("POST", "/api/bridge/update", msg(202, "давай начнём разговор заново"));
   script.push({ role: "assistant", content: "Чисто." });
   await bridge("POST", "/api/bridge/update", msg(203, "ну что"));
   assert.ok(!seen.at(-1).messages.some((m) => /подарок маме/.test(m.content || "") && m.role === "user"));
@@ -174,8 +180,11 @@ test("бот: ошибки инструментов доходят до моде
   });
   const r = await bridge("POST", "/api/bridge/update", msg(300, "закрой задачу 99999"));
   assert.match(r.data.actions[0].params.text, /Нет записи #99999/);
+  // то, что похоже на команду, — просто текст для Киры
+  script.push({ role: "assistant", content: "Вот план." });
   const t = await bridge("POST", "/api/bridge/update", msg(301, "/today"));
-  assert.match(t.data.actions[0].params.text, /Скоро|Сегодня|ничего|Важное|Просрочено/);
+  assert.equal(t.data.actions[0].params.text, "Вот план.");
+  assert.equal(seen.at(-1).messages.at(-1).content, "/today");
 });
 
 test("утренний план: системное задание, раз в день, через очередь", { skip: !haveDb }, async () => {
@@ -184,8 +193,9 @@ test("утренний план: системное задание, раз в д
   assert.ok(morning, "системное задание утреннего плана создано");
   assert.equal(morning.schedule_text, "каждый день в 08:30");
   assert.equal(morning.created_by, "system");
-  // /morning меняет время задания
-  let r = await bridge("POST", "/api/bridge/update", msg(400, "/morning 07:45"));
+  // «присылай план в 7:45» — Кира меняет время системного задания
+  script.push(toolCall("update_job", { id: morning.id, cron: "45 7 * * *" }), { role: "assistant", content: "Буду присылать в 07:45." });
+  let r = await bridge("POST", "/api/bridge/update", msg(400, "присылай утренний план в 7:45"));
   assert.match(r.data.actions[0].params.text, /07:45/);
   assert.equal((await call("GET", `/api/jobs/${morning.id}`)).data.job.cron, "45 7 * * *");
   // подошло время: модель отправляет план через send_message
@@ -209,7 +219,8 @@ test("утренний план: системное задание, раз в д
   // план попал в переписку — Кира помнит, что писала
   const [last] = await db.query("SELECT content FROM messages WHERE channel = 'telegram' AND role = 'assistant' ORDER BY id DESC LIMIT 1");
   assert.match(last.content, /План/);
-  await bridge("POST", "/api/bridge/update", msg(401, "/morning off"));
+  script.push(toolCall("update_job", { id: morning.id, status: "cancelled" }), { role: "assistant", content: "Больше не присылаю." });
+  await bridge("POST", "/api/bridge/update", msg(401, "не присылай больше утренний план"));
   assert.equal((await call("GET", `/api/jobs/${morning.id}`)).data.job.status, "cancelled");
 });
 
