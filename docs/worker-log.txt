@@ -1,4 +1,4 @@
-Выкладка: 2026-10-24 16:21 UTC
+Выкладка: 2026-10-24 16:53 UTC
 
  ⛅️ wrangler 4.152.0
 ────────────────────
@@ -8,9 +8,9 @@ Your Worker has access to the following bindings:
 Binding                                 Resource                  
 env.SITE_URL ("http://devalby.ru")      Environment Variable      
 
-Deployed kira-bridge triggers (0.64 sec)
+Deployed kira-bridge triggers (0.68 sec)
   schedule: * * * * *
-Current Version ID: 452b06c0-4d29-41b1-9cb3-17d8a476b371
+Current Version ID: 303679be-15d4-4e8a-849f-5d35a6c36bc9
 
 Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
 ✨ Successfully created secret for key: BRIDGE_SECRET
@@ -22,4 +22,4 @@ Finished processing secrets file:
 Worker отвечает: ok
 setWebhook: {"ok":true,"description":"Webhook is already set"}
 команды: true
-состояние вебхука: {"pending_update_count":2,"last_error_message":"Wrong response from the webhook: 500 Internal Server Error","last_error_date":1792858795}
+состояние вебхука: {"pending_update_count":0,"last_error_message":"Wrong response from the webhook: 500 Internal Server Error","last_error_date":1792858795}
