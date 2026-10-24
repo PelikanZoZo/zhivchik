@@ -14,3 +14,7 @@ crons = ["* * * * *"]
 
 [observability]
 enabled = true
+
+# Workers AI — распознавание голосовых (Whisper)
+[ai]
+binding = "AI"

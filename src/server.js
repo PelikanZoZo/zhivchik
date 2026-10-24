@@ -27,6 +27,8 @@ import { createOutbox } from "./outbox.js";
 import { TYPES, CORE, SECTIONS, PERSON_ROLES } from "./pm/schema.js";
 import { createRiskAssessor } from "./pm/risk-ai.js";
 import { createFiles } from "./pm/files.js";
+import { createStorage, FILE_KINDS } from "./storage.js";
+import { createDwh } from "./dwh.js";
 
 export const VERSION = "0.1.0";
 
@@ -53,17 +55,19 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         log(`база готова, схема v${v}`);
         const nodes = new Nodes(db, cfg.tz);
         const jobs = new JobsModel(db, cfg.tz);
-        const outbox = createOutbox({ db });
-        const deps = { web: createWeb(cfg.web || {}, { log }) };
-        const agent = createAgent({ db, nodes, jobs, outbox, deps, llm, tz: cfg.tz, name: cfg.assistantName, log });
+        const dwh = createDwh({ db, tz: cfg.tz });
+        const outbox = createOutbox({ db, dwh });
+        const files = createFiles(cfg.filesDir || path.join(ROOT, "..", "files"));
+        const storage = createStorage({ db, files, llm, tz: cfg.tz, log });
+        const deps = { web: createWeb(cfg.web || {}, { log }), storage, dwh };
+        const agent = createAgent({ db, nodes, jobs, outbox, dwh, deps, llm, tz: cfg.tz, name: cfg.assistantName, log });
         const runner = createRunner({ jobs, agent, outbox, log });
         deps.runner = runner;
         await ensureSystemJobs({ jobs, db, cfg });
-        const bot = createBot({ db, agent, nodes, jobs, runner, cfg, log });
+        const bot = createBot({ db, agent, nodes, jobs, runner, cfg, storage, log });
         const riskAi = createRiskAssessor({ db, nodes, llm, tz: cfg.tz, log });
         deps.riskAi = riskAi;
-        const files = createFiles(cfg.filesDir || path.join(ROOT, "..", "files"));
-        return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, files };
+        return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, files, storage, dwh };
       })().catch((e) => {
         ready = null; // следующая попытка — при следующем запросе
         throw e;
@@ -314,13 +318,110 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     } catch (e) {
       log("оценка рисков:", e.message);
     }
+    const { storage, files } = await services();
+    await storage.runPending(2).catch((e) => log("хранилище:", e.message));
+    if (Math.random() < 0.02) await files.cleanup().catch(() => {});
     return { items: await outbox.pending() };
+  }, "bridge");
+
+  // Worker присылает файл из Telegram кусками (хостинг не принимает запросы больше ~8 МБ)
+  route("POST", "/api/bridge/upload", async ({ req }) => {
+    const { files } = await services();
+    return files.appendChunk(req, uploadHeaders(req));
+  }, "bridge", { raw: true });
+
+  // Worker забирает файл, чтобы отправить его в Telegram (если у Telegram его ещё нет)
+  route("GET", "/api/bridge/file/:id", async ({ params, res }) => {
+    const { storage, files } = await services();
+    const f = await storage.row(+params.id);
+    const file = f && !f.deleted_at && files.resolve(f.file_key);
+    if (!file) throw httpError(404, "Нет такого файла");
+    await streamFile(res, file, { name: f.name, type: f.mime || "application/octet-stream", size: f.size });
+    return undefined;
   }, "bridge");
 
   route("POST", "/api/bridge/ack", async ({ body }) => {
     const { outbox } = await services();
     return { acked: await outbox.ack(body.ids) };
   }, "bridge");
+
+  // --- хранилище файлов ---
+  route("GET", "/api/storage", async ({ query }) => {
+    const { storage } = await services();
+    const list = await storage.search({ query: query.q || "", kind: query.kind || undefined, from: query.from, to: query.to, limit: +query.limit || 50, offset: +query.offset || 0 });
+    return { files: list, kinds: FILE_KINDS, total: await storage.count() };
+  });
+
+  route("GET", "/api/storage/:id", async ({ params }) => {
+    const { storage, dwh } = await services();
+    const f = await storage.readText(+params.id, { length: 30000 });
+    if (!f) throw httpError(404, "Нет такого файла");
+    return { file: f, messages: await dwh.list({ file_id: f.id, limit: 20 }) };
+  });
+
+  route("GET", "/api/storage/:id/download", async ({ params, res, query }) => {
+    const { storage, files } = await services();
+    const f = await storage.row(+params.id);
+    const file = f && !f.deleted_at && files.resolve(f.file_key);
+    if (!file) throw httpError(404, f && !f.file_key ? "Файл есть только в Telegram" : "Нет такого файла");
+    const type = f.mime || "application/octet-stream";
+    const inline = query.inline === "1" && /^(image\/|audio\/|video\/|application\/pdf|text\/plain)/.test(type);
+    await streamFile(res, file, { name: f.name, type, size: f.size, inline });
+    return undefined;
+  });
+
+  // Загрузка с сайта — тоже кусками; на последнем куске файл попадает в хранилище
+  route("POST", "/api/storage/upload", async ({ req }) => {
+    const { files, storage } = await services();
+    const h = uploadHeaders(req);
+    const r = await files.appendChunk(req, h);
+    if (!r.done) return r;
+    const { file, duplicate } = await storage.add({ key: r.key, size: r.size, sha256: r.sha256, name: h.name, mime: h.mime, source: "web" });
+    const done = await storage.process(file.id).catch(() => file);
+    if (h.attachTo) {
+      const { nodes } = await services();
+      const parent = await nodes.get(+h.attachTo);
+      if (parent) {
+        await nodes.create({
+          kind: "attachment", title: done.name, parent_id: parent.id, body: done.summary || null,
+          fields: { file_name: done.name, file_size: Number(done.size), file_type: done.mime || "", file_key: done.file_key, storage_id: done.id },
+          allowSystemFields: true,
+        }, "web");
+      }
+    }
+    return { done: true, duplicate, file: storage.toApi(done) };
+  }, "user", { raw: true });
+
+  route("PATCH", "/api/storage/:id", async ({ params, body }) => {
+    const { storage } = await services();
+    return { file: await storage.rename(+params.id, body.name) };
+  });
+
+  route("DELETE", "/api/storage/:id", async ({ params }) => {
+    const { storage } = await services();
+    await storage.remove(+params.id);
+    return { ok: true };
+  });
+
+  route("POST", "/api/storage/:id/restore", async ({ params }) => {
+    const { storage } = await services();
+    return { file: await storage.restore(+params.id) };
+  });
+
+  route("POST", "/api/storage/:id/send", async ({ params }) => {
+    const { storage, outbox } = await services();
+    const f = await storage.row(+params.id);
+    if (!f || f.deleted_at) throw httpError(404, "Нет такого файла");
+    const r = await outbox.sendFile(f, "", "web");
+    if (!r.sent) throw httpError(400, r.reason);
+    return { ok: true };
+  });
+
+  // --- архив переписки (DWH) ---
+  route("GET", "/api/dwh/messages", async ({ query }) => {
+    const { dwh } = await services();
+    return { messages: await dwh.list({ query: query.q, from: query.from, to: query.to, channel: query.channel, before: query.before, limit: +query.limit || 100 }), stats: await dwh.stats() };
+  });
 
   // --- задания Киры ---
   route("GET", "/api/jobs", async ({ query }) => {
@@ -399,6 +500,27 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
 }
 
 // ---------- помощники ----------
+
+function uploadHeaders(req) {
+  const h = req.headers;
+  const dec = (v) => { try { return decodeURIComponent(String(v || "")); } catch { return String(v || ""); } };
+  return {
+    uploadId: String(h["x-upload-id"] || ""), index: +(h["x-chunk"] ?? 0), total: +(h["x-chunks"] ?? 1),
+    name: dec(h["x-file-name"] || "файл").slice(0, 200), mime: dec(h["x-file-type"] || "").slice(0, 100),
+    attachTo: h["x-attach-to"] ? +h["x-attach-to"] : null,
+  };
+}
+
+async function streamFile(res, file, { name, type, size, inline = false }) {
+  res.writeHead(200, {
+    "Content-Type": type,
+    "Content-Length": size,
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(name || "file")}`,
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, max-age=3600",
+  });
+  await new Promise((resolve, reject) => fsSync.createReadStream(file).on("error", reject).on("end", resolve).pipe(res));
+}
 
 function httpError(status, message) {
   const e = new Error(message);

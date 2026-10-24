@@ -111,6 +111,7 @@ export const TYPES = {
       file_size: { type: "number", label: "Размер", system: true },
       file_type: { type: "string", label: "Тип файла", system: true },
       file_key: { type: "string", label: "Где лежит", system: true },
+      storage_id: { type: "number", label: "Файл в хранилище", system: true },
     },
   },
   person: {

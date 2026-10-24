@@ -90,7 +90,7 @@ export function createRiskAssessor({ db, nodes, llm, tz, log = () => {} }) {
   return { assess, runPending, pending };
 }
 
-function extractJson(text) {
+export function extractJson(text) {
   const t = String(text || "").replace(/```(?:json)?/gi, "").trim();
   try { return JSON.parse(t); } catch {}
   const m = t.match(/\{[\s\S]*\}/);

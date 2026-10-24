@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       smoke:
-        description: "web — только проверка поиска"
+        description: "web — только поиск; files — поиск, тон и файлы"
         required: false
         default: ""
   push:

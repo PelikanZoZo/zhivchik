@@ -45,6 +45,33 @@ for (const q of ["Что Глоубайт сделали для ТБанк", "к
   const meta = JSON.parse(m?.meta || "{}");
   console.log("инструменты:", (meta.tools || []).map((t) => `${t.tool}${t.args?.query ? `(«${t.args.query}»)` : t.args?.url ? `(${t.args.url})` : ""}${t.ok ? "" : " ✗ " + t.error}`).join(", "), "| токены:", meta.usage);
 }
+// --- файлы и голосовые (как будто их прислал Worker) ---
+{
+  const fsm = await import("node:fs");
+  const { Readable } = await import("node:stream");
+  const { files } = await app.services();
+  const sendFile = async (fixture, media, extra = {}) => {
+    const buf = fsm.readFileSync(new URL(`../test/fixtures/${fixture}`, import.meta.url));
+    const kf = await files.appendChunk(Readable.from([buf]), { uploadId: "smoke" + id + "x0000", index: 0, total: 1, name: fixture });
+    const started = Date.now();
+    const res = await fetch(`${base}/api/bridge/update`, {
+      method: "POST", headers: { "Content-Type": "application/json", "X-Bridge-Secret": "smoke-bridge" },
+      body: JSON.stringify({ update_id: id++, message: { message_id: id, chat: { id: 42, type: "private" }, from: { id: 42, first_name: "Проверка" }, ...media }, kira_file: { ...kf, ...extra } }),
+    });
+    const data = await res.json();
+    console.log(`\n>>> [файл ${fixture}${media.caption ? `, подпись «${media.caption}»` : ""}]\n(${((Date.now() - started) / 1000).toFixed(1)} с)\n${(data.actions || []).map((a) => a.fallback_text || `→ ${a.method}`).join("\n")}`);
+  };
+  await sendFile("dogovor.docx", { document: { file_id: "D1", file_unique_id: "UD1", file_name: "scan_0041.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } });
+  await sendFile("smeta.xlsx", { document: { file_id: "D2", file_unique_id: "UD2", file_name: "smeta.xlsx" }, caption: "сколько всего по смете и что дороже всего?" });
+  await sendFile("akt.pdf", { voice: { file_id: "V1", file_unique_id: "UV1", duration: 9 } }, { transcript: "Кира, слушай, напомни мне в понедельник утром отправить акт GlowByte на подпись, и найди договор с Альфа-Строем, пришли его" });
+  await say("найди голосовое, где я говорил про акт");
+  await say("что я тебе писал про смету?");
+  await (await app.services()).storage.runPending(5);
+  console.log("\n=== Хранилище");
+  for (const f of await (await app.services()).storage.search({ limit: 10 })) console.log(`#${f.id} ${f.kind} «${f.name}» [${f.text_status}] — ${f.summary || "(без описания)"} | ${f.keywords || ""}`);
+}
+if (env.SMOKE === "files") { server.close(); await db.close(); process.exit(0); }
+
 // --- тон по контексту ---
 await say("короче я спросил у ChatGPT, как лучше составить смету, он норм подсказал");
 await say("смету для Альфа-Строй перенеси на понедельник, опять не успеваю");

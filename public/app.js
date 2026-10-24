@@ -4,6 +4,7 @@ import { openItem, closeDrawer } from "./js/item.js";
 import { objectView } from "./js/object.js";
 import { today, inbox, tasks, coreList, people, changes, assistant, settings } from "./js/views.js";
 import { jobsView, openJobDrawer } from "./js/jobs.js";
+import { storageView, archiveView } from "./js/storage.js";
 
 hooks.openItem = openItem;
 hooks.openJob = openJobDrawer;
@@ -17,7 +18,7 @@ const ROUTES = {
   tracks: (m) => coreList(m, { kind: "track" }),
   projects: (m) => coreList(m, { kind: "project" }),
   missions: (m) => coreList(m, { kind: "mission" }),
-  people, changes, assistant, settings, jobs: jobsView,
+  people, changes, assistant, settings, jobs: jobsView, storage: storageView, archive: archiveView,
 };
 
 // ---------- вход ----------

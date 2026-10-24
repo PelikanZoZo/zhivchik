@@ -241,6 +241,7 @@ test("миграция: старые заметки стали памяткам�
   // имитируем запись, созданную до новой модели
   await db.query("INSERT INTO nodes (kind, title, status, created_at, updated_at) VALUES ('note', 'старая заметка', 'active', NOW(3), NOW(3))");
   await db.query("UPDATE schema_version SET version = 2");
+  await undoV6();
   await db.query("ALTER TABLE nodes DROP COLUMN stage_id, DROP COLUMN event_at");
   await db.query("DROP TABLE node_links, node_comments");
   await db.migrate();
@@ -255,6 +256,7 @@ test("миграция: данные удалённой контактной к�
     [r.insertId, JSON.stringify({ "fields.relation": [null, "Старый друг"], "fields.company": [null, "Альфа"] }), JSON.stringify({ id: r.insertId, meta })]);
   await db.query("INSERT INTO node_links (a_id, b_id, role, origin, created_at) VALUES (?, ?, 'друг', 'ai', NOW(3))", [r.insertId, mission.id]);
   await db.query("UPDATE schema_version SET version = 4");
+  await undoV6();
   await db.migrate();
   const [n] = await db.query("SELECT meta FROM nodes WHERE id = ?", [r.insertId]);
   assert.deepEqual(JSON.parse(n.meta), { company: "Альфа" });
@@ -270,3 +272,9 @@ test("схема для интерфейса", { skip: !haveDb }, async () => {
   assert.equal(s.types.blocker.label, "Блокер");
   assert.ok(s.person_roles.includes("ЛПР"));
 });
+
+// откатить миграцию 6 (хранилище, архив переписки), чтобы прогнать миграции заново
+async function undoV6() {
+  await db.query("DROP TABLE IF EXISTS storage_files, dwh_messages");
+  await db.query("ALTER TABLE outbox DROP COLUMN payload").catch(() => {});
+}

@@ -439,3 +439,17 @@ table.jobs .jt { font-weight: 500; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* хранилище и архив переписки */
+.store-bar { grid-template-columns: 1fr auto auto auto; }
+.store-bar label.btn { display: inline-flex; align-items: center; cursor: pointer; }
+table.files .ficon { font-size: 15px; }
+table.files .snip { font-style: italic; }
+.file-preview { display: block; max-width: 100%; max-height: 320px; border-radius: 8px; margin: 10px 0; background: var(--bg); }
+.file-audio { width: 100%; margin: 10px 0; }
+.file-text { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border-radius: 8px; padding: 10px 12px; margin: 0; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 420px; overflow: auto; }
+.chat.archive { max-height: none; }
+.bubble-meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+@media (max-width: 720px) { .store-bar { grid-template-columns: 1fr 1fr; } .store-bar input[type=search] { grid-column: 1 / -1; } }
+.bubble.user .bubble-meta { color: color-mix(in srgb, var(--surface) 75%, transparent); }
+.bubble.user a { color: inherit; }

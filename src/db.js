@@ -172,6 +172,59 @@ const MIGRATIONS = [
     "DELETE FROM node_links WHERE origin = 'ai'",
     purgeContactBook,
   ],
+  // 6. Хранилище файлов (документы, голосовые, фото — из Telegram и с сайта) и DWH:
+  //    полный архив переписки с Кирой. Файлы для отправки из очереди — outbox.payload.
+  [
+    `CREATE TABLE storage_files (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      mime VARCHAR(100) NOT NULL DEFAULT '',
+      kind VARCHAR(20) NOT NULL,
+      size BIGINT NOT NULL DEFAULT 0,
+      sha256 CHAR(64) NULL,
+      file_key VARCHAR(100) NULL,
+      source VARCHAR(20) NOT NULL,
+      tg_type VARCHAR(20) NULL,
+      tg_file_id VARCHAR(255) NULL,
+      tg_unique_id VARCHAR(100) NULL,
+      tg_message_id BIGINT NULL,
+      duration_sec INT NULL,
+      caption MEDIUMTEXT NULL,
+      text MEDIUMTEXT NULL,
+      text_status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      text_note VARCHAR(300) NULL,
+      pages INT NULL,
+      summary TEXT NULL,
+      keywords VARCHAR(500) NULL,
+      described_at DATETIME(3) NULL,
+      created_at DATETIME(3) NOT NULL,
+      deleted_at DATETIME(3) NULL,
+      INDEX (created_at), INDEX (kind, created_at), INDEX (sha256), INDEX (tg_unique_id),
+      FULLTEXT KEY ft_files (name, caption, summary, keywords, text)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE dwh_messages (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      at DATETIME(3) NOT NULL,
+      channel VARCHAR(20) NOT NULL,
+      direction VARCHAR(3) NOT NULL,
+      author VARCHAR(20) NOT NULL,
+      msg_type VARCHAR(20) NOT NULL,
+      text MEDIUMTEXT NULL,
+      file_id BIGINT NULL,
+      job_id BIGINT NULL,
+      tg_chat_id BIGINT NULL,
+      tg_message_id BIGINT NULL,
+      meta MEDIUMTEXT NULL,
+      INDEX (at), INDEX (file_id), INDEX (channel, at),
+      FULLTEXT KEY ft_text (text)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // вся прежняя переписка — в архив
+    `INSERT INTO dwh_messages (at, channel, direction, author, msg_type, text, meta)
+       SELECT created_at, channel, IF(role = 'user', 'in', 'out'), IF(role = 'user', 'owner', 'kira'),
+              IF(role = 'assistant' AND meta LIKE '%proactive%', 'proactive', 'text'), content, meta
+       FROM messages WHERE role IN ('user', 'assistant') ORDER BY id`,
+    "ALTER TABLE outbox ADD COLUMN payload MEDIUMTEXT NULL AFTER text",
+  ],
 ];
 
 const CONTACT_KEYS = ["loyalty", "relation", "ai_summary", "ai_influence", "ai_approach", "ai_assessed_at", "ai_for_version"];

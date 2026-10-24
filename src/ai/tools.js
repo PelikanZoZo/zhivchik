@@ -121,6 +121,39 @@ export const WEB_TOOL_DEFS = [
 ];
 const WEB_LIMITS = { searches: 6, pages: 6 };
 
+// Хранилище файлов и архив переписки
+export const FILE_TOOL_DEFS = [
+  fn("find_files", "Найти файлы в хранилище: документы, голосовые, аудио, фото, видео, которые владелец присылал или загружал. Ищет по названию, подписи, описанию, ключевым словам и тексту (для голосовых — по расшифровке).", {
+    query: { type: "string", description: "Что искать: слова из названия или содержания («договор Альфа-Строй», «смета пилот»). Пусто — последние файлы" },
+    kind: { type: "string", enum: ["document", "voice", "audio", "photo", "video", "other"], description: "Только этого вида" },
+    from: { type: "string", description: "Присланы не раньше (ГГГГ-ММ-ДД)" },
+    to: { type: "string", description: "Присланы не позже (ГГГГ-ММ-ДД)" },
+    limit: { type: "integer", description: "По умолчанию 8" },
+  }),
+  fn("read_file", "Прочитать текст файла из хранилища (документ или расшифровку голосового) — кусками по ~12000 знаков.", {
+    id: { type: "integer" },
+    offset: { type: "integer", description: "С какого знака читать (для продолжения — значение next_offset)" },
+  }, ["id"]),
+  fn("send_file", "Прислать владельцу файл из хранилища в Telegram (сам документ, голосовое и т.п.).", {
+    id: { type: "integer" },
+    caption: { type: "string", description: "Короткая подпись к файлу (необязательно)" },
+  }, ["id"]),
+  fn("attach_file", "Приложить файл из хранилища к треку, проекту, миссии или задаче (как вложение).", {
+    id: { type: "integer", description: "id файла в хранилище" },
+    parent_id: { type: "integer", description: "id объекта, куда приложить" },
+  }, ["id", "parent_id"]),
+  fn("rename_file", "Переименовать файл в хранилище (понятное название вместо «IMG_2041.pdf»).", {
+    id: { type: "integer" },
+    name: { type: "string" },
+  }, ["id", "name"]),
+  fn("search_chat_history", "Поиск по всему архиву переписки с владельцем (все сообщения за всё время, и его, и твои). Для вопросов «что я говорил про…», «когда мы обсуждали…».", {
+    query: { type: "string", description: "Слова, которые должны быть в сообщении" },
+    from: { type: "string", description: "ГГГГ-ММ-ДД" },
+    to: { type: "string", description: "ГГГГ-ММ-ДД" },
+    limit: { type: "integer", description: "По умолчанию 20" },
+  }),
+];
+
 const FORGET_DEF = fn("forget_conversation", "Забыть текущий разговор и начать с чистого листа (задачи и задания не трогаются). Только по просьбе владельца: «давай заново», «забудь, о чём говорили».", {});
 const RUN_NOW_DEF = fn("run_job_now", "Выполнить задание прямо сейчас, не дожидаясь расписания.", { id: { type: "integer" } }, ["id"]);
 const SEND_DEF = fn("send_message", "Отправить сообщение владельцу в Telegram. Единственный способ связаться с ним, пока ты выполняешь задание.", {
@@ -130,8 +163,8 @@ const SEND_DEF = fn("send_message", "Отправить сообщение вл�
 // Набор инструментов: в разговоре с владельцем (chat) и при самостоятельном выполнении задания (job)
 export function toolDefs(mode = "chat") {
   return mode === "job"
-    ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, SEND_DEF]
-    : [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, RUN_NOW_DEF, FORGET_DEF];
+    ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, ...FILE_TOOL_DEFS, SEND_DEF]
+    : [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, ...FILE_TOOL_DEFS, RUN_NOW_DEF, FORGET_DEF];
 }
 
 function briefJob(j) {
@@ -166,7 +199,7 @@ async function briefs(nodes, items) {
   return items.map(brief);
 }
 
-export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = "ai", mode = "chat", onForget }) {
+export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = "ai", mode = "chat", onForget, channel, actions = [] }) {
   let created = 0; // сколько заданий создано за этот разговор/запуск — защита от зацикливания
   const webUsed = { searches: 0, pages: 0 };
   const allowed = new Set(toolDefs(mode).map((t) => t.function.name));
@@ -345,6 +378,75 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       } catch (e) {
         return { error: `${url}: ${e.message}` };
       }
+    },
+
+    async find_files({ query, kind, from, to, limit = 8 } = {}) {
+      if (!deps.storage) return { error: "Хранилище недоступно" };
+      const list = await deps.storage.search({ query, kind, from, to, limit: Math.min(+limit || 8, 30) });
+      return {
+        count: list.length,
+        files: list.map((f) => ({
+          id: f.id, name: f.name, kind: f.kind, created: f.created,
+          ...(f.duration ? { duration_sec: f.duration } : {}), ...(f.pages ? { pages: f.pages } : {}),
+          summary: f.summary, caption: f.caption || undefined, snippet: f.snippet || undefined,
+          ...(f.text_status !== "ok" ? { text: f.text_status_text } : {}),
+        })),
+      };
+    },
+
+    async read_file({ id, offset = 0 }) {
+      if (!deps.storage) return { error: "Хранилище недоступно" };
+      const r = await deps.storage.readText(+id, { offset });
+      if (!r) return { error: `Нет файла #${id}` };
+      if (!r.total_chars) return { id: r.id, name: r.name, kind: r.kind, summary: r.summary, error: `Текста нет: ${r.text_note || r.text_status_text}` };
+      return { id: r.id, name: r.name, kind: r.kind, summary: r.summary, text: r.text, total_chars: r.total_chars, ...(r.more ? { next_offset: r.offset + r.text.length } : {}) };
+    },
+
+    async send_file({ id, caption = "" }) {
+      if (!deps.storage) return { error: "Хранилище недоступно" };
+      const f = await deps.storage.row(+id);
+      if (!f || f.deleted_at) return { error: `Нет файла #${id}` };
+      if (!f.tg_file_id && !f.file_key) return { error: "Файл не сохранился на диске, прислать не могу" };
+      if (actions.filter((a) => a.file_id).length >= 5) return { error: "Не больше 5 файлов за один ответ" };
+      if (mode === "chat" && channel === "telegram") {
+        actions.push({ file_id: f.id, caption });
+        return { ok: true, note: "Файл уйдёт следом за твоим ответом" };
+      }
+      const r = await outbox.sendFile(f, caption);
+      return r.sent ? { ok: true, note: "Файл отправлен в Telegram" } : { error: r.reason };
+    },
+
+    async attach_file({ id, parent_id }) {
+      if (!deps.storage) return { error: "Хранилище недоступно" };
+      const f = await deps.storage.row(+id);
+      if (!f || f.deleted_at) return { error: `Нет файла #${id}` };
+      if (!f.file_key) return { error: "Файл есть только в Telegram, на диске его нет — приложить не могу" };
+      const parent = await nodes.get(+parent_id);
+      if (!parent) return { error: `Нет записи #${parent_id}` };
+      const item = await nodes.create({
+        kind: "attachment", title: f.name, parent_id: parent.id, body: f.summary || null,
+        fields: { file_name: f.name, file_size: Number(f.size), file_type: f.mime || "", file_key: f.file_key, storage_id: f.id },
+        allowSystemFields: true,
+      }, source);
+      return { ok: true, attachment: brief(item), home: `${parent.title} (#${parent.id})` };
+    },
+
+    async rename_file({ id, name }) {
+      if (!deps.storage) return { error: "Хранилище недоступно" };
+      const f = await deps.storage.rename(+id, name).catch((e) => ({ error: e.message }));
+      return f?.error ? f : f ? { ok: true, id: f.id, name: f.name } : { error: `Нет файла #${id}` };
+    },
+
+    async search_chat_history({ query, from, to, limit = 20 } = {}) {
+      if (!deps.dwh) return { error: "Архив переписки недоступен" };
+      const list = await deps.dwh.list({ query, from, to, limit: Math.min(+limit || 20, 60) });
+      return {
+        count: list.length,
+        messages: list.reverse().map((m) => ({
+          at: m.at, who: m.author === "owner" ? "владелец" : "ты", ...(m.type !== "text" ? { type: m.type } : {}),
+          text: String(m.text || "").slice(0, 600), ...(m.file_id ? { file_id: m.file_id } : {}),
+        })),
+      };
     },
 
     async send_message({ text }) {

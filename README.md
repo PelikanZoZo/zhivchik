@@ -63,6 +63,17 @@ Telegram ⇄ Cloudflare Worker (worker/) ⇄ сайт на Masterhost (app.js, s
 `DEEPSEEK_API_KEY`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TELEGRAM_BOT_TOKEN`, `ADMIN_PASSWORD`, `BRIDGE_SECRET`,
 `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (база MySQL из панели Masterhost).
 
+Хранилище и архив переписки (миграция 6):
+- `storage_files` — всё, что присылают Кире в Telegram (документы, голосовые, аудио, фото, видео) и что загружают
+  на сайте (раздел «Хранилище»). Файлы лежат в `~/devalby.ru/files`; текст документов (PDF, docx, xlsx, pptx,
+  odt/ods/odp, txt/csv/html…) достаётся при приёме (`src/docs/extract.js`), голосовые расшифровывает Worker
+  через Workers AI (Whisper). ИИ пишет краткое описание и ключевые слова — по ним Кира ищет (`find_files`),
+  читает (`read_file`), присылает (`send_file`), прикладывает к проектам (`attach_file`).
+- `dwh_messages` — DWH: полный архив переписки (входящие и исходящие, Telegram, сайт, сообщения по заданиям),
+  ничего не стирается; раздел «Переписка» на сайте, инструмент `search_chat_history`.
+- Хостинг принимает запросы до ~8 МБ, поэтому файлы передаются кусками по 4 МБ (`/api/bridge/upload`,
+  `/api/storage/upload`). Telegram отдаёт боту файлы до 20 МБ.
+
 Поиск в интернете для Киры (`src/ai/web.js`, инструменты `web_search` и `read_page`) — по любому из ключей,
 в таком порядке: `YANDEX_SEARCH_API_KEY` + `YANDEX_FOLDER_ID` (Яндекс Search API), `TAVILY_API_KEY`,
 `BRAVE_API_KEY`, `SERPER_API_KEY`. Без ключей — запасной поиск по выдаче Bing и DuckDuckGo (хрупко).

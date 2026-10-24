@@ -1,4 +1,5 @@
 // Страница основного объекта: трека, проекта или миссии. Всё, что в нём живёт, — по разделам.
+import { uploadFile } from "./storage.js";
 import { el, api, toast, attempt, refresh, navigate, state, hooks, humanDue, PRIORITY, T, statusOptions, isCore, fileSize } from "./core.js";
 import { row, list, commentsPanel, scaleInput, riskBadges } from "./item.js";
 
@@ -185,14 +186,14 @@ function attachmentsSection(item, atts) {
     for (const file of files) {
       toast(`Загружаю ${file.name}…`);
       await attempt(async () => {
-        await api("POST", `/api/items/${item.id}/upload`, file, { raw: true, headers: { "X-File-Name": encodeURIComponent(file.name), "Content-Type": file.type || "application/octet-stream" } });
+        await uploadFile(file, { attachTo: item.id });
       });
     }
     toast("Загружено");
     refresh();
   };
   input.addEventListener("change", () => input.files.length && upload([...input.files]));
-  const drop = el("label", { class: "dropzone", for: "file-in" }, "Перетащи файлы сюда или ", el("u", {}, "выбери"), " — до 25 МБ");
+  const drop = el("label", { class: "dropzone", for: "file-in" }, "Перетащи файлы сюда или ", el("u", {}, "выбери"), " — до 50 МБ, попадут и в хранилище");
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
   drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files.length) upload([...e.dataTransfer.files]); });

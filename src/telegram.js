@@ -40,3 +40,18 @@ export function toHtml(text) {
   s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, t, u) => `<a href="${u.replace(/"/g, "&quot;")}">${t}</a>`);
   return s;
 }
+
+// Отправить файл из хранилища. Если он уже был в Telegram — по file_id (без загрузки),
+// иначе Worker сам скачает его с сайта ({kira_file: id}) и загрузит в Telegram.
+const BY_TG_TYPE = {
+  voice: ["sendVoice", "voice"], audio: ["sendAudio", "audio"], photo: ["sendPhoto", "photo"],
+  video: ["sendVideo", "video"], video_note: ["sendVideoNote", "video_note"], document: ["sendDocument", "document"],
+};
+
+export function fileAction(chatId, f, caption = "") {
+  const [method, field] = (f.tg_file_id && BY_TG_TYPE[f.tg_type]) || ["sendDocument", "document"];
+  const params = { chat_id: chatId, [field]: f.tg_file_id || { kira_file: f.id, name: f.name, mime: f.mime || "application/octet-stream" } };
+  const cap = String(caption || "").slice(0, 1000);
+  if (cap && method !== "sendVideoNote") params.caption = cap;
+  return { method, params, fallback_file: f.tg_file_id ? { kira_file: f.id, name: f.name, mime: f.mime || "application/octet-stream", field: "document" } : undefined };
+}
