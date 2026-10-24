@@ -24,12 +24,12 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 10:43 UTC
-health (https): Moved Permanently
-health (https): Moved Permanently
-health (https): Moved Permanently
-health (https): Moved Permanently
-health (https): Moved Permanently
-health (https): Moved Permanently
-главная (http): 301 -> http://www.devalby.ru/
-сертификат: 18 (0 — в порядке)
+--- проверка 2026-10-24 16:08 UTC
+health (https): Hello, World!
+health (https): Hello, World!
+health (https): нет ответа
+health (https): нет ответа
+health (https): нет ответа
+health (https): нет ответа
+главная (http): 200 -> 
+сертификат: 1 (0 — в порядке)
