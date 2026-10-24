@@ -1,12 +1,11 @@
-Запуск: 2026-10-24 20:18 UTC
-0.5 МБ -> HTTP 404 за 0.760643s | {"error":"Нет такого адреса"}
-1 МБ -> HTTP 404 за 1.563827s | {"error":"Нет такого адреса"}
-2 МБ -> HTTP 404 за 1.010100s | {"error":"Нет такого адреса"}
-4 МБ -> HTTP 404 за 1.015699s | {"error":"Нет такого адреса"}
-8 МБ -> HTTP 404 за 1.025079s | {"error":"Нет такого адреса"}
-12 МБ -> HTTP 413 за 0.003526s | <!DOCTYPE html><title>Error 413</title><p>Error 413. 
-/dev/sda3       1.7T  140G  1.5T   9% /home
-папки files ещё нет
+Запуск: 2026-10-24 20:47 UTC
+[кира 20:46:28 128320] база готова, схема v5
+[кира 20:47:27 123292] GET /api/bridge/outbox 8 мс
+ 122952 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
+ 123292 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+ 123677 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
+ 124017 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+ 128339 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
 https://devalby.ru/api/health -> HTTP 404 ->  | серт 18 | 404 page not found 
