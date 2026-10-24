@@ -1,32 +1,12 @@
-Запуск: 2026-10-24 16:20 UTC
-=== до
-   9128 Sat Oct 24 19:11:44 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  13087 Sat Oct 24 19:18:50 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  13445 Sat Oct 24 19:18:52 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-остановлен 9128
-остановлен 13087
-остановлен 13445
-health: {"ok":true,"db":true,"version":"0.1.0"}
-health: {"ok":true,"db":true,"version":"0.1.0"}
-health: {"ok":true,"db":true,"version":"0.1.0"}
-health: {"ok":true,"db":true,"version":"0.1.0"}
-=== после
-  13851 Sat Oct 24 19:20:09 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  14551 Sat Oct 24 19:20:15 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-  14560 Sat Oct 24 19:20:15 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
-=== журнал
-Terminated
-Terminated
-Terminated
-2026/10/24 19:20:08 [info] 13511#13511 "devalby_ru" application started
-[кира 16:20:10 13851] работаю через NGINX Unit, версия 0.1.0
-[кира 16:20:10 13851] база готова, схема v1
-2026/10/24 19:20:14 [info] 13870#13870 "devalby_ru" application started
-2026/10/24 19:20:14 [info] 13871#13871 "devalby_ru" application started
-[кира 16:20:16 14551] работаю через NGINX Unit, версия 0.1.0
-[кира 16:20:16 14560] работаю через NGINX Unit, версия 0.1.0
-[кира 16:20:16 14551] база готова, схема v1
-[кира 16:20:16 14560] база готова, схема v1
+Запуск: 2026-10-24 16:24 UTC
+[кира 16:21:24 14551] POST /api/bridge/update 17 мс
+[кира 16:21:24 14551] POST /api/bridge/update 5 мс
+[кира 16:21:27 14551] GET /api/bridge/outbox 5 мс
+[кира 16:21:41 14551] POST /api/bridge/update 5 мс
+[кира 16:21:48 14551] POST /api/bridge/update 4 мс
+[кира 16:22:28 13851] GET /api/bridge/outbox 11 мс
+[кира 16:23:26 16011] GET /api/bridge/outbox 12 мс
+[кира 16:24:26 15994] GET /api/bridge/outbox 14 мс
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
 https://devalby.ru/api/health -> HTTP 404 ->  | серт 18 | 404 page not found 
