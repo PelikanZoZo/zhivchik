@@ -15,8 +15,8 @@ Transferring file `jobs/model.js'
 Transferring file `pm/files.js'
 Transferring file `ai/tools.js'
 Transferring file `ai/web.js'
-Transferring file `jobs/runner.js'
 Transferring file `pm/risk-ai.js'
+Transferring file `jobs/runner.js'
 Transferring file `pm/schema.js'
 Transferring file `app.js'
 Transferring file `icon.svg'
@@ -37,7 +37,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 19:55 UTC
+--- проверка 2026-10-24 20:02 UTC
 health: {"ok":true,"db":true,"version":"0.1.0"}
 главная (http): 200 -> 
 сертификат: 1 (0 — в порядке)
