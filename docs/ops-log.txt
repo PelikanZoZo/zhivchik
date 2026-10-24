@@ -1,15 +1,10 @@
 Запуск: 2026-10-24 20:52 UTC
-[кира 20:51:13 130878] база готова, схема v6
 [кира 20:51:54 131278] база готова, схема v6
-3:PROJECT_PATH="$1"
-4:NODE_VER="$2"
-7:export NVM_DIR="/usr/nvm"
-8:[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-10:if ! nvm use "$NODE_VER"; then
-11:        echo "Node version $NODE_VER is not available. Exiting." 1>&2
-15:cd "$PROJECT_PATH"
-node: 
-bash: line 13: : command not found
+[кира 20:52:28 131673] база готова, схема v6
+-rwxr-xr-x 1 root root 87356424 Jan 10  2024 /usr/nvm/versions/node/v21.5.0/bin/
+v21.5.0 akt.pdf ok 2 "[стр. 1]\nАкт выполненных работ № 7\nИсполнитель: GlowByte\n\n[с" 
+v21.5.0 dogovor.docx ok  "Договор поставки № 15\nООО «Альфа-Строй» и ООО «SalesFox» зак" 
+v21.5.0 smeta.xlsx ok 2 "[лист «Смета»]\nПозиция\tСумма\nПилот\t1500000\nОбучение\t500000\n\n" 
 9.6M	/home/h551249/devalby.ru/www/node_modules
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
