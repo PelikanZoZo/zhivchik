@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["src/ai/**", "src/bot.js", "tools/ai-smoke.js", ".github/workflows/ai-check.yml"]
+    paths: ["src/ai/**", "src/jobs/**", "src/bot.js", "tools/ai-smoke.js", ".github/workflows/ai-check.yml"]
 concurrency:
   group: ai-check
   cancel-in-progress: true

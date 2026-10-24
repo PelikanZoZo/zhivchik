@@ -61,6 +61,7 @@ jobs:
             echo "команды: $(curl -s "$T/setMyCommands" -H 'Content-Type: application/json' -d '{"commands":[
               {"command":"plan","description":"План на сегодня"},
               {"command":"today","description":"Что на сегодня (быстро)"},
+              {"command":"jobs","description":"Мои задания"},
               {"command":"new","description":"Начать разговор заново"},
               {"command":"morning","description":"Время утреннего плана"},
               {"command":"help","description":"Подсказка"}]}' | jq -c '.ok')"

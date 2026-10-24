@@ -41,6 +41,30 @@ await say("созвон с Петром перенеси на понедельн
 await say("договор юристу я отправил");
 await say("/plan");
 
+// --- задания Киры ---
+await say("напомни мне завтра в 9 утра позвонить в банк");
+await say("каждую пятницу в 18:00 присылай мне итоги недели по SalesFox: что сделано, что зависло");
+await say("через 2 дня проверь, сдвинулась ли смета для Альфа-Строй, и если нет — напиши мне");
+await say("какие у тебя сейчас задания?");
+await say("отмени напоминание про банк");
+
+const svc = await app.services();
+const weekly = (await svc.jobs.list({ status: "active" })).find((j) => /итог/i.test(j.title));
+if (weekly) {
+  console.log(`\n=== Запускаю задание #${weekly.id} «${weekly.title}» вручную — Кира выполняет сама`);
+  const r = await svc.runner.runNow(weekly.id);
+  console.log(`статус: ${r.status}\nитог для журнала: ${r.result}`);
+  const sent = await db.query("SELECT text FROM outbox ORDER BY id DESC LIMIT 1");
+  console.log(`сообщение владельцу:\n${sent[0]?.text || "(не отправлено)"}`);
+} else {
+  console.log("\n!!! Еженедельное задание не создано");
+}
+
+console.log("\n=== Задания после разговора");
+for (const j of await svc.jobs.list({})) {
+  console.log(`#${j.id} [${j.status}/${j.exec_status}] ${j.title} — ${j.action}, ${j.schedule_text}${j.next_run ? ", дальше " + j.next_run : ""}; кем: ${j.created_by}${j.links.length ? "; связи: " + j.links.map((l) => l.title).join(", ") : ""}`);
+}
+
 console.log("\n=== Задачи в базе после разговора");
 for (const t of await nodes.list({ kind: "task", include_deleted: true, order: "created" })) {
   console.log(`#${t.id} [${t.status}] ${t.title}${t.due ? " — " + t.due : ""}${t.priority ? " !" + t.priority : ""}${t.parent_id ? " (в #" + t.parent_id + ")" : ""}`);

@@ -20,7 +20,9 @@ import { createAuth, parseCookies, safeEqual } from "./auth.js";
 import { createDeepSeek } from "./ai/deepseek.js";
 import { createAgent } from "./ai/agent.js";
 import { createBot } from "./bot.js";
-import { createJobs } from "./jobs.js";
+import { JobsModel } from "./jobs/model.js";
+import { createRunner, ensureSystemJobs, getMorningTime, setMorningTime } from "./jobs/runner.js";
+import { createOutbox } from "./outbox.js";
 
 export const VERSION = "0.1.0";
 
@@ -46,10 +48,15 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         const v = await db.migrate();
         log(`база готова, схема v${v}`);
         const nodes = new Nodes(db, cfg.tz);
-        const agent = createAgent({ db, nodes, llm, tz: cfg.tz, name: cfg.assistantName, log });
-        const bot = createBot({ db, agent, nodes, cfg, log });
-        const jobs = createJobs({ db, agent, cfg, log });
-        return { db, nodes, agent, bot, jobs };
+        const jobs = new JobsModel(db, cfg.tz);
+        const outbox = createOutbox({ db });
+        const deps = {};
+        const agent = createAgent({ db, nodes, jobs, outbox, deps, llm, tz: cfg.tz, name: cfg.assistantName, log });
+        const runner = createRunner({ jobs, agent, outbox, log });
+        deps.runner = runner;
+        await ensureSystemJobs({ jobs, db, cfg });
+        const bot = createBot({ db, agent, nodes, jobs, runner, cfg, log });
+        return { db, nodes, jobs, outbox, runner, agent, bot };
       })().catch((e) => {
         ready = null; // следующая попытка — при следующем запросе
         throw e;
@@ -194,16 +201,17 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     const own = await db.get("owner", null);
     return {
       owner: own ? { name: own.name, username: own.username, since: own.since } : null,
-      morning_time: await db.get("morning_time", cfg.morningTime),
+      morning_time: await getMorningTime(await services()),
     };
   });
 
   route("PATCH", "/api/bot", async ({ body }) => {
-    const { db } = await services();
+    const svc = await services();
+    const { db } = svc;
     if (body.morning_time !== undefined) {
       const t = String(body.morning_time);
       if (t !== "off" && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) throw httpError(400, "Время в формате ЧЧ:ММ или off");
-      await db.set("morning_time", t);
+      await setMorningTime(svc, t, "web");
     }
     if (body.unlink_owner) await db.query("DELETE FROM kv WHERE k = 'owner'");
     return { ok: true };
@@ -215,16 +223,60 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     return { actions: await bot.handle(body) };
   }, "bridge");
 
+  // Раз в минуту: выполнить задания, которым подошло время, и отдать сообщения для отправки
   route("GET", "/api/bridge/outbox", async () => {
-    const { jobs } = await services();
-    await jobs.runDue();
-    return { items: await jobs.pending() };
+    const { runner, outbox } = await services();
+    try {
+      await runner.runDue({ budgetMs: 50000 });
+    } catch (e) {
+      log("планировщик:", e.message);
+    }
+    return { items: await outbox.pending() };
   }, "bridge");
 
   route("POST", "/api/bridge/ack", async ({ body }) => {
-    const { jobs } = await services();
-    return { acked: await jobs.ack(body.ids) };
+    const { outbox } = await services();
+    return { acked: await outbox.ack(body.ids) };
   }, "bridge");
+
+  // --- задания Киры ---
+  route("GET", "/api/jobs", async ({ query }) => {
+    const { jobs } = await services();
+    const status = query.status && query.status !== "all" ? query.status.split(",") : undefined;
+    return { jobs: await jobs.list({ status, limit: +query.limit || 300 }) };
+  });
+
+  route("GET", "/api/jobs/:id", async ({ params }) => {
+    const { jobs } = await services();
+    const job = await jobs.get(+params.id);
+    if (!job) throw httpError(404, "Нет такого задания");
+    return { job, runs: await jobs.runs(+params.id, 50), history: await jobs.history(+params.id) };
+  });
+
+  route("POST", "/api/jobs", async ({ body }) => {
+    const { jobs } = await services();
+    return { job: await jobs.create({ ...body, created_by: "owner" }, "web") };
+  });
+
+  route("PATCH", "/api/jobs/:id", async ({ params, body }) => {
+    const { jobs } = await services();
+    const job = await jobs.get(+params.id);
+    if (!job) throw httpError(404, "Нет такого задания");
+    if (job.system && (body.action !== undefined || body.instruction !== undefined || body.title !== undefined)) {
+      throw httpError(400, "У системного задания можно менять только расписание и статус");
+    }
+    return { job: await jobs.update(+params.id, body, "web") };
+  });
+
+  route("POST", "/api/jobs/:id/run", async ({ params }) => {
+    const { runner, jobs } = await services();
+    try {
+      const r = await runner.runNow(+params.id);
+      return { result: r, job: await jobs.get(+params.id) };
+    } catch (e) {
+      throw httpError(400, e.message);
+    }
+  });
 
   // ---------- обработка запроса ----------
   async function handler(req, res) {

@@ -82,6 +82,58 @@ const MIGRATIONS = [
       updated_at DATETIME(3) NOT NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ],
+  // 2. Задания Киры: что ей сделать, когда, разово или регулярно, и история каждого запуска
+  [
+    `CREATE TABLE jobs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(300) NOT NULL,
+      instruction MEDIUMTEXT NULL,
+      action VARCHAR(20) NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      created_by VARCHAR(20) NOT NULL,
+      schedule VARCHAR(20) NOT NULL,
+      run_at DATETIME NULL,
+      cron VARCHAR(100) NULL,
+      interval_min INT NULL,
+      until_at DATETIME NULL,
+      max_runs INT NULL,
+      next_run_at DATETIME NULL,
+      last_run_at DATETIME(3) NULL,
+      run_count INT NOT NULL DEFAULT 0,
+      fail_streak INT NOT NULL DEFAULT 0,
+      exec_status VARCHAR(20) NOT NULL,
+      last_result MEDIUMTEXT NULL,
+      status VARCHAR(20) NOT NULL,
+      links VARCHAR(500) NOT NULL DEFAULT '',
+      system_key VARCHAR(50) NULL,
+      lock_until DATETIME(3) NULL,
+      version INT NOT NULL DEFAULT 1,
+      updated_at DATETIME(3) NOT NULL,
+      UNIQUE KEY (system_key), INDEX (status, next_run_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE job_runs_log (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      job_id BIGINT NOT NULL,
+      planned_at DATETIME NULL,
+      started_at DATETIME(3) NOT NULL,
+      finished_at DATETIME(3) NULL,
+      status VARCHAR(20) NOT NULL,
+      result MEDIUMTEXT NULL,
+      meta MEDIUMTEXT NULL,
+      INDEX (job_id, id), INDEX (started_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE job_history (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      job_id BIGINT NOT NULL,
+      version INT NOT NULL,
+      action VARCHAR(20) NOT NULL,
+      source VARCHAR(20) NOT NULL,
+      changed_at DATETIME(3) NOT NULL,
+      diff MEDIUMTEXT NULL,
+      snapshot MEDIUMTEXT NOT NULL,
+      INDEX (job_id, version)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ],
 ];
 
 export async function openDb(cfg) {

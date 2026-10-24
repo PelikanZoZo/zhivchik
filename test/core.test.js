@@ -178,20 +178,39 @@ test("бот: ошибки инструментов доходят до моде
   assert.match(t.data.actions[0].params.text, /Скоро|Сегодня|ничего|Важное|Просрочено/);
 });
 
-test("утренний план: один раз в день через очередь", { skip: !haveDb }, async () => {
-  const now = localNow(TZ);
-  await db.set("morning_time", now.time); // «сейчас» — время утреннего плана
-  script.push({ role: "assistant", content: "План: 1. Подарок маме" });
-  let r = await bridge("GET", "/api/bridge/outbox");
+test("утренний план: системное задание, раз в день, через очередь", { skip: !haveDb }, async () => {
+  const jobs = (await call("GET", "/api/jobs")).data.jobs;
+  const morning = jobs.find((j) => j.system_key === "morning");
+  assert.ok(morning, "системное задание утреннего плана создано");
+  assert.equal(morning.schedule_text, "каждый день в 08:30");
+  assert.equal(morning.created_by, "system");
+  // /morning меняет время задания
+  let r = await bridge("POST", "/api/bridge/update", msg(400, "/morning 07:45"));
+  assert.match(r.data.actions[0].params.text, /07:45/);
+  assert.equal((await call("GET", `/api/jobs/${morning.id}`)).data.job.cron, "45 7 * * *");
+  // подошло время: модель отправляет план через send_message
+  await db.query("UPDATE jobs SET next_run_at = NOW(3) - INTERVAL 1 MINUTE WHERE id = ?", [morning.id]);
+  script.push(toolCall("send_message", { text: "План: 1. Подарок маме" }), { role: "assistant", content: "Отправила план." });
+  r = await bridge("GET", "/api/bridge/outbox");
   assert.equal(r.data.items.length, 1);
   assert.match(r.data.items[0].actions[0].params.text, /План/);
   assert.equal(r.data.items[0].actions[0].params.chat_id, 111);
-  assert.equal(seen.at(-1).model, "smart");
   r = await bridge("GET", "/api/bridge/outbox");
-  assert.equal(r.data.items.length, 1); // пока не подтверждено — отдаётся снова, но второй раз не генерируется
+  assert.equal(r.data.items.length, 1); // пока не подтверждено — отдаётся снова, но второй раз не выполняется
   await bridge("POST", "/api/bridge/ack", { ids: [r.data.items[0].id] });
   r = await bridge("GET", "/api/bridge/outbox");
   assert.equal(r.data.items.length, 0);
+  const after = (await call("GET", `/api/jobs/${morning.id}`)).data;
+  assert.equal(after.job.status, "active");
+  assert.equal(after.job.exec_status, "succeeded");
+  assert.equal(after.job.last_result, "Отправила план.");
+  assert.match(after.job.next_run, / 07:45$/);
+  assert.equal(after.runs[0].status, "succeeded");
+  // план попал в переписку — Кира помнит, что писала
+  const [last] = await db.query("SELECT content FROM messages WHERE channel = 'telegram' AND role = 'assistant' ORDER BY id DESC LIMIT 1");
+  assert.match(last.content, /План/);
+  await bridge("POST", "/api/bridge/update", msg(401, "/morning off"));
+  assert.equal((await call("GET", `/api/jobs/${morning.id}`)).data.job.status, "cancelled");
 });
 
 test("сводка дня текстом", () => {

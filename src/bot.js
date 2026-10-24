@@ -7,6 +7,7 @@
 import { safeEqual } from "./auth.js";
 import { sendMessageActions } from "./telegram.js";
 import { localNow } from "./time.js";
+import { getMorningTime, setMorningTime } from "./jobs/runner.js";
 
 const HELP = [
   "Пиши как есть — дела, мысли, вопросы. Я разложу на задачи, отвечу, что горит, помогу спланировать.",
@@ -15,11 +16,12 @@ const HELP = [
   "/plan — план на сегодня",
   "/today — что на сегодня, без обдумывания",
   "/new — начать разговор с чистого листа (задачи не трогаются)",
+  "/jobs — мои задания: что и когда я сделаю сама",
   "/morning 08:30 — во сколько присылать утренний план (/morning off — не присылать)",
   "/help — эта подсказка",
 ].join("\n");
 
-export function createBot({ db, agent, nodes, cfg, log = () => {} }) {
+export function createBot({ db, agent, nodes, jobs, runner, cfg, log = () => {} }) {
   async function owner() {
     return db.get("owner", null);
   }
@@ -79,6 +81,7 @@ export function createBot({ db, agent, nodes, cfg, log = () => {} }) {
         return say(chatId, "Начали с чистого листа. Задачи на месте, я просто забыла наш разговор.");
       }
       if (/^\/today(@\w+)?$/.test(text)) return say(chatId, formatAgenda(await nodes.agenda({ days: 1 })));
+      if (/^\/jobs(@\w+)?$/.test(text)) return say(chatId, formatJobs(await jobs.list({ status: "active", limit: 50 })));
       const morning = text.match(/^\/morning(?:@\w+)?(?:\s+(\S+))?$/);
       if (morning) return say(chatId, await setMorning(morning[1]));
       if (/^\/plan(@\w+)?$/.test(text)) {
@@ -96,17 +99,17 @@ export function createBot({ db, agent, nodes, cfg, log = () => {} }) {
 
   async function setMorning(arg) {
     if (!arg) {
-      const t = await db.get("morning_time", cfg.morningTime);
+      const t = await getMorningTime({ jobs });
       return t === "off" ? "Утренний план выключен. Включить: /morning 08:30" : `Утренний план приходит в ${t}.`;
     }
     if (/^(off|выкл|нет)$/i.test(arg)) {
-      await db.set("morning_time", "off");
+      await setMorningTime({ jobs }, "off", "bot");
       return "Утренний план больше не присылаю.";
     }
     const m = arg.match(/^(\d{1,2})[:.](\d{2})$/);
     if (!m || +m[1] > 23 || +m[2] > 59) return "Не поняла время. Пример: /morning 08:30";
     const t = `${m[1].padStart(2, "0")}:${m[2]}`;
-    await db.set("morning_time", t);
+    await setMorningTime({ jobs }, t, "bot");
     return `Хорошо, план на день буду присылать в ${t}.`;
   }
 
@@ -131,6 +134,13 @@ function say(chatId, text) {
 
 function deleteMsg(chatId, messageId) {
   return { method: "deleteMessage", params: { chat_id: chatId, message_id: messageId }, optional: true };
+}
+
+export function formatJobs(list) {
+  if (!list.length) return "Активных заданий нет. Попроси, например: «каждую пятницу в 18:00 присылай итоги недели».";
+  return "*Мои задания*\n" + list.map((j) =>
+    `• #${j.id} ${j.title}\n   ${j.schedule_text}${j.next_run ? `; дальше: ${j.next_run}` : ""}${j.exec_status === "failed" || j.exec_status === "retrying" ? " ⚠️" : ""}`,
+  ).join("\n");
 }
 
 // Сводка без ИИ — быстро и бесплатно
