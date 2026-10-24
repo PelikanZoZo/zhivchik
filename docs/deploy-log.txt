@@ -1,34 +1,34 @@
-Transferring file `bot.js'
-Transferring file `config.js'
-Transferring file `cron.js'
-Transferring file `db.js'
-Transferring file `dwh.js'
-Transferring file `nodes.js'
-Transferring file `outbox.js'
-Transferring file `package.json'
-Transferring file `server.js'
 Transferring file `storage.js'
 Transferring file `telegram.js'
 Transferring file `time.js'
+Making directory `plan'
 Transferring file `ai/agent.js'
-Transferring file `ai/deepseek.js'
 Transferring file `jobs/model.js'
+Transferring file `plan/plan.js'
 Transferring file `pm/files.js'
+Transferring file `jobs/runner.js'
+Transferring file `ai/deepseek.js'
+Transferring file `plan/schedule.js'
 Transferring file `pm/risk-ai.js'
 Transferring file `ai/tools.js'
-Transferring file `ai/web.js'
-Transferring file `jobs/runner.js'
 Transferring file `pm/schema.js'
+Transferring file `ai/web.js'
 Transferring file `app.js'
 Transferring file `icon.svg'
 Transferring file `index.html'
 Transferring file `style.css'
+Making directory `vendor'
 Transferring file `js/core.js'
 Transferring file `js/item.js'
 Transferring file `js/jobs.js'
+Making directory `vendor/dhtmlx-gantt'
 Transferring file `js/object.js'
+Transferring file `vendor/dhtmlx-gantt/LICENSE.md'
+Transferring file `js/plan.js'
 Transferring file `js/storage.js'
 Transferring file `js/views.js'
+Transferring file `vendor/dhtmlx-gantt/dhtmlxgantt.css'
+Transferring file `vendor/dhtmlx-gantt/dhtmlxgantt.js'
 mkdir: Access failed: 550 www/tmp: File exists
 mkdir: Access failed: 550 tmp: File exists
 www/app.js
@@ -39,7 +39,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 22:08 UTC
+--- проверка 2026-10-24 22:41 UTC
 health: {"ok":true,"db":true,"version":"0.1.0"}
 главная (http): 200 -> 
 сертификат: 1 (0 — в порядке)
