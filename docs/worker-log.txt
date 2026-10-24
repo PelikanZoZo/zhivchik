@@ -1,0 +1,12 @@
+Выкладка: 2026-10-24 10:26 UTC
+Wrangler requires at least Node.js v22.0.0. You are using v20.20.2. Please update your version of Node.js.
+
+Consider using a Node.js version manager such as https://volta.sh/ or https://github.com/nvm-sh/nvm.
+Wrangler requires at least Node.js v22.0.0. You are using v20.20.2. Please update your version of Node.js.
+
+Consider using a Node.js version manager such as https://volta.sh/ or https://github.com/nvm-sh/nvm.
+
+Worker отвечает: error code: 1042
+setWebhook: {"ok":true,"description":"Webhook was set"}
+команды: true
+состояние вебхука: {"pending_update_count":0,"last_error_message":null,"last_error_date":null}
