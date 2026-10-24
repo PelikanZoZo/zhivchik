@@ -1,16 +1,21 @@
 Transferring file `auth.js'
 Transferring file `bot.js'
 Transferring file `config.js'
+Transferring file `cron.js'
 Transferring file `db.js'
-Transferring file `jobs.js'
 Transferring file `nodes.js'
+Transferring file `outbox.js'
 Transferring file `package.json'
 Transferring file `server.js'
 Transferring file `telegram.js'
 Transferring file `time.js'
 Transferring file `ai/agent.js'
+Making directory `jobs'
 Transferring file `ai/deepseek.js'
 Transferring file `ai/tools.js'
+Transferring file `jobs/model.js'
+Transferring file `jobs/runner.js'
+Removing old file `jobs.js'
 Transferring file `app.js'
 Transferring file `icon.svg'
 Transferring file `index.html'
@@ -25,7 +30,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 16:22 UTC
+--- проверка 2026-10-24 16:55 UTC
 health: {"ok":true,"db":true,"version":"0.1.0"}
 главная (http): 200 -> 
 сертификат: 1 (0 — в порядке)
