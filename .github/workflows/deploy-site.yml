@@ -95,7 +95,7 @@ jobs:
             put dist/.env -o www/.env;
             rm -f www/server.js;
             chmod 755 www/app.js; chmod 600 www/.env;
-            mkdir -p www/tmp; put dist/tmp/restart.txt -o www/tmp/restart.txt;
+            mkdir -p www/tmp; put dist/tmp/restart.txt -o www/tmp/restart.txt; mkdir -p tmp; put dist/tmp/restart.txt -o tmp/restart.txt;
             cls -1 www/;
             bye" 2>&1 | sed "s/$FTP_PASSWORD/***/g" | grep -v "\.env" | tail -40 > docs/deploy-log.txt && status=0 || status=$?
           echo "итог заливки: $status" >> docs/deploy-log.txt
