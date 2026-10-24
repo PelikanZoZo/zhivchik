@@ -58,6 +58,12 @@ jobs:
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USER: ${{ secrets.DB_USER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # Поиск в интернете для Киры (необязательно; без ключей — запасной поиск без ключа)
+          YANDEX_SEARCH_API_KEY: ${{ secrets.YANDEX_SEARCH_API_KEY }}
+          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
         run: |
           npm ci --omit=dev
           mkdir -p dist/tmp
@@ -71,6 +77,9 @@ jobs:
             [ -n "$DB_NAME" ] && echo "DB_NAME=$DB_NAME"
             [ -n "$DB_USER" ] && echo "DB_USER=$DB_USER"
             [ -n "$DB_PASSWORD" ] && echo "DB_PASSWORD=$DB_PASSWORD"
+            for v in YANDEX_SEARCH_API_KEY YANDEX_FOLDER_ID TAVILY_API_KEY BRAVE_API_KEY SERPER_API_KEY; do
+              [ -n "${!v}" ] && echo "$v=${!v}"
+            done
             true
           } > dist/.env
           date -u > dist/tmp/restart.txt

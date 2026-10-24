@@ -36,5 +36,7 @@ export function toHtml(text) {
   s = s.replace(/(^|[\s(«"])\*([^*\n]+)\*(?=$|[\s.,:;!?)»"])/gm, "$1<b>$2</b>");
   s = s.replace(/(^|[\s(«"])_([^_\n]+)_(?=$|[\s.,:;!?)»"])/gm, "$1<i>$2</i>");
   s = s.replace(/^#{1,6}\s+(.+)$/gm, "<b>$1</b>");
+  // ссылки [текст](https://…)
+  s = s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, t, u) => `<a href="${u.replace(/"/g, "&quot;")}">${t}</a>`);
   return s;
 }

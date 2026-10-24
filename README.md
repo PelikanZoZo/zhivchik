@@ -63,6 +63,10 @@ Telegram ⇄ Cloudflare Worker (worker/) ⇄ сайт на Masterhost (app.js, s
 `DEEPSEEK_API_KEY`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `TELEGRAM_BOT_TOKEN`, `ADMIN_PASSWORD`, `BRIDGE_SECRET`,
 `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (база MySQL из панели Masterhost).
 
+Поиск в интернете для Киры (`src/ai/web.js`, инструменты `web_search` и `read_page`) — по любому из ключей,
+в таком порядке: `YANDEX_SEARCH_API_KEY` + `YANDEX_FOLDER_ID` (Яндекс Search API), `TAVILY_API_KEY`,
+`BRAVE_API_KEY`, `SERPER_API_KEY`. Без ключей — запасной поиск по выдаче Bing и DuckDuckGo (хрупко).
+
 Репозиторий публичный: в коде и журналах нет ни паролей, ни данных.
 
 ## Бот

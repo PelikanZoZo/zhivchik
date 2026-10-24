@@ -19,6 +19,7 @@ import { Nodes, ValidationError } from "./nodes.js";
 import { createAuth, parseCookies, safeEqual } from "./auth.js";
 import { createDeepSeek } from "./ai/deepseek.js";
 import { createAgent } from "./ai/agent.js";
+import { createWeb } from "./ai/web.js";
 import { createBot } from "./bot.js";
 import { JobsModel } from "./jobs/model.js";
 import { createRunner, ensureSystemJobs, getMorningTime, setMorningTime } from "./jobs/runner.js";
@@ -53,7 +54,7 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         const nodes = new Nodes(db, cfg.tz);
         const jobs = new JobsModel(db, cfg.tz);
         const outbox = createOutbox({ db });
-        const deps = {};
+        const deps = { web: createWeb(cfg.web || {}, { log }) };
         const agent = createAgent({ db, nodes, jobs, outbox, deps, llm, tz: cfg.tz, name: cfg.assistantName, log });
         const runner = createRunner({ jobs, agent, outbox, log });
         deps.runner = runner;

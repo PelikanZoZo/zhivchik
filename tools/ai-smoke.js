@@ -36,6 +36,16 @@ async function say(text) {
 console.log(`Модели: обычная ${cfg.deepseek.model}, умная ${cfg.deepseek.smartModel}`);
 await say("/start");
 await say("smoke-pass");
+
+// --- интернет ---
+console.log(`\n=== Поиск в интернете: сервисы по порядку — ${(await import("../src/ai/web.js")).webProviders(cfg.web).join(", ")}`);
+for (const q of ["Что Глоубайт сделали для ТБанк", "какие главные новости про Т-Банк за последнюю неделю?"]) {
+  await say(q);
+  const [m] = await db.query("SELECT meta FROM messages WHERE role = 'assistant' ORDER BY id DESC LIMIT 1");
+  const meta = JSON.parse(m?.meta || "{}");
+  console.log("инструменты:", (meta.tools || []).map((t) => `${t.tool}${t.args?.query ? `(«${t.args.query}»)` : t.args?.url ? `(${t.args.url})` : ""}${t.ok ? "" : " ✗ " + t.error}`).join(", "), "| токены:", meta.usage);
+}
+if (env.SMOKE === "web") { server.close(); await db.close(); process.exit(0); }
 await say("завтра в 11 созвон с Петром по SalesFox, до пятницы подготовить смету для Альфа-Строй, и купить корм коту");
 await say("что у меня на завтра?");
 await say("созвон с Петром перенеси на понедельник 15:00 и сделай важным");

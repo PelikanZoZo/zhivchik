@@ -38,5 +38,13 @@ export function readConfig(env = process.env) {
     morningTime: env.MORNING_TIME || "08:30",
     assistantName: env.ASSISTANT_NAME || "Кира",
     filesDir: env.FILES_DIR || "",
+    web: {
+      provider: env.WEB_SEARCH_PROVIDER || "",
+      yandexKey: env.YANDEX_SEARCH_API_KEY || "",
+      yandexFolder: env.YANDEX_FOLDER_ID || "",
+      tavilyKey: env.TAVILY_API_KEY || "",
+      braveKey: env.BRAVE_API_KEY || "",
+      serperKey: env.SERPER_API_KEY || "",
+    },
   };
 }

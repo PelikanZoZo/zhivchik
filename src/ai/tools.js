@@ -109,6 +109,18 @@ export const JOB_TOOL_DEFS = [
   }, ["id"]),
 ];
 
+// Интернет: поиск и чтение страниц — в разговоре и при выполнении заданий
+export const WEB_TOOL_DEFS = [
+  fn("web_search", "Поиск в интернете: новости, компании, люди, события, цены, документация — всё, чего нет в системе владельца. Возвращает заголовки, ссылки и фрагменты. Чтобы узнать подробности, открой нужные ссылки через read_page.", {
+    query: { type: "string", description: "Поисковый запрос, как в поисковике: 2–8 ключевых слов. Для свежего добавь год или «новости»" },
+    limit: { type: "integer", description: "Сколько результатов, по умолчанию 6 (до 10)" },
+  }, ["query"]),
+  fn("read_page", "Открыть страницу по ссылке и прочитать её текст (без меню и рекламы, первые ~9000 знаков).", {
+    url: { type: "string", description: "Полная ссылка http(s)" },
+  }, ["url"]),
+];
+const WEB_LIMITS = { searches: 6, pages: 6 };
+
 const FORGET_DEF = fn("forget_conversation", "Забыть текущий разговор и начать с чистого листа (задачи и задания не трогаются). Только по просьбе владельца: «давай заново», «забудь, о чём говорили».", {});
 const RUN_NOW_DEF = fn("run_job_now", "Выполнить задание прямо сейчас, не дожидаясь расписания.", { id: { type: "integer" } }, ["id"]);
 const SEND_DEF = fn("send_message", "Отправить сообщение владельцу в Telegram. Единственный способ связаться с ним, пока ты выполняешь задание.", {
@@ -117,7 +129,9 @@ const SEND_DEF = fn("send_message", "Отправить сообщение вл�
 
 // Набор инструментов: в разговоре с владельцем (chat) и при самостоятельном выполнении задания (job)
 export function toolDefs(mode = "chat") {
-  return mode === "job" ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, SEND_DEF] : [...TOOL_DEFS, ...JOB_TOOL_DEFS, RUN_NOW_DEF, FORGET_DEF];
+  return mode === "job"
+    ? [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, SEND_DEF]
+    : [...TOOL_DEFS, ...JOB_TOOL_DEFS, ...WEB_TOOL_DEFS, RUN_NOW_DEF, FORGET_DEF];
 }
 
 function briefJob(j) {
@@ -154,6 +168,7 @@ async function briefs(nodes, items) {
 
 export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = "ai", mode = "chat", onForget }) {
   let created = 0; // сколько заданий создано за этот разговор/запуск — защита от зацикливания
+  const webUsed = { searches: 0, pages: 0 };
   const allowed = new Set(toolDefs(mode).map((t) => t.function.name));
   const run = {
     async get_agenda({ days = 3 } = {}) {
@@ -308,6 +323,28 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       if (!onForget) return { error: "Недоступно" };
       await onForget();
       return { ok: true, note: "Разговор забыт. Задачи и задания на месте." };
+    },
+
+    async web_search({ query, limit }) {
+      if (!deps.web) return { error: "Поиск в интернете не подключён" };
+      if (++webUsed.searches > WEB_LIMITS.searches) return { error: "Хватит поисков на один ответ — отвечай по тому, что уже нашла" };
+      try {
+        const r = await deps.web.search(query, { limit });
+        if (!r.results.length) return { query, results: [], note: "Ничего не нашлось — попробуй другие слова" };
+        return { query, results: r.results };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+
+    async read_page({ url }) {
+      if (!deps.web) return { error: "Чтение страниц не подключено" };
+      if (++webUsed.pages > WEB_LIMITS.pages) return { error: "Хватит страниц на один ответ — отвечай по тому, что уже прочитала" };
+      try {
+        return await deps.web.read(url);
+      } catch (e) {
+        return { error: `${url}: ${e.message}` };
+      }
     },
 
     async send_message({ text }) {

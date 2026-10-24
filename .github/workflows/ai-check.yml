@@ -3,6 +3,11 @@
 name: Проверка ассистента
 on:
   workflow_dispatch:
+    inputs:
+      smoke:
+        description: "web — только проверка поиска"
+        required: false
+        default: ""
   push:
     branches: [main]
     paths: ["src/ai/**", "src/jobs/**", "src/pm/**", "src/nodes.js", "src/bot.js", "tools/ai-smoke.js", ".github/workflows/ai-check.yml"]
@@ -39,6 +44,12 @@ jobs:
           TEST_DB_USER: kira
           TEST_DB_PASSWORD: kira
           KIRA_NO_LISTEN: "1"
+          SMOKE: ${{ github.event.inputs.smoke }}
+          YANDEX_SEARCH_API_KEY: ${{ secrets.YANDEX_SEARCH_API_KEY }}
+          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          BRAVE_API_KEY: ${{ secrets.BRAVE_API_KEY }}
+          SERPER_API_KEY: ${{ secrets.SERPER_API_KEY }}
         run: |
           mkdir -p docs
           { echo "Проверка: $(date -u '+%Y-%m-%d %H:%M UTC')"; timeout 900 node tools/ai-smoke.js 2>&1; echo "итог: $?"; } > docs/ai-check.txt || true
