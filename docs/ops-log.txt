@@ -1,15 +1,13 @@
-Запуск: 2026-10-24 09:59 UTC
-изнутри: HTTP 000, сертификат: 0 (0 = в порядке)
+Запуск: 2026-10-24 10:33 UTC
+=== процессы
+   1831 Sat Oct 24 12:23:09 2026 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
+   2171 Sat Oct 24 12:23:10 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+   2184 Sat Oct 24 12:23:10 2026 /bin/bash /opt/scripts/node-wrapper.sh /home/h551249/devalby.ru/www/ 21.5.0 app.js
+   2524 Sat Oct 24 12:23:12 2026 node --loader unit-http/loader.mjs --require unit-http/loader app.js
+=== журнал (последние 30 строк про Киру и ошибки)
+=== переменные базы у процесса (только имена)
 --- снаружи, через интернет:
->> http://devalby.ru/
-HTTP 301 -> https://devalby.ru/
-Moved Permanently
->> https://devalby.ru/
-curl: (60) SSL certificate OpenSSL verify result: self-signed certificate (18)
-More details here: https://curl.se/docs/sslcerts.html
-
-curl failed to verify the legitimacy of the server and therefore could not
-establish a secure connection to it. To learn more about this situation and
-how to fix it, please visit the webpage mentioned above.
-HTTP 000 -> 
-Moved Permanently
+http://devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 0 | Moved Permanently
+https://devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 18 | Moved Permanently
+http://www.devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 0 | Moved Permanently
+https://www.devalby.ru/api/health -> HTTP 301 -> http://www.devalby.ru/health | серт 18 | Moved Permanently
