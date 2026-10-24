@@ -45,6 +45,10 @@ for (const q of ["Что Глоубайт сделали для ТБанк", "к
   const meta = JSON.parse(m?.meta || "{}");
   console.log("инструменты:", (meta.tools || []).map((t) => `${t.tool}${t.args?.query ? `(«${t.args.query}»)` : t.args?.url ? `(${t.args.url})` : ""}${t.ok ? "" : " ✗ " + t.error}`).join(", "), "| токены:", meta.usage);
 }
+// --- тон по контексту ---
+await say("короче я спросил у ChatGPT, как лучше составить смету, он норм подсказал");
+await say("смету для Альфа-Строй перенеси на понедельник, опять не успеваю");
+await say("Альфа-Строй отказались от пилота, минус два миллиона в плане на квартал");
 if (env.SMOKE === "web") { server.close(); await db.close(); process.exit(0); }
 await say("завтра в 11 созвон с Петром по SalesFox, до пятницы подготовить смету для Альфа-Строй, и купить корм коту");
 await say("что у меня на завтра?");
