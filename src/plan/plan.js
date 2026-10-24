@@ -398,7 +398,7 @@ export function createPlanner({ db, nodes, tz }) {
     const created = { stages: 0, tasks: 0, goals: 0, risks: 0, links: 0 };
     const summary = [];
     let prevEnd = startDay - 1;
-    let prevEndTasks = [];
+    let prevEndTasks = await lastStageEnd(root.id, startDay); // план строится частями — продолжаем от предыдущего этапа
     const mk = (input) => nodes.create({ ...input, parent_id: root.id }, source);
     // уже существующие этапы и цели с теми же названиями — используем, а не плодим дубли
     const norm = (t) => String(t || "").toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
@@ -421,7 +421,7 @@ export function createPlanner({ db, nodes, tz }) {
         const deps = (Array.isArray(t.after) ? t.after : t.after ? [t.after] : []).map((a) => keyed.get(String(a)) || (Number.isFinite(+a) ? { id: +a, ext: true } : null)).filter(Boolean);
         let s0 = t.start ? dayNum(String(t.start)) : stageStart;
         for (const d of deps) if (d.finish != null) s0 = Math.max(s0, d.finish + 1);
-        const autoAfter = !t.start && !deps.length && i > 0 ? prevEndTasks : [];
+        const autoAfter = !t.start && !deps.length && (i > 0 || prevEndTasks.length) ? prevEndTasks : [];
         for (const d of autoAfter) s0 = Math.max(s0, d.finish + 1);
         const f0 = s0 + days - 1;
         const node = await mk({
@@ -477,6 +477,23 @@ export function createPlanner({ db, nodes, tz }) {
     const shifted = await propagateFrom(ext, source);
     await syncStages(source);
     return { created, reused, stages: summary, finish: dayStr(prevEnd), shifted: shifted.length };
+  }
+
+  // Последние задачи этапа, который заканчивается раньше startDay (самый поздний из таких)
+  async function lastStageEnd(rootId, startDay) {
+    const data = await load();
+    let best = null;
+    for (const n of data.byId.values()) {
+      if (n.kind !== "stage" || n.parent_id !== rootId) continue;
+      const sp = data.span.get(n.id);
+      if (!sp || !sp.summary || sp.finish >= startDay) continue;
+      if (!best || sp.finish > best.sp.finish) best = { n, sp };
+    }
+    if (!best) return [];
+    const tasks = (data.kids.get(best.n.id) || []).filter((c) => c.kind === "task" && data.span.get(c.id) && !data.span.get(c.id).summary);
+    const ids = new Set(tasks.map((t) => t.id));
+    const hasSucc = new Set(data.links.filter((l) => ids.has(l.pred_id) && ids.has(l.succ_id)).map((l) => l.pred_id));
+    return tasks.filter((t) => !hasSucc.has(t.id)).map((t) => ({ id: t.id, start: data.span.get(t.id).start, finish: data.span.get(t.id).finish }));
   }
 
   return { buildPlan, getPlan, move, addLink, removeLink, saveBaseline, latestBaseline, propagateFrom, syncStages, load };

@@ -224,3 +224,15 @@ test("обрезанный по длине ответ модели — Киру 
   fakeLlm.chat = orig;
   assert.equal(r.data.text, "Построила по частям.");
 });
+
+test("план частями: следующий этап сам связывается с концом предыдущего", { skip: !haveDb }, async () => {
+  const { nodes, planner } = await app.services();
+  const pr = await nodes.create({ kind: "project", title: "Частями" }, "web");
+  await planner.buildPlan(pr.id, { start: "2026-12-01", stages: [{ title: "Первый", tasks: [{ key: "a", title: "А", days: 2 }, { key: "b", title: "Б", days: 2, after: ["a"] }] }] }, { source: "web" });
+  const r = await planner.buildPlan(pr.id, { start: "2026-12-05", stages: [{ title: "Второй", tasks: [{ title: "В", days: 1 }] }] }, { source: "web" });
+  assert.equal(r.created.links, 1);
+  const plan = await planner.getPlan(pr.id);
+  const id = (t) => plan.rows.find((x) => x.text === t).id;
+  await planner.move(id("Б"), { finish: "2026-12-06" }, {});
+  assert.equal((await nodes.get(id("В"))).start, "2026-12-07", "второй этап уехал вслед за первым");
+});
