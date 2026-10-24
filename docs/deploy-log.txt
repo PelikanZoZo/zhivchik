@@ -1,18 +1,3 @@
-Transferring file `mysql2/typings/mysql/lib/protocol/packets/ResultSetHeader.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/packets/RowDataPacket.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/packets/index.d.ts'
-Making directory `mysql2/typings/mysql/lib/protocol/packets/params'
-Making directory `mysql2/typings/mysql/lib/protocol/sequences'
-Transferring file `mysql2/typings/mysql/lib/protocol/packets/params/ErrorPacketParams.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/packets/params/OkPacketParams.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/sequences/ExecutableBase.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/sequences/Prepare.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/sequences/Query.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/sequences/QueryableBase.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/sequences/Sequence.d.ts'
-Making directory `mysql2/typings/mysql/lib/protocol/sequences/promise'
-Transferring file `mysql2/typings/mysql/lib/protocol/sequences/promise/ExecutableBase.d.ts'
-Transferring file `mysql2/typings/mysql/lib/protocol/sequences/promise/QueryableBase.d.ts'
 Transferring file `auth.js'
 Transferring file `bot.js'
 Transferring file `config.js'
@@ -23,7 +8,6 @@ Transferring file `package.json'
 Transferring file `server.js'
 Transferring file `telegram.js'
 Transferring file `time.js'
-Making directory `ai'
 Transferring file `ai/agent.js'
 Transferring file `ai/deepseek.js'
 Transferring file `ai/tools.js'
@@ -31,6 +15,7 @@ Transferring file `app.js'
 Transferring file `icon.svg'
 Transferring file `index.html'
 Transferring file `style.css'
+mkdir: Access failed: 550 www/tmp: File exists
 www/app.js
 www/node_modules/
 www/package-lock.json
@@ -39,7 +24,7 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 10:30 UTC
+--- проверка 2026-10-24 10:35 UTC
 health (https): Moved Permanently
 health (https): Moved Permanently
 health (https): Moved Permanently
