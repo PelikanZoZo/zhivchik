@@ -28,8 +28,10 @@ jobs:
             timeout 300 sshpass -e ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR -o ConnectTimeout=20 "$SSH_USER@$SSH_HOST" 'bash -s' < ops/remote.sh 2>&1 \
               | sed -e "s/$SSHPASS/***/g" | grep -aviE "pass(word)?=|DBPASS"
             echo "--- снаружи, через интернет:"
-            for u in http://devalby.ru/ https://devalby.ru/; do
-              echo ">> $u"; curl -sS --max-time 60 -o body.txt -w "HTTP %{http_code} -> %{redirect_url}\n" "$u"; head -c 200 body.txt | sed -e 's/<[^>]*>//g' | tr -s ' \n' ' '; echo
+            for u in http://devalby.ru/api/health https://devalby.ru/api/health http://www.devalby.ru/api/health https://www.devalby.ru/api/health; do
+              printf '%s -> ' "$u"
+              curl -sk --max-time 40 -o body.txt -w "HTTP %{http_code} -> %{redirect_url} | серт %{ssl_verify_result} | " "$u" 2>&1
+              head -c 150 body.txt | tr -s ' \n' ' '; echo
             done
           } > docs/ops-log.txt 2>&1 || true
           cat docs/ops-log.txt
