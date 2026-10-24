@@ -64,7 +64,7 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
         const runner = createRunner({ jobs, agent, outbox, log });
         deps.runner = runner;
         await ensureSystemJobs({ jobs, db, cfg });
-        const bot = createBot({ db, agent, nodes, jobs, runner, cfg, storage, log });
+        const bot = createBot({ db, agent, nodes, jobs, runner, cfg, storage, dwh, log });
         const riskAi = createRiskAssessor({ db, nodes, llm, tz: cfg.tz, log });
         deps.riskAi = riskAi;
         return { db, nodes, jobs, outbox, runner, agent, bot, riskAi, files, storage, dwh };

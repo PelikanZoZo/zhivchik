@@ -1,16 +1,15 @@
 // Хранилище: все файлы, которые владелец присылает Кире (документы, голосовые, аудио, фото, видео)
-// или загружает на сайт. Для каждого файла хранится его текст (из документа или расшифровка голосового),
-// краткое описание и ключевые слова от ИИ — по ним Кира находит нужный файл.
+// или загружает на сайт. Содержимое документов Кира НЕ читает — только название и описание.
+// У голосовых и аудио есть расшифровка (Worker, Whisper) и суть от ИИ — по ним искать можно.
 //
 // Сам файл лежит на диске (pm/files.js), в Telegram его можно переслать заново по file_id без загрузки.
 
-import { extractText } from "./docs/extract.js";
 import { formatLocal, parseLocal, localDayBounds } from "./time.js";
 import { extractJson } from "./pm/risk-ai.js";
 
 export const ORIGIN_TYPES = { chat: "Чат с Кирой", forward: "Пересылка", web: "Сайт", attachment: "Вложение объекта" };
 export const FILE_KINDS = { document: "Документ", voice: "Голосовое", audio: "Аудио", photo: "Фото", video: "Видео", other: "Файл" };
-const TEXT_STATUS = { pending: "ещё не прочитан", ok: "текст есть", empty: "текста нет", unsupported: "формат без текста", failed: "не прочитался" };
+const TEXT_STATUS = { none: "не читается", pending: "ещё не прочитан", ok: "текст есть", empty: "текста нет", unsupported: "формат без текста", failed: "не прочитался" };
 
 export function kindOf({ tgType, mime = "", name = "" }) {
   if (tgType === "voice") return "voice";
@@ -84,20 +83,11 @@ export function createStorage({ db, files, llm, tz, log = () => {} }) {
     let f = await row(id);
     if (!f) return null;
     if (f.text_status === "pending") {
-      if (SPOKEN.has(f.kind)) {
-        await setText(id, { status: "empty", text: null, note: "Расшифровки нет" });
-      } else if (f.kind === "photo") {
-        await setText(id, { status: "unsupported", text: null, note: "Текст на фото пока не распознаю" });
-      } else if (!f.file_key) {
-        await setText(id, { status: "failed", text: null, note: f.text_note || "Файл не скачался" });
-      } else {
-        const buf = await files.read(f.file_key);
-        const r = buf ? await extractText(buf, { name: f.name, mime: f.mime }) : { status: "failed", note: "Файл не найден на диске" };
-        await setText(id, r);
-      }
+      if (SPOKEN.has(f.kind)) await setText(id, { status: "empty", text: null, note: "Расшифровки нет" });
+      else await setText(id, { status: "none", text: null, note: null }); // документы не читаем
       f = await row(id);
     }
-    if (doDescribe && !f.described_at && llm) {
+    if (doDescribe && SPOKEN.has(f.kind) && f.text && !f.described_at && llm) {
       try { await describe(f); } catch (e) { log(`описание файла #${id}: ${e.message}`); }
       f = await row(id);
     }
@@ -109,7 +99,9 @@ export function createStorage({ db, files, llm, tz, log = () => {} }) {
       [text || null, status, pages ?? null, note ? String(note).slice(0, 300) : null, id]);
   }
 
+  // Суть записи — только для голосовых и аудио (по расшифровке)
   async function describe(f) {
+    if (!SPOKEN.has(f.kind)) return;
     const body = f.text ? f.text.slice(0, 12000) : "";
     if (!body && !f.caption) {
       await db.query("UPDATE storage_files SET described_at = NOW(3) WHERE id = ?", [f.id]);
@@ -138,7 +130,7 @@ export function createStorage({ db, files, llm, tz, log = () => {} }) {
   // Файлы, которые не успели прочитать или описать (например, ИИ был недоступен)
   async function runPending(max = 2) {
     const rows = await db.query(
-      `SELECT id FROM storage_files WHERE deleted_at IS NULL AND (text_status = 'pending' OR (described_at IS NULL AND (text IS NOT NULL OR caption IS NOT NULL)))
+      `SELECT id FROM storage_files WHERE deleted_at IS NULL AND (text_status = 'pending' OR (kind IN ('voice', 'audio', 'video') AND text IS NOT NULL AND described_at IS NULL))
        AND created_at > NOW(3) - INTERVAL 7 DAY ORDER BY id LIMIT ?`, [max],
     );
     for (const r of rows) await process(r.id).catch((e) => log(`файл #${r.id}: ${e.message}`));

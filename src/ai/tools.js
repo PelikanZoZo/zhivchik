@@ -123,14 +123,14 @@ const WEB_LIMITS = { searches: 6, pages: 6 };
 
 // Хранилище файлов и архив переписки
 export const FILE_TOOL_DEFS = [
-  fn("find_files", "Найти файлы в хранилище: документы, голосовые, аудио, фото, видео, которые владелец присылал или загружал. Ищет по названию, подписи, описанию, ключевым словам и тексту (для голосовых — по расшифровке).", {
+  fn("find_files", "Найти файлы в хранилище: документы, голосовые, аудио, фото, видео. Документы ищутся только по названию и описанию (их содержимое ты не читаешь); голосовые и аудио — ещё и по расшифровке.", {
     query: { type: "string", description: "Что искать: слова из названия или содержания («договор Альфа-Строй», «смета пилот»). Пусто — последние файлы" },
     kind: { type: "string", enum: ["document", "voice", "audio", "photo", "video", "other"], description: "Только этого вида" },
     from: { type: "string", description: "Присланы не раньше (ГГГГ-ММ-ДД)" },
     to: { type: "string", description: "Присланы не позже (ГГГГ-ММ-ДД)" },
     limit: { type: "integer", description: "По умолчанию 8" },
   }),
-  fn("read_file", "Прочитать текст файла из хранилища (документ или расшифровку голосового) — кусками по ~12000 знаков.", {
+  fn("read_file", "Прочитать расшифровку голосового или аудио из хранилища — кусками по ~12000 знаков. Документы не читаются.", {
     id: { type: "integer" },
     offset: { type: "integer", description: "С какого знака читать (для продолжения — значение next_offset)" },
   }, ["id"]),
@@ -410,6 +410,7 @@ export function createToolRunner({ nodes, jobs, outbox, deps = {}, tz, source = 
       if (!deps.storage) return { error: "Хранилище недоступно" };
       const r = await deps.storage.readText(+id, { offset });
       if (!r) return { error: `Нет файла #${id}` };
+      if (!["voice", "audio", "video"].includes(r.kind)) return { id: r.id, name: r.name, error: "Содержимое документов ты не читаешь — только название и описание" };
       if (!r.total_chars) return { id: r.id, name: r.name, kind: r.kind, summary: r.summary, error: `Текста нет: ${r.text_note || r.text_status_text}` };
       return { id: r.id, name: r.name, kind: r.kind, summary: r.summary, text: r.text, total_chars: r.total_chars, ...(r.more ? { next_offset: r.offset + r.text.length } : {}) };
     },

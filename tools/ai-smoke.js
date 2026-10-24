@@ -61,8 +61,8 @@ for (const q of ["Что Глоубайт сделали для ТБанк", "к
     const data = await res.json();
     console.log(`\n>>> [файл ${fixture}${media.caption ? `, подпись «${media.caption}»` : ""}]\n(${((Date.now() - started) / 1000).toFixed(1)} с)\n${(data.actions || []).map((a) => a.fallback_text || `→ ${a.method}`).join("\n")}`);
   };
-  await sendFile("dogovor.docx", { document: { file_id: "D1", file_unique_id: "UD1", file_name: "scan_0041.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } });
-  await sendFile("smeta.xlsx", { document: { file_id: "D2", file_unique_id: "UD2", file_name: "smeta.xlsx" }, caption: "сколько всего по смете и что дороже всего?" });
+  await sendFile("dogovor.docx", { document: { file_id: "D1", file_unique_id: "UD1", file_name: "Договор поставки Альфа-Строй.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } });
+  await sendFile("smeta.xlsx", { document: { file_id: "D2", file_unique_id: "UD2", file_name: "smeta.xlsx" }, caption: "смета на пилот, сколько там всего?" });
   await sendFile("akt.pdf", { voice: { file_id: "V1", file_unique_id: "UV1", duration: 9 } }, { transcript: "Кира, слушай, напомни мне в понедельник утром отправить акт GlowByte на подпись, и найди договор с Альфа-Строем, пришли его" });
   await sendFile("deck.pptx", { document: { file_id: "D3", file_unique_id: "UD3", file_name: "SalesFox_pitch.pptx" }, caption: "питч от Олега, версия для инвесторов",
     forward_origin: { type: "user", date: Math.floor(Date.now() / 1000) - 86400, sender_user: { id: 9, first_name: "Олег", last_name: "Смирнов" } } });

@@ -12,9 +12,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "fflate": "^0.8.3",
-    "mysql2": "^3.11.0",
-    "pdfjs-dist": "^4.10.38"
+    "mysql2": "^3.11.0"
   },
   "license": "UNLICENSED"
 }

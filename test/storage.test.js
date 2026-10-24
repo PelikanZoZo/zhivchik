@@ -9,7 +9,6 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { openDb } from "../src/db.js";
 import { createApp } from "../src/server.js";
-import { extractText, docType } from "../src/docs/extract.js";
 import { stem, kindOf } from "../src/storage.js";
 import { pickMedia } from "../src/bot.js";
 import { fileAction } from "../src/telegram.js";
@@ -87,27 +86,6 @@ after(async () => {
   fs.rmSync(filesDir, { recursive: true, force: true });
 });
 
-test("документы: docx, xlsx, pptx, pdf, текст в cp1251", async () => {
-  const read = (f) => extractText(fs.readFileSync(path.join(FX, f)), { name: f });
-  const d = await read("dogovor.docx");
-  assert.equal(d.status, "ok");
-  assert.match(d.text, /Договор поставки № 15/);
-  assert.match(d.text, /Сумма \| 2 000 000 ₽/);
-  const x = await read("smeta.xlsx");
-  assert.match(x.text, /\[лист «Смета»\]\nПозиция\tСумма\nПилот\t1500000/);
-  assert.equal(x.pages, 2);
-  const p = await read("deck.pptx");
-  assert.match(p.text, /\[слайд 1\]\nSalesFox\nАгентские продажи для B2B\nЗаметки: Сказать про пилот/);
-  const pdf = await read("akt.pdf");
-  assert.equal(pdf.pages, 2);
-  assert.match(pdf.text, /\[стр\. 1\]\nАкт выполненных работ № 7/);
-  assert.match(pdf.text, /\[стр\. 2\]\nСтраница два/);
-  const cp = Buffer.from([0xcf, 0xf0, 0xe8, 0xe2, 0xe5, 0xf2]); // «Привет» в windows-1251
-  assert.equal((await extractText(cp, { name: "a.txt" })).text, "Привет");
-  assert.equal((await extractText(Buffer.from("x"), { name: "old.doc" })).status, "unsupported");
-  assert.equal(docType("photo.jpg", "image/jpeg"), null);
-});
-
 test("вид файла, основа слова, что за файл в сообщении", () => {
   assert.equal(kindOf({ tgType: "voice" }), "voice");
   assert.equal(kindOf({ mime: "application/pdf", name: "a.pdf" }), "document");
@@ -137,32 +115,43 @@ test("загрузка кусками: склейка, повтор куска, 
   await assert.rejects(files.appendChunk(Readable.from([parts[1]]), { uploadId: "../../x", index: 0, total: 1, name: "a" }), /Неверный/);
 });
 
-test("документ из Telegram: сохраняется, читается, Кира отвечает по тексту", { skip: !haveDb }, async () => {
+test("документ из Telegram: кладётся в каталог без чтения и без ИИ; дубль не создаётся", { skip: !haveDb }, async () => {
   const buf = fs.readFileSync(path.join(FX, "dogovor.docx"));
   const kf = await bridgeUpload(buf, "dogovor.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-  script.push((messages) => {
-    const u = messages.at(-1).content;
-    assert.match(u, /Владелец прислал файл #\d+ «dogovor\.docx»/);
-    assert.match(u, /Договор поставки № 15/);
-    assert.match(u, /Подписи нет/);
-    return { role: "assistant", content: "Договор поставки с Альфа-Строй на 2 млн, сохранила." };
-  });
+  const calls = seen.length;
   const r = await bridge("POST", "/api/bridge/update", { ...update({ document: { file_id: "DOC1", file_unique_id: "U1", file_name: "dogovor.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", file_size: buf.length } }), kira_file: kf });
-  assert.match(r.data.actions[0].params.text, /Договор поставки/);
+  assert.equal(r.data.actions[0].params.text, "Положила в каталог: «dogovor.docx».");
+  assert.equal(seen.length, calls, "ИИ не вызывался");
   const [f] = await db.query("SELECT * FROM storage_files WHERE tg_file_id = 'DOC1'");
   assert.equal(f.kind, "document");
-  assert.equal(f.text_status, "ok");
+  assert.equal(f.text_status, "none");
+  assert.equal(f.text, null);
   assert.equal(f.sha256.length, 64);
-  // описание — в фоне, при следующем такте
   await bridge("GET", "/api/bridge/outbox");
-  const [d] = await db.query("SELECT summary, keywords FROM storage_files WHERE id = ?", [f.id]);
-  assert.match(d.summary, /Договор поставки/);
-  assert.match(d.keywords, /Альфа-Строй/);
+  assert.equal((await db.query("SELECT summary FROM storage_files WHERE id = ?", [f.id]))[0].summary, null, "документ не описывается по содержимому");
+  // Кира помнит, что ей прислали
+  const [mem] = await db.query("SELECT content FROM messages WHERE role = 'user' ORDER BY id DESC LIMIT 1");
+  assert.match(mem.content, /\[Прислал документ #\d+ «dogovor\.docx»\]/);
   // тот же файл ещё раз — дубль не создаётся
   const kf2 = await bridgeUpload(buf, "copy.docx", "application/octet-stream");
-  script.push({ role: "assistant", content: "Это тот же договор." });
-  await bridge("POST", "/api/bridge/update", { ...update({ document: { file_id: "DOC2", file_unique_id: "U2", file_name: "copy.docx" } }), kira_file: kf2 });
+  const r2 = await bridge("POST", "/api/bridge/update", { ...update({ document: { file_id: "DOC2", file_unique_id: "U2", file_name: "copy.docx" } }), kira_file: kf2 });
+  assert.match(r2.data.actions[0].params.text, /^Такой уже есть в каталоге: «dogovor\.docx»/);
   assert.equal((await db.query("SELECT COUNT(*) AS n FROM storage_files"))[0].n, 1);
+  // с текстом сообщения — Кира получает только название и описание, без содержимого
+  const kf3 = await bridgeUpload(fs.readFileSync(path.join(FX, "deck.pptx")), "deck.pptx", "application/octet-stream");
+  script.push((messages) => {
+    const u = messages.at(-1).content;
+    assert.match(u, /Владелец прислал документ #\d+ «deck\.pptx»/);
+    assert.match(u, /Содержимое документов ты не читаешь/);
+    assert.doesNotMatch(u, /Агентские продажи/);
+    assert.match(u, /\[Текст сообщения:\] презентация для инвесторов/);
+    return { role: "assistant", content: "Положила." };
+  });
+  await bridge("POST", "/api/bridge/update", { ...update({ document: { file_id: "PPT1", file_unique_id: "UP1", file_name: "deck.pptx" }, caption: "презентация для инвесторов" }), kira_file: kf3 });
+  // Кире нельзя прочитать документ и инструментом
+  const [p] = await db.query("SELECT id FROM storage_files WHERE tg_file_id = 'PPT1'");
+  script.push(toolCall("read_file", { id: p.id }), (messages) => { assert.match(lastTool(messages).error, /не читаешь/); return { role: "assistant", content: "Не читаю документы." }; });
+  await bridge("POST", "/api/bridge/update", update({ text: "что в презентации?" }));
 });
 
 test("голосовое: расшифровка — это сообщение; файл в хранилище и в архиве", { skip: !haveDb }, async () => {
@@ -187,10 +176,9 @@ test("голосовое: расшифровка — это сообщение; 
 
 test("Кира находит файл по смыслу и присылает его", { skip: !haveDb }, async () => {
   script.push(
-    toolCall("find_files", { query: "договора с Альфа-Строем" }),
+    toolCall("find_files", { query: "dogovor" }),
     (messages) => {
       const r = lastTool(messages);
-      assert.equal(r.count, 1);
       assert.equal(r.files[0].name, "dogovor.docx");
       return toolCall("send_file", { id: r.files[0].id, caption: "Договор с Альфа-Строй" });
     },
@@ -253,12 +241,10 @@ test("сайт: загрузка кусками в хранилище, спис�
   assert.equal(r.data.done, false);
   r = await call("POST", "/api/storage/upload", buf.subarray(half), { "Content-Type": "application/octet-stream", "X-Upload-Id": id, "X-Chunk": "1", "X-Chunks": "2", "X-File-Name": encodeURIComponent("Акт №7.pdf"), "X-File-Type": "application/pdf" }, true);
   assert.equal(r.data.done, true);
-  assert.equal(r.data.file.pages, 2);
-  assert.equal(r.data.file.text_status, "ok");
+  assert.equal(r.data.file.text_status, "none");
   const list = await call("GET", "/api/storage?q=акта");
   assert.equal(list.data.files[0].name, "Акт №7.pdf");
-  const one = await call("GET", `/api/storage/${r.data.file.id}`);
-  assert.match(one.data.file.text, /GlowByte/);
+  assert.equal((await call("GET", "/api/storage?q=GlowByte")).data.files.length, 0, "по содержимому документов не ищем");
   const dl = await fetch(`${base}/api/storage/${r.data.file.id}/download`, { headers: { Cookie: cookie } });
   assert.equal(Buffer.from(await dl.arrayBuffer()).length, buf.length);
   assert.equal((await call("POST", `/api/storage/${r.data.file.id}/send`)).status, 200);
@@ -299,8 +285,9 @@ test("каталог: пересланный документ — от кого,
   const kf = await bridgeUpload(buf, "smeta.xlsx", "application/octet-stream");
   script.push((messages) => {
     const u = messages.at(-1).content;
-    assert.match(u, /Владелец переслал файл #\d+ «Смета Q4\.xlsx» — переслано от иван петров \(@ivan_p\)/);
-    assert.match(u, /Текст сообщения сохранён как описание документа/);
+    assert.match(u, /Владелец переслал документ #\d+ «Смета Q4\.xlsx» — переслано от иван петров \(@ivan_p\)/);
+    assert.match(u, /Текст сообщения сохранён как описание/);
+    assert.doesNotMatch(u, /Пилот/);
     return { role: "assistant", content: "Сохранила смету от Ивана." };
   });
   const before = (await nodes.list({ kind: "attachment", limit: 500 })).length;
@@ -389,7 +376,7 @@ test("каталог: пересланное голосовое — не соо�
   const kf = await bridgeUpload(Buffer.from("OggS-forwarded-" + Date.now()), "v.ogg", "audio/ogg");
   script.push((messages) => {
     const u = messages.at(-1).content;
-    assert.match(u, /переслал файл #\d+ .*переслано из чата «отдел продаж», маша/);
+    assert.match(u, /переслал голосовое #\d+ .*переслано из чата «отдел продаж», маша/);
     assert.match(u, /\[Расшифровка записи:\]\nКлиент просит перенести поставку на декабрь/);
     return { role: "assistant", content: "Маша пишет, что клиент просит перенести поставку на декабрь." };
   });
@@ -415,4 +402,13 @@ test("миграция: старые вложения объектов попа�
   assert.equal(d.origin, "Вложение: Старый проект");
   assert.deepEqual(d.attached_to.map((a) => a.id), [pr.id]);
   assert.equal((await nodes.get(att.id)).fields.storage_id, d.id);
+});
+
+test("миграция 8: прочитанный раньше текст документов и описания по нему стираются, расшифровки остаются", { skip: !haveDb }, async () => {
+  const r = await db.query("INSERT INTO storage_files (name, kind, size, source, text, text_status, summary, created_at) VALUES ('d.pdf', 'document', 1, 'web', 'секретный текст', 'ok', 'описание по тексту', NOW(3)), ('v.ogg', 'voice', 1, 'telegram', 'расшифровка', 'ok', 'суть', NOW(3))");
+  await db.query("UPDATE schema_version SET version = 7");
+  await db.migrate();
+  const [d, v] = await db.query("SELECT text, summary, text_status FROM storage_files WHERE id IN (?, ?) ORDER BY id", [r.insertId, r.insertId + 1]);
+  assert.deepEqual([d.text, d.summary, d.text_status], [null, null, "none"]);
+  assert.deepEqual([v.text, v.summary], ["расшифровка", "суть"]);
 });

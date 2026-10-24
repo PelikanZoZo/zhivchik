@@ -8,10 +8,9 @@ import { safeEqual } from "./auth.js";
 import { sendMessageActions, fileAction } from "./telegram.js";
 import { FILE_KINDS, originOf } from "./storage.js";
 
-const INTRO = "Пиши мне обычным текстом или голосом — дела, мысли, вопросы. Разложу на задачи, напомню, когда нужно, скажу, что горит, помогу спланировать день. Присылай документы и голосовые — сохраню в хранилище, прочитаю и найду, когда понадобятся.";
-const DOC_CHARS = 15000; // сколько текста документа сразу показывать Кире (дальше — read_file)
+const INTRO = "Пиши мне обычным текстом или голосом — дела, мысли, вопросы. Разложу на задачи, напомню, когда нужно, скажу, что горит, помогу спланировать день. Присылай и пересылай документы и голосовые — сложу в каталог и найду, когда понадобятся.";
 
-export function createBot({ db, agent, cfg, storage, log = () => {} }) {
+export function createBot({ db, agent, cfg, storage, dwh, log = () => {} }) {
   async function owner() {
     return db.get("owner", null);
   }
@@ -120,26 +119,32 @@ export function createBot({ db, agent, cfg, storage, log = () => {} }) {
       });
     }
 
-    // Альбом без подписи или фото без подписи — просто подтверждаем, без ИИ
-    if ((msg.media_group_id && !caption) || (f.kind === "photo" && !caption)) {
-      return say(chatId, `Сохранила в хранилище: ${label}.${saved.duplicate ? " (Такой уже был.)" : ""}`);
+    const spoken = ["voice", "audio", "video"].includes(f.kind);
+    const kindWord = FILE_KINDS[f.kind].toLowerCase();
+    const from = forwarded ? ` — ${origin.text.toLowerCase()}` : "";
+
+    // Документ или фото без подписи — содержимое Кира не читает: просто кладёт и подтверждает, без ИИ
+    if (!spoken && !caption) {
+      const ack = `${saved.duplicate ? "Такой уже есть в каталоге" : "Положила в каталог"}: «${f.name}»${forwarded ? ` (${origin.text.replace(/^Переслано /, "")})` : ""}.`;
+      await dwh?.logMessage({ channel: "telegram", direction: "in", ...archive, text: `[${f.name}]` });
+      await dwh?.logMessage({ channel: "telegram", direction: "out", msg_type: "text", text: ack, tg_chat_id: chatId });
+      await rememberTurn(`[Прислал ${kindWord} ${label}${from}]`, ack);
+      return say(chatId, ack);
     }
 
-    const info = [
-      FILE_KINDS[f.kind], f.pages ? `${f.kind === "document" ? "стр./листов" : ""} ${f.pages}`.trim() : null,
-      fmtSize(f.size), f.duration_sec ? fmtDur(f.duration_sec) : null,
-    ].filter(Boolean).join(", ");
-    const parts = [`[Владелец ${forwarded ? `переслал файл ${label} — ${origin.text.toLowerCase()}` : `прислал файл ${label}`} (${info}). ${saved.duplicate ? "Такой файл уже был в хранилище — это он же." : "Сохранён в хранилище и в каталоге документов."}${caption ? " Текст сообщения сохранён как описание документа." : ""}]`];
-    if (f.text) {
-      parts.push(`[${["voice", "audio", "video"].includes(f.kind) ? "Расшифровка записи" : "Текст файла"}${f.text.length > DOC_CHARS ? `, начало — всего ${f.text.length} знаков, дальше через read_file` : ""}:]\n${f.text.slice(0, DOC_CHARS)}`);
-    } else {
-      parts.push(`[Текста нет: ${f.text_note || "формат без текста"}.]`);
-    }
-    parts.push(caption ? `[Подпись владельца:] ${caption}` : "[Подписи нет.]");
+    const info = [FILE_KINDS[f.kind], fmtSize(f.size), f.duration_sec ? fmtDur(f.duration_sec) : null].filter(Boolean).join(", ");
+    const parts = [`[Владелец ${forwarded ? "переслал" : "прислал"} ${kindWord} ${label}${from} (${info}). ${saved.duplicate ? "Такой файл уже был — это он же." : "Положен в каталог документов."}${caption ? " Текст сообщения сохранён как описание." : ""}${spoken ? "" : " Содержимое документов ты не читаешь — только название и описание."}]`];
+    if (spoken) parts.push(f.text ? `[Расшифровка записи:]\n${f.text.slice(0, 15000)}` : `[Расшифровать не получилось${f.text_note ? `: ${f.text_note}` : ""}.]`);
+    if (caption) parts.push(`[Текст сообщения:] ${caption}`);
     return reply(chatId, parts.join("\n\n"), {
       archive: { ...archive, text: caption || f.name },
-      historyText: `[Владелец прислал файл ${label} (${info}), сохранён в хранилище.]${caption ? `\n${caption}` : ""}`,
+      historyText: parts[0] + (caption ? `\n${caption}` : ""),
     });
+  }
+
+  // Короткая память разговора: чтобы Кира помнила, какой файл ей только что прислали
+  async function rememberTurn(userText, answer) {
+    await db.query("INSERT INTO messages (channel, role, content, created_at) VALUES ('telegram', 'user', ?, NOW(3)), ('telegram', 'assistant', ?, NOW(3))", [userText, answer]);
   }
 
   async function tooManyFails(userId) {

@@ -34,7 +34,7 @@ export async function storageView(main) {
   const data = await api("GET", `/api/storage?q=${encodeURIComponent(q)}&kind=${kind}&limit=100`);
   main.append(
     el("h1", { class: "view-title" }, "Хранилище"),
-    el("p", { class: "view-sub" }, `Всё, что ты присылал Кире и загружал сюда: документы, голосовые, фото. ${data.total.files} файлов, ${fileSize(data.total.bytes)}. Кира читает документы и расшифровывает голосовые — по ним и ищет.`),
+    el("p", { class: "view-sub" }, `Всё, что ты присылал Кире и загружал сюда: документы, голосовые, фото. ${data.total.files} файлов, ${fileSize(data.total.bytes)}. Документы Кира не читает — только названия и описания; голосовые расшифровывает.`),
   );
 
   const search = el("input", { type: "search", value: q, placeholder: "Найти: договор, смета, голосовое про…", "aria-label": "Поиск по хранилищу" });
@@ -75,7 +75,7 @@ export async function storageView(main) {
     return;
   }
   main.append(el("div", { class: "table-wrap" }, el("table", { class: "jobs files" },
-    el("thead", {}, el("tr", {}, ["Файл", "Когда", "Размер", "Текст"].map((h) => el("th", { scope: "col" }, h)))),
+    el("thead", {}, el("tr", {}, ["Файл", "Когда", "Размер", "Расшифровка"].map((h) => el("th", { scope: "col" }, h)))),
     el("tbody", {}, data.files.map((f) => el("tr", { "data-id": f.id, tabindex: 0, onclick: () => openFile(f.id), onkeydown: (e) => { if (e.key === "Enter") openFile(f.id); } },
       cell("Файл", "what",
         el("div", { class: "jt" }, el("span", { class: "ficon", "aria-hidden": "true" }, KIND_ICON[f.kind] || "📎"), " ", f.name),

@@ -238,6 +238,15 @@ const MIGRATIONS = [
     "UPDATE storage_files SET origin_type = IF(source = 'web', 'web', 'chat'), origin = IF(source = 'web', 'Загружено на сайте', 'Чат с Кирой')",
     attachmentsToCatalog,
   ],
+  // 8. Кира не читает документы: убираем извлечённый текст документов и описания, которые ИИ сделал по нему.
+  //    Расшифровки и суть голосовых и аудио остаются.
+  [
+    // описание вложения, которое Кира заполнила по содержимому документа, — тоже убрать
+    `UPDATE nodes n JOIN storage_files f ON f.id = JSON_EXTRACT(n.meta, '$.storage_id')
+       SET n.body = NULL WHERE n.kind = 'attachment' AND f.kind NOT IN ('voice', 'audio', 'video') AND f.summary IS NOT NULL AND n.body = f.summary`,
+    `UPDATE storage_files SET text = NULL, summary = NULL, keywords = NULL, pages = NULL, described_at = NULL, text_status = 'none', text_note = NULL
+       WHERE kind NOT IN ('voice', 'audio', 'video')`,
+  ],
 ];
 
 // Файлы, приложенные к объектам до появления каталога, — в реестр (сам файл не копируется)
