@@ -10,7 +10,7 @@ on:
         default: ""
   push:
     branches: [main]
-    paths: ["src/ai/**", "src/jobs/**", "src/pm/**", "src/nodes.js", "src/bot.js", "tools/ai-smoke.js", ".github/workflows/ai-check.yml"]
+    paths: ["src/ai/**", "src/jobs/**", "src/pm/**", "src/plan/**", "src/nodes.js", "src/bot.js", "tools/ai-smoke.js", ".github/workflows/ai-check.yml"]
 concurrency:
   group: ai-check
   cancel-in-progress: true
