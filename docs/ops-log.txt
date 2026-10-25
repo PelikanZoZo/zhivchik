@@ -1,11 +1,14 @@
 Запуск: 2026-10-25 12:48 UTC
-https://devalby.ru/api/health -> HTTP 200 ssl=0 redirect=
-https://www.devalby.ru/api/health -> HTTP 200 ssl=0 redirect=
-http://devalby.ru/api/health -> HTTP 301 ssl=0 redirect=https://devalby.ru/api/health
-subject=CN = *.devalby.ru
-issuer=C = US, O = Let's Encrypt, CN = YR2
-notBefore=Oct 25 11:31:22 2026 GMT
-notAfter=Jan 23 11:31:21 2027 GMT
+3
+depth=3 C = US, O = Internet Security Research Group, CN = ISRG Root X1
+depth=2 C = US, O = ISRG, CN = Root YR
+depth=1 C = US, O = Let's Encrypt, CN = YR2
+depth=0 CN = *.devalby.ru
+Verify return code: 0 (ok)
+POST http bridge -> 308 https://devalby.ru/api/bridge/update
+[кира 12:45:26 491167] GET /api/bridge/outbox 12 мс
+[кира 12:46:27 495423] GET /api/bridge/outbox 17 мс
+[кира 12:48:27 495782] GET /api/bridge/outbox 11 мс
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 301 -> https://devalby.ru/api/health | серт 0 | Moved Permanently
 https://devalby.ru/api/health -> HTTP 200 ->  | серт 20 | {"ok":true,"db":true,"version":"0.1.0"}
