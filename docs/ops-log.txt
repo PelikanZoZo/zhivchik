@@ -1,8 +1,13 @@
-Запуск: 2026-10-25 12:49 UTC
-[кира 12:46:27 495423] GET /api/bridge/outbox 17 мс
-[кира 12:48:27 495782] GET /api/bridge/outbox 11 мс
-[кира 12:49:27 496889] GET /api/bridge/outbox 10 мс
-[кира 12:50:47 496889] GET /api/bridge/outbox 12 мс
+Запуск: 2026-10-25 12:54 UTC
+file:///home/h551249/devalby.ru/www/src/db.js:355
+  if (!cfg.database || !cfg.user) throw new Error("Не заданы параметры базы (DBNAME/DBUSER)");
+                                        ^
+
+Error: Не заданы параметры базы (DBNAME/DBUSER)
+    at openDb (file:///home/h551249/devalby.ru/www/src/db.js:355:41)
+    at file:///tmp/kira-job.mjs:6:18
+
+Node.js v21.5.0
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 301 -> https://devalby.ru/api/health | серт 0 | Moved Permanently
 https://devalby.ru/api/health -> HTTP 200 ->  | серт 20 | {"ok":true,"db":true,"version":"0.1.0"}
