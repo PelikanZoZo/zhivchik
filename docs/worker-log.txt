@@ -1,17 +1,17 @@
-Выкладка: 2026-10-24 20:38 UTC
+Выкладка: 2026-10-25 12:49 UTC
 
  ⛅️ wrangler 4.152.0
 ────────────────────
 Total Upload: 10.53 KiB / gzip: 3.51 KiB
-Worker Startup Time: 2 ms
+Worker Startup Time: 1 ms
 Your Worker has access to the following bindings:
-Binding                                 Resource                  
-env.AI                                  AI                        
-env.SITE_URL ("http://devalby.ru")      Environment Variable      
+Binding                                  Resource                  
+env.AI                                   AI                        
+env.SITE_URL ("https://devalby.ru")      Environment Variable      
 
-Deployed kira-bridge triggers (0.48 sec)
+Deployed kira-bridge triggers (0.67 sec)
   schedule: * * * * *
-Current Version ID: 2486c379-50a3-495c-857d-18e3a209f336
+Current Version ID: 323bbccc-5a6c-447d-ada5-d5c636db637f
 
 Cloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md
 ✨ Successfully created secret for key: BRIDGE_SECRET
@@ -24,7 +24,7 @@ Worker отвечает: ok
 setWebhook: {"ok":true,"description":"Webhook is already set"}
 меню команд убрано: true
 кнопка меню: true
-состояние вебхука: {"pending_update_count":0,"last_error_message":"Wrong response from the webhook: 500 Internal Server Error","last_error_date":1792858795}
+состояние вебхука: {"pending_update_count":0,"last_error_message":null,"last_error_date":null}
 
 Проверка распознавания в Worker'е (синтезированное голосовое, 16684 байт, ogg/opus):
-{"ok":true,"text":"Примет, Кира. Напомни, завтра в 10 утра позвоните ристу по договору с авастрой.","ms":1412}
+{"ok":true,"text":"Примет, Кира. Напомни, завтра в 10 утра позвоните ристу по договору с авастрой.","ms":4603}
