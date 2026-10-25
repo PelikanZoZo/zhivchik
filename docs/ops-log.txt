@@ -1,13 +1,5 @@
-Запуск: 2026-10-25 12:54 UTC
-file:///home/h551249/devalby.ru/www/src/db.js:355
-  if (!cfg.database || !cfg.user) throw new Error("Не заданы параметры базы (DBNAME/DBUSER)");
-                                        ^
-
-Error: Не заданы параметры базы (DBNAME/DBUSER)
-    at openDb (file:///home/h551249/devalby.ru/www/src/db.js:355:41)
-    at file:///tmp/kira-job.mjs:6:18
-
-Node.js v21.5.0
+Запуск: 2026-10-25 12:55 UTC
+поставлено: #6 «Проверить продление сертификата HTTPS» — 2027-01-18 10:00 (разово, 2027-01-18 10:00); придёт: «Через 5 дней, 23 января, истекает сертификат HTTPS для devalby.ru. Проверь в панели хостинга, что Let's Encrypt его продлил.»
 --- снаружи, через интернет:
 http://devalby.ru/api/health -> HTTP 301 -> https://devalby.ru/api/health | серт 0 | Moved Permanently
 https://devalby.ru/api/health -> HTTP 200 ->  | серт 20 | {"ok":true,"db":true,"version":"0.1.0"}
