@@ -1,7 +1,13 @@
-Запуск: 2026-10-24 23:03 UTC
-[кира 23:03:28 186883] база готова, схема v10
+Запуск: 2026-10-25 12:48 UTC
+https://devalby.ru/api/health -> HTTP 200 ssl=0 redirect=
+https://www.devalby.ru/api/health -> HTTP 200 ssl=0 redirect=
+http://devalby.ru/api/health -> HTTP 301 ssl=0 redirect=https://devalby.ru/api/health
+subject=CN = *.devalby.ru
+issuer=C = US, O = Let's Encrypt, CN = YR2
+notBefore=Oct 25 11:31:22 2026 GMT
+notAfter=Jan 23 11:31:21 2027 GMT
 --- снаружи, через интернет:
-http://devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
-https://devalby.ru/api/health -> HTTP 404 ->  | серт 18 | 404 page not found 
-http://www.devalby.ru/api/health -> HTTP 200 ->  | серт 0 | {"ok":true,"db":true,"version":"0.1.0"}
-https://www.devalby.ru/api/health -> HTTP 404 ->  | серт 18 | 404 page not found 
+http://devalby.ru/api/health -> HTTP 301 -> https://devalby.ru/api/health | серт 0 | Moved Permanently
+https://devalby.ru/api/health -> HTTP 200 ->  | серт 20 | {"ok":true,"db":true,"version":"0.1.0"}
+http://www.devalby.ru/api/health -> HTTP 301 -> https://www.devalby.ru/api/health | серт 0 | Moved Permanently
+https://www.devalby.ru/api/health -> HTTP 200 ->  | серт 20 | {"ok":true,"db":true,"version":"0.1.0"}
