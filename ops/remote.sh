@@ -1,21 +1,27 @@
-# Напоминание о продлении сертификата HTTPS — через API сайта (вход паролем из .env, пароль не выводится)
-cd ~/devalby.ru/www && cat > /tmp/kira-job.mjs <<'JS'
+# Проверка личного чата на хостинге: ответ идёт потоком (не одним куском), в журнал текст не попадает
+cd ~/devalby.ru/www && cat > /tmp/kira-pc.mjs <<'JS'
 const { loadDotEnv } = await import(process.cwd() + "/src/config.js");
 loadDotEnv();
 const base = "https://devalby.ru";
 const login = await fetch(base + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: process.env.ADMIN_PASSWORD }) });
-if (!login.ok) { console.log("вход не удался:", login.status); process.exit(1); }
 const cookie = login.headers.get("set-cookie").split(";")[0];
-const h = { "Content-Type": "application/json", Cookie: cookie, Origin: base };
-const list = await (await fetch(base + "/api/jobs?status=active", { headers: h })).json();
-const same = (list.jobs || []).find((j) => /сертификат/i.test(j.title));
-if (same) { console.log(`уже есть: #${same.id} ${same.title} — ${same.next_run}`); process.exit(0); }
-const r = await fetch(base + "/api/jobs", { method: "POST", headers: h, body: JSON.stringify({
-  title: "Проверить продление сертификата HTTPS",
-  message: "Через 5 дней, 23 января, истекает сертификат HTTPS для devalby.ru. Проверь в панели хостинга, что Let's Encrypt его продлил.",
-  action: "remind", run_at: "2027-01-18 10:00",
-}) });
-const d = await r.json();
-console.log(r.ok ? `поставлено: #${d.job.id} «${d.job.title}» — ${d.job.next_run} (${d.job.schedule_text}); придёт: «${d.job.message}»` : `ошибка: ${r.status} ${d.error}`);
+const t0 = Date.now();
+const res = await fetch(base + "/api/private-chat", { method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie, Origin: base },
+  body: JSON.stringify({ messages: [{ role: "user", content: "Перечисли пять самых больших городов России, по одному на строку, без пояснений" }] }) });
+console.log("HTTP", res.status, res.headers.get("content-type"));
+let chunks = 0, first = null, text = "", meta = null;
+const dec = new TextDecoder();
+for await (const c of res.body) {
+  chunks++; if (first === null) first = Date.now() - t0;
+  for (const l of dec.decode(c, { stream: true }).split("\n\n")) {
+    if (!l.startsWith("data:")) continue;
+    const e = JSON.parse(l.slice(5));
+    if (e.done) meta = e; else if (e.error) console.log("ошибка:", e.error); else text += e.content || "";
+  }
+}
+console.log(`кусков по сети: ${chunks}, первый через ${first} мс, всего ${Date.now() - t0} мс`);
+console.log("ответ:", JSON.stringify(text));
+console.log("модель:", meta?.model, "токены:", JSON.stringify(meta?.usage));
 JS
-/usr/nvm/versions/node/v21.5.0/bin/node /tmp/kira-job.mjs 2>&1 | grep -v -i "password"; rm -f /tmp/kira-job.mjs
+/usr/nvm/versions/node/v21.5.0/bin/node /tmp/kira-pc.mjs 2>&1 | grep -v -i password; rm -f /tmp/kira-pc.mjs
+echo "в журнале сайта упоминаний вопроса: $(grep -a -c "больших городов" ~/log/devalby.ru.error.log)"
