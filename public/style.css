@@ -516,3 +516,51 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .plan-tools .check { white-space: nowrap; }
 .plan-head > div:first-child { flex: 1 1 420px; min-width: 0; }
 .plan-tools { min-width: 0; justify-content: flex-end; }
+
+/* личный чат с DeepSeek */
+.main.pc-main { max-width: 920px; display: flex; flex-direction: column; height: 100vh; padding-bottom: 16px; }
+.pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.pc-note { color: var(--muted); font-size: 13px; margin: 2px 0 8px; max-width: 560px; }
+.pc-tools { display: flex; gap: 8px; align-items: center; }
+.pc-tools .tab { border: 0; background: transparent; font: inherit; cursor: pointer; }
+.pc-settings { font-size: 14px; margin-bottom: 8px; }
+.pc-settings summary { cursor: pointer; color: var(--muted); }
+.pc-settings label { display: block; color: var(--muted); font-size: 13px; margin: 10px 0 4px; }
+.pc-settings textarea { width: 100%; }
+.pc-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 8px 2px 16px; min-height: 0; }
+.pc-empty { margin: auto; text-align: center; color: var(--muted); }
+.pc-empty p:first-child { font-size: 20px; color: var(--ink); margin-bottom: 4px; }
+.pc-msg { max-width: 92%; }
+.pc-msg.user { align-self: flex-end; background: var(--accent); color: var(--surface); padding: 10px 14px; border-radius: 14px 14px 4px 14px; }
+.pc-msg.bot { align-self: flex-start; width: 100%; max-width: 100%; }
+.pc-msg.bot.error .pc-text { color: var(--danger); }
+.pc-text.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
+.pc-text.md { line-height: 1.6; overflow-wrap: anywhere; }
+.pc-text.md > :first-child { margin-top: 0; }
+.pc-text.md p { margin: 0 0 10px; }
+.pc-text.md ul, .pc-text.md ol { margin: 0 0 10px; padding-left: 22px; }
+.pc-text.md h3, .pc-text.md h4, .pc-text.md h5, .pc-text.md h6 { margin: 14px 0 6px; }
+.pc-text.md code { background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.pc-text.md pre { position: relative; background: #1d2427; color: #e6ecee; border-radius: 10px; padding: 34px 14px 12px; overflow-x: auto; margin: 0 0 12px; }
+.pc-text.md pre code { background: none; border: 0; padding: 0; color: inherit; white-space: pre; }
+.pc-text.md pre code[data-lang]::before { content: attr(data-lang); position: absolute; top: 8px; left: 14px; font-size: 11px; color: #9fb0b6; }
+.pc-copy { position: absolute; top: 6px; right: 8px; font-size: 12px; background: transparent; color: #9fb0b6; border: 1px solid #3a474c; border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+.pc-text.md blockquote { margin: 0 0 10px; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.pc-table { overflow-x: auto; margin: 0 0 12px; }
+.pc-table table { border-collapse: collapse; font-size: 14px; }
+.pc-table th, .pc-table td { border: 1px solid var(--line); padding: 5px 9px; text-align: left; }
+.pc-reason { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.pc-reason summary { cursor: pointer; }
+.pc-reason-text { white-space: pre-wrap; border-left: 2px solid var(--line); padding-left: 10px; margin-top: 6px; max-height: 300px; overflow-y: auto; }
+.pc-actions { display: flex; gap: 14px; align-items: center; font-size: 13px; margin-top: 2px; }
+.pc-typing { display: flex; gap: 4px; padding: 8px 0; }
+.pc-typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: pc-blink 1.2s infinite both; }
+.pc-typing span:nth-child(2) { animation-delay: .2s; } .pc-typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes pc-blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+.pc-composer { display: flex; gap: 8px; align-items: flex-end; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 8px; }
+.pc-input { flex: 1; border: 0; resize: none; background: transparent; font: inherit; max-height: 260px; padding: 6px; outline: none; }
+.pc-send.stop { background: var(--danger); border-color: var(--danger); }
+@media (max-width: 720px) { .main.pc-main { height: calc(100vh - 52px); padding-top: 16px; } .pc-msg { max-width: 100%; } }
+.pc-composer textarea.pc-input { min-height: 0; height: 38px; border: 0; box-shadow: none; background: transparent; padding: 8px 6px; line-height: 1.4; }
+.pc-composer textarea.pc-input:focus { outline: none; box-shadow: none; }
+.pc-composer:focus-within { border-color: var(--accent); }

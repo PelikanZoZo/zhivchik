@@ -6,6 +6,7 @@ import { today, inbox, tasks, coreList, people, changes, assistant, settings } f
 import { jobsView, openJobDrawer } from "./js/jobs.js";
 import { storageView, archiveView, catalogView } from "./js/storage.js";
 import { planView } from "./js/plan.js";
+import { privateChatView } from "./js/private-chat.js";
 
 hooks.openItem = openItem;
 hooks.openJob = openJobDrawer;
@@ -19,7 +20,7 @@ const ROUTES = {
   tracks: (m) => coreList(m, { kind: "track" }),
   projects: (m) => coreList(m, { kind: "project" }),
   missions: (m) => coreList(m, { kind: "mission" }),
-  people, changes, assistant, settings, jobs: jobsView, storage: storageView, archive: archiveView, catalog: catalogView,
+  people, changes, assistant, settings, jobs: jobsView, storage: storageView, archive: archiveView, catalog: catalogView, deepseek: privateChatView,
 };
 
 // ---------- вход ----------
@@ -74,7 +75,7 @@ async function render() {
   const main = $("#main");
   main.replaceChildren();
   try {
-    main.classList.remove("plan-main");
+    main.classList.remove("plan-main", "pc-main");
     if (r.view === "object") await objectView(main, r);
     else if (r.view === "plan") await planView(main, r);
     else await ROUTES[r.view](main, r);

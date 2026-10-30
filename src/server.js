@@ -18,6 +18,7 @@ import { openDb } from "./db.js";
 import { Nodes, ValidationError } from "./nodes.js";
 import { createAuth, parseCookies, safeEqual } from "./auth.js";
 import { createDeepSeek } from "./ai/deepseek.js";
+import { createPrivateChat } from "./ai/private-chat.js";
 import { createAgent } from "./ai/agent.js";
 import { createWeb } from "./ai/web.js";
 import { createBot } from "./bot.js";
@@ -46,6 +47,7 @@ const MIME = {
 export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
   const auth = createAuth(cfg);
   const llm = llmOverride || createDeepSeek(cfg.deepseek);
+  const privateChat = createPrivateChat(cfg.deepseek || {});
   let ready = null; // промис готовности: база открыта и обновлена
 
   async function services() {
@@ -252,6 +254,31 @@ export function createApp(cfg, { llm: llmOverride, dbOverride } = {}) {
     const days = Math.min(+query.days || 7, 90);
     return { changes: await nodes.changes({ since: new Date(Date.now() - days * 86400e3), limit: 300, root: query.root ? +query.root : undefined }) };
   });
+
+  // --- личный чат с DeepSeek: без логирования (ничего не сохраняется и не пишется в журнал) ---
+  route("POST", "/api/private-chat", async ({ req, res, body }) => {
+    const ctrl = new AbortController();
+    res.on("close", () => { if (!res.writableEnded) ctrl.abort(); });
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-store", "X-Accel-Buffering": "no", Connection: "keep-alive" });
+    };
+    const sendEvent = (obj) => { start(); res.write(`data: ${JSON.stringify(obj)}\n\n`); };
+    try {
+      const r = await privateChat.stream(body, { signal: ctrl.signal, onDelta: (d) => sendEvent(d) });
+      sendEvent({ done: true, usage: r.usage, model: r.model, finish: r.finish });
+    } catch (e) {
+      if (ctrl.signal.aborted) { res.end(); return undefined; }
+      if (!started) throw e; // ошибка до ответа — обычным JSON
+      sendEvent({ error: e.expose ? e.message : "Ошибка DeepSeek" });
+    }
+    res.end();
+    return undefined;
+  });
+
+  route("GET", "/api/private-chat/models", async () => ({ models: privateChat.models }));
 
   // --- ассистент на сайте ---
   route("GET", "/api/chat", async () => {
