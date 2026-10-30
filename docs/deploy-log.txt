@@ -1,5 +1,3 @@
-Transferring file `outbox.js'
-Transferring file `package.json'
 Transferring file `server.js'
 Transferring file `storage.js'
 Transferring file `telegram.js'
@@ -12,8 +10,9 @@ Transferring file `ai/deepseek.js'
 Transferring file `jobs/runner.js'
 Transferring file `plan/schedule.js'
 Transferring file `pm/risk-ai.js'
-Transferring file `ai/tools.js'
+Transferring file `ai/private-chat.js'
 Transferring file `pm/schema.js'
+Transferring file `ai/tools.js'
 Transferring file `ai/web.js'
 Transferring file `app.js'
 Transferring file `icon.svg'
@@ -25,6 +24,7 @@ Transferring file `js/jobs.js'
 Transferring file `js/object.js'
 Transferring file `vendor/dhtmlx-gantt/LICENSE.md'
 Transferring file `js/plan.js'
+Transferring file `js/private-chat.js'
 Transferring file `js/storage.js'
 Transferring file `vendor/dhtmlx-gantt/dhtmlxgantt.css'
 Transferring file `js/views.js'
@@ -39,7 +39,12 @@ www/public/
 www/src/
 www/tmp/
 итог заливки: 0
---- проверка 2026-10-24 22:52 UTC
-health: {"ok":true,"db":true,"version":"0.1.0"}
-главная (http): 200 -> 
-сертификат: 1 (0 — в порядке)
+--- проверка 2026-10-30 14:45 UTC
+health: Moved Permanently
+health: Moved Permanently
+health: Moved Permanently
+health: Moved Permanently
+health: Moved Permanently
+health: Moved Permanently
+главная (http): 301 -> https://devalby.ru/
+сертификат: 0 (0 — в порядке)
